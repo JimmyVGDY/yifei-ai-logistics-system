@@ -4,7 +4,7 @@ server:
 spring:
   datasource:
     driver-class-name: ${SPRING_DATASOURCE_DRIVER:com.mysql.cj.jdbc.Driver}
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/practice_dev?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/logistics_management?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${SPRING_DATASOURCE_USERNAME:root}
     password: ${SPRING_DATASOURCE_PASSWORD:}
     hikari:
@@ -50,8 +50,10 @@ spring:
       transport:
         dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8858}
         port: ${SENTINEL_API_PORT:8719}
+        heartbeat-interval-ms: ${SENTINEL_HEARTBEAT_INTERVAL_MS:10000}
       filter:
         enabled: true
+      web-context-unify: false
 
 management:
   endpoints:
@@ -83,3 +85,10 @@ app:
     demo-exchange: ${RABBITMQ_DEMO_EXCHANGE:practice.demo.exchange}
     demo-queue: ${RABBITMQ_DEMO_QUEUE:practice.demo.queue}
     demo-routing-key: ${RABBITMQ_DEMO_ROUTING_KEY:practice.demo.routing-key}
+  logistics:
+    cache-prefix: ${LOGISTICS_CACHE_PREFIX:logistics}
+    order-cache-ttl-seconds: ${LOGISTICS_ORDER_CACHE_TTL_SECONDS:1800}
+    mq:
+      order-exchange: ${LOGISTICS_ORDER_EXCHANGE:logistics.order.exchange}
+      order-created-queue: ${LOGISTICS_ORDER_CREATED_QUEUE:logistics.order.created.queue}
+      order-created-routing-key: ${LOGISTICS_ORDER_CREATED_ROUTING_KEY:logistics.order.created}
