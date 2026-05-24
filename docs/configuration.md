@@ -20,6 +20,16 @@
 | `ELASTICSEARCH_URIS` | `http://127.0.0.1:9200` | Elasticsearch 地址 |
 | `ELASTICSEARCH_USERNAME` | 空 | Elasticsearch 用户名 |
 | `ELASTICSEARCH_PASSWORD` | 空 | Elasticsearch 密码 |
+| `REDIS_HOST` | `127.0.0.1` | Redis 地址 |
+| `REDIS_PORT` | `6379` | Redis 端口 |
+| `REDIS_PASSWORD` | 空 | Redis 密码 |
+| `REDIS_DATABASE` | `0` | Redis 数据库编号 |
+| `RABBITMQ_HOST` | `127.0.0.1` | RabbitMQ 地址 |
+| `RABBITMQ_PORT` | `5672` | RabbitMQ AMQP 端口 |
+| `RABBITMQ_USERNAME` | `guest` | RabbitMQ 用户名 |
+| `RABBITMQ_PASSWORD` | `guest` | RabbitMQ 密码 |
+| `BLOOM_FILTER_EXPECTED_INSERTIONS` | `100000` | 布隆过滤器预计写入数量 |
+| `BLOOM_FILTER_FALSE_POSITIVE_PROBABILITY` | `0.01` | 布隆过滤器误判率 |
 
 ## Nacos 配置命名
 
@@ -55,3 +65,45 @@ Spring Boot 会根据 `spring.elasticsearch.uris` 自动创建 Elasticsearch 客
 
 - `ElasticsearchOperations`
 - Spring Data Elasticsearch Repository
+
+## Redis
+
+项目默认连接本机 Redis：
+
+```text
+127.0.0.1:6379
+```
+
+可直接注入：
+
+- `StringRedisTemplate`
+- `RedisTemplate`
+- Spring Cache 后续扩展
+
+## RabbitMQ
+
+项目默认连接本机 RabbitMQ：
+
+```text
+AMQP: 127.0.0.1:5672
+Management: http://127.0.0.1:15672
+```
+
+默认创建：
+
+```text
+Exchange: practice.demo.exchange
+Queue: practice.demo.queue
+Routing Key: practice.demo.routing-key
+```
+
+## Bloom Filter
+
+布隆过滤器使用 Guava 实现，适合做防缓存穿透、快速存在性判断等场景。
+
+默认参数：
+
+```text
+expectedInsertions = 100000
+falsePositiveProbability = 0.01
+```

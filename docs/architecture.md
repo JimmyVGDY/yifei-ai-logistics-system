@@ -39,6 +39,9 @@ practice-project-about-develop
 - Nacos Config: 配置中心，使用 `bootstrap.yml` 加载。
 - Sentinel: 流量控制、熔断降级和 Dashboard 上报。
 - Elasticsearch: Spring Data Elasticsearch 客户端和 Repository 支持。
+- Redis: 本地缓存、Key-Value 操作和后续分布式能力预留。
+- RabbitMQ: 消息发送、交换机、队列和绑定配置。
+- Bloom Filter: 基于 Guava 的布隆过滤器框架，兼容 Java 8。
 
 ## 示例接口
 
@@ -47,3 +50,8 @@ practice-project-about-develop
 - `GET /infra/nacos/instances?serviceId=xxx`: 查看指定服务实例。
 - `GET /infra/sentinel/ping`: Sentinel 资源示例接口。
 - `GET /infra/elasticsearch/client`: 查看 Elasticsearch 客户端 Bean 信息。
+- `GET /infra/redis/client`: 验证 Redis 客户端连接。
+- `GET /infra/rabbitmq/client`: 查看 RabbitMQ 连接配置。
+- `POST /bloom-filter/items?value=xxx`: 写入布隆过滤器。
+- `GET /bloom-filter/items?value=xxx`: 判断值是否可能存在。
+- `POST /rabbitmq/messages?message=hello`: 发送 RabbitMQ 示例消息。

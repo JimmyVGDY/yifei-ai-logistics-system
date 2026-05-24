@@ -11,6 +11,9 @@ A Spring Boot practice project with basic integrations for Nacos, Sentinel and E
 - Nacos Discovery / Config
 - Sentinel
 - Spring Data Elasticsearch
+- Spring Data Redis
+- RabbitMQ
+- Guava Bloom Filter
 - Maven
 
 ## Run

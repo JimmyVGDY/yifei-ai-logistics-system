@@ -7,6 +7,8 @@
 - Nacos 2.x
 - Sentinel Dashboard
 - Elasticsearch 7.x
+- Redis 5.x
+- RabbitMQ 4.1.x
 
 当前项目基于 Spring Boot `2.7.18`，依赖版本通过 `pom.xml` 中的 Spring Cloud 与 Spring Cloud Alibaba BOM 统一管理。
 
@@ -46,6 +48,41 @@ http://127.0.0.1:9200
 
 如地址不同，设置环境变量 `ELASTICSEARCH_URIS`。
 
+### Redis
+
+本机开发环境默认安装位置：
+
+```text
+F:\Development\Middleware\redis\redis-5.0.14.1
+```
+
+默认连接：
+
+```text
+127.0.0.1:6379
+```
+
+### RabbitMQ
+
+本机开发环境默认安装位置：
+
+```text
+F:\Development\Middleware\rabbitmq\rabbitmq_server-4.1.8
+```
+
+RabbitMQ 4.1.x 需要 Erlang/OTP 26 或 27，当前本地使用：
+
+```text
+F:\Development\Middleware\erlang\otp-27.3.4.10
+```
+
+默认访问：
+
+```text
+AMQP: 127.0.0.1:5672
+Management: http://127.0.0.1:15672
+```
+
 ## 启动应用
 
 ```bash
@@ -65,6 +102,11 @@ GET http://127.0.0.1:8080/infra/status
 GET http://127.0.0.1:8080/infra/nacos/services
 GET http://127.0.0.1:8080/infra/sentinel/ping
 GET http://127.0.0.1:8080/infra/elasticsearch/client
+GET http://127.0.0.1:8080/infra/redis/client
+GET http://127.0.0.1:8080/infra/rabbitmq/client
+POST http://127.0.0.1:8080/bloom-filter/items?value=demo
+GET http://127.0.0.1:8080/bloom-filter/items?value=demo
+POST http://127.0.0.1:8080/rabbitmq/messages?message=hello
 GET http://127.0.0.1:8080/actuator/health
 ```
 

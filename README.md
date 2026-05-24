@@ -11,6 +11,9 @@
 - Nacos Discovery / Config
 - Sentinel
 - Spring Data Elasticsearch
+- Spring Data Redis
+- RabbitMQ
+- Guava Bloom Filter
 - Maven
 
 ## 快速开始
@@ -75,6 +78,10 @@ GET /actuator/health
 NACOS_SERVER_ADDR=127.0.0.1:8848
 SENTINEL_DASHBOARD=127.0.0.1:8858
 ELASTICSEARCH_URIS=http://127.0.0.1:9200
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+RABBITMQ_HOST=127.0.0.1
+RABBITMQ_PORT=5672
 SERVER_PORT=8080
 ```
 

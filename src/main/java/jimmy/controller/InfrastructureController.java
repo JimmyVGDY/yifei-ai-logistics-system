@@ -46,6 +46,16 @@ public class InfrastructureController {
         return infrastructureStatusService.elasticsearchClient();
     }
 
+    @GetMapping("/redis/client")
+    public InfrastructureStatus redisClient() {
+        return infrastructureStatusService.redisClient();
+    }
+
+    @GetMapping("/rabbitmq/client")
+    public InfrastructureStatus rabbitmqClient() {
+        return infrastructureStatusService.rabbitmqClient();
+    }
+
     public InfrastructureStatus sentinelFallback() {
         return infrastructureStatusService.sentinelFallback();
     }
