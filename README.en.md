@@ -14,6 +14,8 @@ A Spring Boot practice project with basic integrations for Nacos, Sentinel and E
 - Spring Data Redis
 - RabbitMQ
 - Guava Bloom Filter
+- MyBatis
+- MySQL 8.4 / H2
 - Maven
 
 ## Run
@@ -41,3 +43,4 @@ GET http://127.0.0.1:8080/infra/status
 - [Architecture](docs/architecture.md)
 - [Configuration](docs/configuration.md)
 - [Local Development](docs/local-development.md)
+- [MyBatis](docs/mybatis.md)

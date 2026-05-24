@@ -4,6 +4,7 @@
 
 - JDK 8
 - Maven 3.6+
+- MySQL 8.4
 - Nacos 2.x
 - Sentinel Dashboard
 - Elasticsearch 7.x
@@ -12,68 +13,50 @@
 
 当前项目基于 Spring Boot `2.7.18`，依赖版本通过 `pom.xml` 中的 Spring Cloud 与 Spring Cloud Alibaba BOM 统一管理。
 
+## 本机中间件位置
+
+```text
+MySQL:        F:\Development\Database\MySQL\Server-8.4.9
+Redis:        F:\Development\Middleware\redis\redis-5.0.14.1
+RabbitMQ:     F:\Development\Middleware\rabbitmq\rabbitmq_server-4.1.8
+Erlang:       F:\Development\Middleware\erlang\otp-27.3.4.10
+脚本目录:     F:\Development\Middleware\scripts
+```
+
 ## 启动基础组件
 
-### Nacos
+### MySQL
 
-下载并启动 Nacos 后，确认控制台能打开：
-
-```text
-http://127.0.0.1:8848/nacos
-```
-
-默认账号密码：
+服务名：
 
 ```text
-nacos / nacos
-```
-
-### Sentinel Dashboard
-
-启动 Dashboard，并保持地址为：
-
-```text
-127.0.0.1:8858
-```
-
-如端口不同，设置环境变量 `SENTINEL_DASHBOARD`。
-
-### Elasticsearch
-
-确认 Elasticsearch 可以访问：
-
-```text
-http://127.0.0.1:9200
-```
-
-如地址不同，设置环境变量 `ELASTICSEARCH_URIS`。
-
-### Redis
-
-本机开发环境默认安装位置：
-
-```text
-F:\Development\Middleware\redis\redis-5.0.14.1
+MySQL84
 ```
 
 默认连接：
 
 ```text
-127.0.0.1:6379
+127.0.0.1:3306
+root / 空密码
+database: practice_dev
+```
+
+### Redis
+
+```powershell
+F:\Development\Middleware\scripts\start-redis.ps1
+```
+
+验证：
+
+```powershell
+F:\Development\Middleware\redis\redis-5.0.14.1\redis-cli.exe ping
 ```
 
 ### RabbitMQ
 
-本机开发环境默认安装位置：
-
-```text
-F:\Development\Middleware\rabbitmq\rabbitmq_server-4.1.8
-```
-
-RabbitMQ 4.1.x 需要 Erlang/OTP 26 或 27，当前本地使用：
-
-```text
-F:\Development\Middleware\erlang\otp-27.3.4.10
+```powershell
+F:\Development\Middleware\scripts\start-rabbitmq.ps1
 ```
 
 默认访问：
@@ -81,6 +64,26 @@ F:\Development\Middleware\erlang\otp-27.3.4.10
 ```text
 AMQP: 127.0.0.1:5672
 Management: http://127.0.0.1:15672
+guest / guest
+```
+
+### Nacos
+
+```text
+http://127.0.0.1:8848/nacos
+nacos / nacos
+```
+
+### Sentinel Dashboard
+
+```text
+127.0.0.1:8858
+```
+
+### Elasticsearch
+
+```text
+http://127.0.0.1:9200
 ```
 
 ## 启动应用
@@ -98,16 +101,19 @@ http://127.0.0.1:8080/infra/status
 ## 常用验证接口
 
 ```text
-GET http://127.0.0.1:8080/infra/status
-GET http://127.0.0.1:8080/infra/nacos/services
-GET http://127.0.0.1:8080/infra/sentinel/ping
-GET http://127.0.0.1:8080/infra/elasticsearch/client
-GET http://127.0.0.1:8080/infra/redis/client
-GET http://127.0.0.1:8080/infra/rabbitmq/client
+GET  http://127.0.0.1:8080/infra/status
+GET  http://127.0.0.1:8080/infra/nacos/services
+GET  http://127.0.0.1:8080/infra/sentinel/ping
+GET  http://127.0.0.1:8080/infra/elasticsearch/client
+GET  http://127.0.0.1:8080/infra/redis/client
+GET  http://127.0.0.1:8080/infra/rabbitmq/client
+GET  http://127.0.0.1:8080/demo-users
+GET  http://127.0.0.1:8080/demo-users/detail?id=1
+POST http://127.0.0.1:8080/demo-users?username=test&displayName=Test
 POST http://127.0.0.1:8080/bloom-filter/items?value=demo
-GET http://127.0.0.1:8080/bloom-filter/items?value=demo
+GET  http://127.0.0.1:8080/bloom-filter/items?value=demo
 POST http://127.0.0.1:8080/rabbitmq/messages?message=hello
-GET http://127.0.0.1:8080/actuator/health
+GET  http://127.0.0.1:8080/actuator/health
 ```
 
 ## IDEA 使用建议
@@ -115,4 +121,4 @@ GET http://127.0.0.1:8080/actuator/health
 1. 使用 JDK 8 打开项目。
 2. 等待 Maven 依赖加载完成。
 3. 运行 `jimmy.DemoApplication`。
-4. 如果本地没有启动 Nacos、Sentinel 或 Elasticsearch，先启动这些基础服务，或者改成本机实际地址。
+4. 已配置 IDEA 支持在代码编辑页按住 `Ctrl` 并滚动鼠标滚轮缩放字体，重启 IDEA 后生效。
