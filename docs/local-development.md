@@ -122,6 +122,13 @@ http://127.0.0.1:5173
 
 Vite 已将 `/api` 代理到后端 `http://127.0.0.1:8080`。
 
+默认 `dev` 环境下，后端启动完成后会自动启动前端并打开浏览器。需要关闭时可设置：
+
+```text
+LOCAL_FRONTEND_AUTO_START=false
+LOCAL_FRONTEND_AUTO_OPEN=false
+```
+
 ## 常用验证接口
 
 ```text

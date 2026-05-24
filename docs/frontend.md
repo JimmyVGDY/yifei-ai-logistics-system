@@ -26,6 +26,21 @@ npm run dev
 http://127.0.0.1:5173
 ```
 
+## 后端启动后自动打开
+
+当前 `dev` 环境下，后端启动完成后会自动启动前端 Vite 服务并打开浏览器：
+
+```text
+http://127.0.0.1:5173
+```
+
+如果临时不想自动启动或自动打开，可以设置：
+
+```text
+LOCAL_FRONTEND_AUTO_START=false
+LOCAL_FRONTEND_AUTO_OPEN=false
+```
+
 ## 后端代理
 
 前端开发环境通过 Vite 代理访问后端：

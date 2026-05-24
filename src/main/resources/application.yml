@@ -92,3 +92,8 @@ app:
       order-exchange: ${LOGISTICS_ORDER_EXCHANGE:logistics.order.exchange}
       order-created-queue: ${LOGISTICS_ORDER_CREATED_QUEUE:logistics.order.created.queue}
       order-created-routing-key: ${LOGISTICS_ORDER_CREATED_ROUTING_KEY:logistics.order.created}
+  local-frontend:
+    auto-start: ${LOCAL_FRONTEND_AUTO_START:true}
+    auto-open: ${LOCAL_FRONTEND_AUTO_OPEN:true}
+    url: ${LOCAL_FRONTEND_URL:http://127.0.0.1:5173}
+    working-directory: ${LOCAL_FRONTEND_WORKING_DIRECTORY:frontend}
