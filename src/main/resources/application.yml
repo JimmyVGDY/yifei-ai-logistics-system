@@ -1,0 +1,36 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://127.0.0.1:9200}
+    username: ${ELASTICSEARCH_USERNAME:}
+    password: ${ELASTICSEARCH_PASSWORD:}
+    connection-timeout: ${ELASTICSEARCH_CONNECTION_TIMEOUT:5s}
+    socket-timeout: ${ELASTICSEARCH_SOCKET_TIMEOUT:30s}
+  data:
+    elasticsearch:
+      repositories:
+        enabled: true
+  cloud:
+    sentinel:
+      eager: true
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8858}
+        port: ${SENTINEL_API_PORT:8719}
+      filter:
+        enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,sentinel
+  endpoint:
+    health:
+      show-details: when_authorized
+
+logging:
+  level:
+    com.alibaba.nacos: info
+    com.alibaba.csp.sentinel: info

@@ -1,36 +1,40 @@
-# practiceProjectAboutDevelop
+# practice-project-about-develop
 
-#### Description
-Java代码练手用
+A Spring Boot practice project with basic integrations for Nacos, Sentinel and Elasticsearch.
 
-#### Software Architecture
-Software architecture description
+## Stack
 
-#### Installation
+- Java 8
+- Spring Boot 2.7.18
+- Spring Cloud 2021.0.9
+- Spring Cloud Alibaba 2021.0.6.0
+- Nacos Discovery / Config
+- Sentinel
+- Spring Data Elasticsearch
+- Maven
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+## Run
 
-#### Instructions
+Start Nacos, Sentinel Dashboard and Elasticsearch first, then run:
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+```bash
+mvn spring-boot:run
+```
 
-#### Contribution
+Default application URL:
 
-1.  Fork the repository
-2.  Create Feat_xxx branch
-3.  Commit your code
-4.  Create Pull Request
+```text
+http://127.0.0.1:8080
+```
 
+Infrastructure status endpoint:
 
-#### Gitee Feature
+```text
+GET http://127.0.0.1:8080/infra/status
+```
 
-1.  You can use Readme\_XXX.md to support different languages, such as Readme\_en.md, Readme\_zh.md
-2.  Gitee blog [blog.gitee.com](https://blog.gitee.com)
-3.  Explore open source project [https://gitee.com/explore](https://gitee.com/explore)
-4.  The most valuable open source project [GVP](https://gitee.com/gvp)
-5.  The manual of Gitee [https://gitee.com/help](https://gitee.com/help)
-6.  The most popular members  [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Configuration](docs/configuration.md)
+- [Local Development](docs/local-development.md)

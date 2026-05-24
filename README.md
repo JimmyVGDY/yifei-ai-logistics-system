@@ -1,37 +1,81 @@
-# practiceProjectAboutDevelop
+# practice-project-about-develop
 
-#### 介绍
-Java代码练手用
+这是一个用于练习 Spring Boot 后端开发的项目。当前项目已补充 Nacos、Sentinel、Elasticsearch 相关依赖、基础配置和验证接口，适合作为微服务基础设施学习与二次开发骨架。
 
-#### 软件架构
-软件架构说明
+## 技术栈
 
+- Java 8
+- Spring Boot 2.7.18
+- Spring Cloud 2021.0.9
+- Spring Cloud Alibaba 2021.0.6.0
+- Nacos Discovery / Config
+- Sentinel
+- Spring Data Elasticsearch
+- Maven
 
-#### 安装教程
+## 快速开始
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+确认本地已经启动 Nacos、Sentinel Dashboard 和 Elasticsearch，然后运行：
 
-#### 使用说明
+```bash
+mvn spring-boot:run
+```
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+应用默认端口：
 
-#### 参与贡献
+```text
+http://127.0.0.1:8080
+```
 
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
+基础设施状态接口：
 
+```text
+GET http://127.0.0.1:8080/infra/status
+```
 
-#### 特技
+## 项目结构
 
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+```text
+src/main/java/jimmy
+├── DemoApplication.java
+├── controller
+├── model
+└── service
+```
+
+配置文件：
+
+```text
+src/main/resources/bootstrap.yml
+src/main/resources/application.yml
+```
+
+更多说明见：
+
+- [项目结构说明](docs/architecture.md)
+- [配置说明](docs/configuration.md)
+- [本地开发指南](docs/local-development.md)
+
+## 常用接口
+
+```text
+GET /infra/status
+GET /infra/nacos/services
+GET /infra/nacos/instances?serviceId=practice-project-about-develop
+GET /infra/sentinel/ping
+GET /infra/elasticsearch/client
+GET /actuator/health
+```
+
+## 环境变量
+
+项目提供了本地默认值，也可以通过环境变量覆盖：
+
+```text
+NACOS_SERVER_ADDR=127.0.0.1:8848
+SENTINEL_DASHBOARD=127.0.0.1:8858
+ELASTICSEARCH_URIS=http://127.0.0.1:9200
+SERVER_PORT=8080
+```
+
+完整配置见 [配置说明](docs/configuration.md)。

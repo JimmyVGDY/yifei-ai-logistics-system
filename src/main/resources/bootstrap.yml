@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: practice-project-about-develop
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:nacos}
+      discovery:
+        namespace: ${NACOS_DISCOVERY_NAMESPACE:}
+        group: ${NACOS_DISCOVERY_GROUP:DEFAULT_GROUP}
+      config:
+        namespace: ${NACOS_CONFIG_NAMESPACE:}
+        group: ${NACOS_CONFIG_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+        refresh-enabled: true
