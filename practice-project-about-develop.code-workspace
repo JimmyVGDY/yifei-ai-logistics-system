@@ -1,0 +1,28 @@
+{
+  "folders": [
+    {
+      "name": "backend",
+      "path": "."
+    },
+    {
+      "name": "frontend",
+      "path": "frontend"
+    }
+  ],
+  "settings": {
+    "git.path": "F:\\Development\\Git\\cmd\\git.exe",
+    "git.autofetch": true,
+    "git.confirmSync": false,
+    "typescript.tsdk": "frontend/node_modules/typescript/lib"
+  },
+  "extensions": {
+    "recommendations": [
+      "Vue.volar",
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "mhutchie.git-graph",
+      "eamodio.gitlens",
+      "donjayamanne.githistory"
+    ]
+  }
+}

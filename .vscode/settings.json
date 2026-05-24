@@ -1,0 +1,25 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "git.path": "F:\\Development\\Git\\cmd\\git.exe",
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "git.openRepositoryInParentFolders": "always",
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "files.exclude": {
+    "**/target": true,
+    "**/frontend/node_modules": true,
+    "**/frontend/dist": true
+  },
+  "terminal.integrated.cwd": "${workspaceFolder}",
+  "terminal.integrated.env.windows": {
+    "Path": "C:\\Program Files\\nodejs;F:\\Development\\Git\\cmd;F:\\Development\\Tools\\apache-maven-3.9.16\\bin;F:\\Development\\Java\\temurin-8u492-b09\\bin;${env:Path}",
+    "JAVA_HOME": "F:\\Development\\Java\\temurin-8u492-b09"
+  },
+  "eslint.workingDirectories": [
+    {
+      "directory": "frontend",
+      "changeProcessCWD": true
+    }
+  ]
+}
