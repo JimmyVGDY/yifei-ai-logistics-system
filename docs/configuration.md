@@ -16,6 +16,7 @@
 | `NACOS_SERVER_ADDR` | `127.0.0.1:8848` | Nacos 服务地址 |
 | `NACOS_USERNAME` | `nacos` | Nacos 用户名 |
 | `NACOS_PASSWORD` | `nacos` | Nacos 密码 |
+| `NACOS_REGISTER_ENABLED` | `true` | 是否向 Nacos 注册服务 |
 | `SENTINEL_DASHBOARD` | `127.0.0.1:8858` | Sentinel Dashboard 地址 |
 | `SENTINEL_API_PORT` | `8719` | Sentinel 客户端通信端口 |
 | `ELASTICSEARCH_URIS` | `http://127.0.0.1:9200` | Elasticsearch 地址 |
@@ -52,6 +53,12 @@ mvn spring-boot:run
 ## Nacos
 
 默认应用名是 `practice-project-about-develop`，默认环境是 `dev`。
+
+本地启动 Nacos：
+
+```powershell
+F:\Development\Middleware\scripts\start-nacos.ps1
+```
 
 Nacos 配置中心可以创建：
 

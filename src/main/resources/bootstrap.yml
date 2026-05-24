@@ -9,6 +9,7 @@ spring:
       username: ${NACOS_USERNAME:nacos}
       password: ${NACOS_PASSWORD:nacos}
       discovery:
+        register-enabled: ${NACOS_REGISTER_ENABLED:true}
         namespace: ${NACOS_DISCOVERY_NAMESPACE:}
         group: ${NACOS_DISCOVERY_GROUP:DEFAULT_GROUP}
       config:

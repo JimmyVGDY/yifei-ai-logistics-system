@@ -17,6 +17,7 @@
 
 ```text
 MySQL:        F:\Development\Database\MySQL\Server-8.4.9
+Nacos:        F:\Development\Middleware\nacos\nacos-2.4.3
 Redis:        F:\Development\Middleware\redis\redis-5.0.14.1
 RabbitMQ:     F:\Development\Middleware\rabbitmq\rabbitmq_server-4.1.8
 Erlang:       F:\Development\Middleware\erlang\otp-27.3.4.10
@@ -69,10 +70,16 @@ guest / guest
 
 ### Nacos
 
+```powershell
+F:\Development\Middleware\scripts\start-nacos.ps1
+```
+
 ```text
 http://127.0.0.1:8848/nacos
 nacos / nacos
 ```
+
+Nacos 2.x 除了 `8848`，还需要 `9848` 和 `9849` 两个 gRPC 端口可用。应用启动时报 `Client not connected, current status: STARTING` 时，优先检查这三个端口是否已经监听。
 
 ### Sentinel Dashboard
 
