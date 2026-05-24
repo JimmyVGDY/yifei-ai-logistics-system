@@ -89,6 +89,7 @@ src/main/resources/data.sql
 - [配置说明](docs/configuration.md)
 - [本地开发指南](docs/local-development.md)
 - [MyBatis 使用说明](docs/mybatis.md)
+- [前端工程说明](docs/frontend.md)
 
 ## 常用接口
 

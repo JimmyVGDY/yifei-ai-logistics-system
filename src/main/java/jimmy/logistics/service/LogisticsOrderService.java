@@ -7,8 +7,8 @@ import jimmy.logistics.mapper.LogisticsOrderMapper;
 import jimmy.logistics.model.CreateLogisticsOrderRequest;
 import jimmy.logistics.model.LogisticsOrderEvent;
 import jimmy.logistics.repository.LogisticsOrderSearchDocument;
-import jimmy.logistics.repository.LogisticsOrderSearchRepository;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -27,18 +27,18 @@ public class LogisticsOrderService {
     private final LogisticsOrderMapper logisticsOrderMapper;
     private final RedisTemplate<String, Object> redisTemplate;
     private final RabbitTemplate rabbitTemplate;
-    private final LogisticsOrderSearchRepository searchRepository;
+    private final ElasticsearchOperations elasticsearchOperations;
     private final LogisticsProperties logisticsProperties;
 
     public LogisticsOrderService(LogisticsOrderMapper logisticsOrderMapper,
                                  RedisTemplate<String, Object> redisTemplate,
                                  RabbitTemplate rabbitTemplate,
-                                 LogisticsOrderSearchRepository searchRepository,
+                                 ElasticsearchOperations elasticsearchOperations,
                                  LogisticsProperties logisticsProperties) {
         this.logisticsOrderMapper = logisticsOrderMapper;
         this.redisTemplate = redisTemplate;
         this.rabbitTemplate = rabbitTemplate;
-        this.searchRepository = searchRepository;
+        this.elasticsearchOperations = elasticsearchOperations;
         this.logisticsProperties = logisticsProperties;
     }
 
@@ -135,7 +135,11 @@ public class LogisticsOrderService {
         document.setReceiverAddress(logisticsOrder.getReceiverAddress());
         document.setCargoName(logisticsOrder.getCargoName());
         document.setCargoWeight(logisticsOrder.getCargoWeight());
-        searchRepository.save(document);
+        try {
+            elasticsearchOperations.save(document);
+        } catch (RuntimeException ignored) {
+            // Elasticsearch is useful for search, but order creation should not fail when it is offline.
+        }
     }
 
     private void publishOrderCreated(LogisticsOrder logisticsOrder) {
