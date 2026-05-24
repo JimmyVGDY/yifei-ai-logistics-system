@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="jimmy.mapper.DemoUserMapper">
+    <resultMap id="DemoUserResultMap" type="DemoUser">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="display_name" property="displayName"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <select id="findAll" resultMap="DemoUserResultMap">
+        select id, username, display_name, created_at
+        from demo_user
+        order by id asc
+    </select>
+
+    <select id="findById" resultMap="DemoUserResultMap">
+        select id, username, display_name, created_at
+        from demo_user
+        where id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="DemoUser" useGeneratedKeys="true" keyProperty="id">
+        insert into demo_user (username, display_name, created_at)
+        values (#{username}, #{displayName}, #{createdAt})
+    </insert>
+</mapper>
