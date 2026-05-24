@@ -44,3 +44,13 @@ src/main/resources/data.sql
 - 3 条运费账单
 
 数据量不大，适合本地接口联调和后续继续扩展业务模块。
+
+## 扩展模拟数据
+
+如果需要把每张物流主表扩展到 100 条以上的演示规模，可以执行：
+
+```bash
+F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_management < scripts/sql/seed-logistics-mock-100.sql
+```
+
+脚本会生成 `MOCK-*` 前缀的数据，并且可以重复执行；已有相同业务编号的数据不会重复插入。
