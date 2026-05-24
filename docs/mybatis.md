@@ -28,7 +28,7 @@ src/main/resources/data.sql
 
 ```text
 SPRING_DATASOURCE_DRIVER=com.mysql.cj.jdbc.Driver
-SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/practice_dev?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/logistics_management?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
 SPRING_DATASOURCE_USERNAME=root
 SPRING_DATASOURCE_PASSWORD=你的密码
 SPRING_SQL_INIT_MODE=never

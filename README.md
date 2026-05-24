@@ -46,7 +46,8 @@ GET http://127.0.0.1:8080/infra/status
 MySQL 服务: MySQL84
 版本: 8.4.9
 地址: 127.0.0.1:3306
-数据库: practice_dev
+物流数据库: logistics_management
+练习数据库: practice_dev
 默认用户: root
 默认密码: 空
 ```
@@ -118,7 +119,7 @@ REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 RABBITMQ_HOST=127.0.0.1
 RABBITMQ_PORT=5672
-SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/practice_dev?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/logistics_management?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
 SPRING_DATASOURCE_USERNAME=root
 SPRING_DATASOURCE_PASSWORD=
 ```

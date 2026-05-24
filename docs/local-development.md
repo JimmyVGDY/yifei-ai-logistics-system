@@ -40,6 +40,7 @@ MySQL84
 127.0.0.1:3306
 root / 空密码
 database: practice_dev
+logistics database: logistics_management
 ```
 
 ### Redis

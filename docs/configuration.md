@@ -9,7 +9,7 @@
 | `SPRING_PROFILES_ACTIVE` | `dev` | 当前运行环境 |
 | `SERVER_PORT` | `8080` | 应用端口 |
 | `SPRING_DATASOURCE_DRIVER` | `com.mysql.cj.jdbc.Driver` | JDBC 驱动 |
-| `SPRING_DATASOURCE_URL` | `jdbc:mysql://127.0.0.1:3306/practice_dev...` | JDBC 地址 |
+| `SPRING_DATASOURCE_URL` | `jdbc:mysql://127.0.0.1:3306/logistics_management...` | JDBC 地址 |
 | `SPRING_DATASOURCE_USERNAME` | `root` | 数据库用户名 |
 | `SPRING_DATASOURCE_PASSWORD` | 空 | 数据库密码 |
 | `SPRING_SQL_INIT_MODE` | `always` | SQL 初始化模式 |
@@ -36,7 +36,7 @@
 本机默认连接：
 
 ```text
-jdbc:mysql://127.0.0.1:3306/practice_dev?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+jdbc:mysql://127.0.0.1:3306/logistics_management?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
 ```
 
 项目启动时会执行 `schema.sql` 和 `data.sql`，用于创建并初始化 `demo_user` 示例表。
