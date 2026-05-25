@@ -34,9 +34,11 @@
           <el-button v-if="canDelete" link type="danger" @click="deleteRow(row)">删除</el-button>
         </template>
       </el-table-column>
-      <el-table-column v-if="canHandleException" label="处理" width="100" fixed="right">
+      <el-table-column v-if="canHandleException" label="异常操作" width="130" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="handleExceptionRow(row)">关闭</el-button>
+          <el-button v-if="exceptionStatus(row) === 'WAIT_HANDLE'" link type="warning" @click="handleExceptionAction(row, 'PROCESSING')">开始处理</el-button>
+          <el-button v-else-if="exceptionStatus(row) === 'PROCESSING'" link type="success" @click="handleExceptionAction(row, 'CLOSED')">处理完成</el-button>
+          <el-tag v-else type="success" size="small">已处理</el-tag>
         </template>
       </el-table-column>
       <el-table-column v-if="canPayFee" label="收款" width="100" fixed="right">
@@ -428,10 +430,16 @@ async function submitException() {
   }
 }
 
-async function handleExceptionRow(row) {
-  await ElMessageBox.confirm('确认关闭这条异常记录吗？', '处理异常')
-  await handleException(row.id, { exceptionStatus: 'CLOSED' })
-  ElMessage.success('异常已关闭')
+function exceptionStatus(row) {
+  return row.exception_status || row.exceptionStatus
+}
+
+async function handleExceptionAction(row, targetStatus) {
+  const isProcessing = targetStatus === 'PROCESSING'
+  const confirmText = isProcessing ? '确认开始处理这条异常记录吗？' : '确认将这条异常标记为已处理吗？'
+  await ElMessageBox.confirm(confirmText, '异常处理')
+  await handleException(row.id, { exceptionStatus: targetStatus })
+  ElMessage.success(isProcessing ? '异常已进入处理中' : '异常已处理')
   await loadData()
 }
 

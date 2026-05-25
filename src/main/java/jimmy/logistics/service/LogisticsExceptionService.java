@@ -10,11 +10,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
 @Service
 public class LogisticsExceptionService {
+
+    private static final List<String> HANDLE_TARGET_STATUSES = Arrays.asList("PROCESSING", "CLOSED");
 
     private final JdbcTemplate jdbcTemplate;
     private final CompactSnowflakeIdGenerator idGenerator;
@@ -44,7 +47,12 @@ public class LogisticsExceptionService {
     public SimpleResultVO handleException(long exceptionId, ExceptionHandleDTO request) {
         String status = request == null || !StringUtils.hasText(request.getExceptionStatus())
                 ? "CLOSED"
-                : request.getExceptionStatus().trim();
+                : request.getExceptionStatus().trim().toUpperCase();
+        if (!HANDLE_TARGET_STATUSES.contains(status)) {
+            throw new IllegalArgumentException("异常处理状态不合法");
+        }
+        String currentStatus = findExceptionStatus(exceptionId);
+        validateStatusFlow(currentStatus, status);
         String handleUser = currentUser();
         int updated = jdbcTemplate.update(
                 "update logistics_exception set exception_status = ?, handle_user = ?, handle_time = current_timestamp where id = ?",
@@ -55,6 +63,26 @@ public class LogisticsExceptionService {
         }
         log.info("运输异常已处理，exceptionId={}, status={}, handleUser={}", exceptionId, status, handleUser);
         return new SimpleResultVO().add("exceptionId", exceptionId).add("status", status);
+    }
+
+    private String findExceptionStatus(long exceptionId) {
+        List<String> statuses = jdbcTemplate.queryForList("select exception_status from logistics_exception where id = ?", String.class, exceptionId);
+        if (statuses.isEmpty()) {
+            throw new IllegalArgumentException("异常记录不存在");
+        }
+        return statuses.get(0);
+    }
+
+    private void validateStatusFlow(String currentStatus, String targetStatus) {
+        if ("CLOSED".equals(currentStatus)) {
+            throw new IllegalArgumentException("异常已处理，不能重复操作");
+        }
+        if ("PROCESSING".equals(targetStatus) && !"WAIT_HANDLE".equals(currentStatus)) {
+            throw new IllegalArgumentException("只有待处理异常才能开始处理");
+        }
+        if ("CLOSED".equals(targetStatus) && !Arrays.asList("WAIT_HANDLE", "PROCESSING").contains(currentStatus)) {
+            throw new IllegalArgumentException("当前异常状态不能标记为已处理");
+        }
     }
 
     private Long findOrderId(String orderNo) {

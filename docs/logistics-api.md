@@ -137,6 +137,20 @@ exceptions, fees, users, roles, operationLogs, files
 | POST | `/logistics/excel/import/customers` | `customer:import` | 导入客户 Excel |
 | POST | `/logistics/files/upload` | `file:create` | 上传业务文件 |
 
+异常处理请求：
+
+```json
+{ "exceptionStatus": "PROCESSING" }
+```
+
+表示“开始处理”。异常进入处理中后，再提交：
+
+```json
+{ "exceptionStatus": "CLOSED" }
+```
+
+表示“处理完成”。已处理异常不能重复处理。
+
 ## 错误码
 
 | code | 说明 |
