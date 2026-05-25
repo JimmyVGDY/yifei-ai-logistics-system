@@ -52,6 +52,19 @@
       </el-table-column>
     </el-table>
 
+    <div class="table-pagination">
+      <el-pagination
+        background
+        layout="total, sizes, prev, pager, next, jumper"
+        :current-page="page"
+        :page-size="limit"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        @current-change="handlePageChange"
+        @size-change="handlePageSizeChange"
+      />
+    </div>
+
     <el-dialog v-model="crudDialogVisible" :title="crudMode === 'create' ? `新增${meta.title}` : `编辑${meta.title}`" width="720px">
       <el-form label-position="top" :model="crudForm">
         <el-row :gutter="16">
@@ -114,7 +127,9 @@ import {
 import { formatDateTime, statusLabel } from '../utils/status-labels'
 
 const route = useRoute()
+const page = ref(1)
 const limit = ref(20)
+const total = ref(0)
 const keyword = ref('')
 const timeRange = ref([])
 const records = ref([])
@@ -180,16 +195,36 @@ function formatCell(prop, value) {
 async function loadData() {
   loading.value = true
   try {
-    records.value = await fetchModuleRecords(route.meta.module, {
-      limit: limit.value,
+    const result = await fetchModuleRecords(route.meta.module, {
+      page: page.value,
       pageSize: limit.value,
       keyword: keyword.value || undefined,
       startTime: timeRange.value?.[0],
       endTime: timeRange.value?.[1]
     })
+    if (Array.isArray(result)) {
+      records.value = result
+      total.value = result.length
+    } else {
+      records.value = result.records || []
+      total.value = result.total || 0
+      page.value = result.page || page.value
+      limit.value = result.pageSize || limit.value
+    }
   } finally {
     loading.value = false
   }
+}
+
+function handlePageChange(nextPage) {
+  page.value = nextPage
+  loadData()
+}
+
+function handlePageSizeChange(nextPageSize) {
+  limit.value = nextPageSize
+  page.value = 1
+  loadData()
 }
 
 async function downloadExcel() {
@@ -302,6 +337,9 @@ async function deleteRow(row) {
   await loadData()
 }
 
-watch(() => route.meta.module, loadData)
+watch(() => route.meta.module, () => {
+  page.value = 1
+  loadData()
+})
 onMounted(loadData)
 </script>

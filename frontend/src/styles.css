@@ -161,6 +161,12 @@ body {
   margin-top: 18px;
 }
 
+.table-pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 14px;
+}
+
 .login-page {
   min-height: 100vh;
   display: grid;
