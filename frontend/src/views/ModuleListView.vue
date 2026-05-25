@@ -170,7 +170,12 @@ const moduleMetas = {
 }
 
 const meta = computed(() => moduleMetas[route.meta.module] || moduleMetas.customers)
-const activeEditFields = computed(() => meta.value.editFields || [])
+const activeEditFields = computed(() => (meta.value.editFields || []).map((field) => {
+  if (route.meta.module === 'users' && field.prop === 'role_id') {
+    return { ...field, options: roleOptions.value }
+  }
+  return field
+}))
 const modulePermission = computed(() => route.meta.permission || meta.value.permission)
 const canCreate = computed(() => meta.value.editable && canAction('create'))
 const canUpdate = computed(() => meta.value.editable && canAction('update'))
