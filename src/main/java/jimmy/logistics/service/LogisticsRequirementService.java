@@ -1,12 +1,18 @@
 package jimmy.logistics.service;
 
 import jimmy.logistics.model.LogisticsDashboardSummary;
+import jimmy.logistics.model.ModuleQueryDTO;
+import jimmy.logistics.model.ModuleRecordVO;
+import jimmy.model.PageResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
@@ -18,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -29,6 +36,7 @@ public class LogisticsRequirementService {
     private final JdbcTemplate jdbcTemplate;
     private final Map<String, String> moduleSql;
     private final Map<String, ModuleQueryConfig> moduleQueryConfigs;
+    private final Map<String, Boolean> columnExistsCache = new ConcurrentHashMap<>();
 
     public LogisticsRequirementService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -59,59 +67,70 @@ public class LogisticsRequirementService {
     }
 
     public List<Map<String, Object>> moduleRecords(String module, int limit) {
-        return moduleRecords(module, limit, null, null, null);
+        PageResult<ModuleRecordVO> page = modulePage(module, query(1, limit, null, null, null));
+        return new ArrayList<Map<String, Object>>(page.getRecords());
     }
 
     public List<Map<String, Object>> moduleRecords(String module, int limit, String keyword, String startTime, String endTime) {
-        String sql = moduleSql.get(module);
-        if (sql == null) {
-            log.warn("查询物流模块列表失败：不支持的模块，module={}", module);
-            return Collections.emptyList();
-        }
-        int safeLimit = Math.max(1, Math.min(limit, 100));
-        ModuleQueryConfig queryConfig = moduleQueryConfigs.get(module);
-        QueryBuildResult queryBuildResult = buildFilteredSql(sql, queryConfig, keyword, startTime, endTime);
-        queryBuildResult.args.add(safeLimit);
-        List<Map<String, Object>> records = jdbcTemplate.queryForList(queryBuildResult.sql, queryBuildResult.args.toArray());
-        records = formatDateTimeValues(records);
-        log.info("查询物流模块列表完成，module={}, limit={}, safeLimit={}, keyword={}, startTime={}, endTime={}, resultSize={}",
-                module, limit, safeLimit, keyword, startTime, endTime, records.size());
-        return records;
+        PageResult<ModuleRecordVO> page = modulePage(module, query(1, limit, keyword, startTime, endTime));
+        return new ArrayList<Map<String, Object>>(page.getRecords());
     }
 
-    private QueryBuildResult buildFilteredSql(String sql,
-                                              ModuleQueryConfig queryConfig,
-                                              String keyword,
-                                              String startTime,
-                                              String endTime) {
-        String lowerSql = sql.toLowerCase();
-        int orderByIndex = lowerSql.lastIndexOf(" order by ");
-        String selectPart = orderByIndex < 0 ? sql : sql.substring(0, orderByIndex);
-        String orderPart = orderByIndex < 0 ? " order by id desc limit ?" : sql.substring(orderByIndex);
-        StringBuilder builder = new StringBuilder(selectPart).append(" where 1 = 1");
+    public PageResult<ModuleRecordVO> modulePage(String module, ModuleQueryDTO query) {
+        String sql = resolveModuleSql(module);
+        ModuleQueryConfig queryConfig = moduleQueryConfigs.get(module);
+        if (sql == null || queryConfig == null) {
+            log.warn("查询物流模块列表失败：不支持的模块，module={}", module);
+            return new PageResult<>(Collections.emptyList(), safePage(query), safePageSize(query), 0);
+        }
+
+        int page = safePage(query);
+        int pageSize = safePageSize(query);
+        QueryBuildResult filtered = buildFilteredSql(sql, queryConfig, query);
+        Long total = jdbcTemplate.queryForObject("select count(1) from (" + filtered.sql + ") page_count", Long.class, filtered.args.toArray());
+
+        List<Object> pageArgs = new ArrayList<>(filtered.args);
+        pageArgs.add(pageSize);
+        pageArgs.add((page - 1) * pageSize);
+        String pageSql = filtered.sql + " order by " + queryConfig.orderColumn + " desc limit ? offset ?";
+        List<Map<String, Object>> records = jdbcTemplate.queryForList(pageSql, pageArgs.toArray());
+        records = formatDateTimeValues(records);
+        List<ModuleRecordVO> voRecords = new ArrayList<>();
+        for (Map<String, Object> record : records) {
+            voRecords.add(new ModuleRecordVO(record));
+        }
+        log.info("查询物流模块分页完成，module={}, page={}, pageSize={}, total={}, keyword={}, startTime={}, endTime={}",
+                module, page, pageSize, total, query.getKeyword(), query.getStartTime(), query.getEndTime());
+        return new PageResult<>(voRecords, page, pageSize, total == null ? 0 : total);
+    }
+
+    private QueryBuildResult buildFilteredSql(String sql, ModuleQueryConfig queryConfig, ModuleQueryDTO query) {
+        StringBuilder builder = new StringBuilder(sql).append(" where 1 = 1");
         List<Object> args = new ArrayList<>();
 
-        if (queryConfig != null && StringUtils.hasText(keyword) && !queryConfig.keywordColumns.isEmpty()) {
+        if (hasColumn(queryConfig.tableName, "deleted")) {
+            builder.append(" and ").append(queryConfig.deletedColumn).append(" = 0");
+        }
+        if (StringUtils.hasText(query.getKeyword()) && !queryConfig.keywordColumns.isEmpty()) {
             builder.append(" and (");
             for (int i = 0; i < queryConfig.keywordColumns.size(); i++) {
                 if (i > 0) {
                     builder.append(" or ");
                 }
                 builder.append(queryConfig.keywordColumns.get(i)).append(" like ?");
-                args.add("%" + keyword.trim() + "%");
+                args.add("%" + query.getKeyword().trim() + "%");
             }
             builder.append(")");
         }
-        if (queryConfig != null && StringUtils.hasText(queryConfig.timeColumn) && StringUtils.hasText(startTime)) {
+        if (StringUtils.hasText(queryConfig.timeColumn) && StringUtils.hasText(query.getStartTime())) {
             builder.append(" and ").append(queryConfig.timeColumn).append(" >= ?");
-            args.add(startTime.trim());
+            args.add(query.getStartTime().trim());
         }
-        if (queryConfig != null && StringUtils.hasText(queryConfig.timeColumn) && StringUtils.hasText(endTime)) {
+        if (StringUtils.hasText(queryConfig.timeColumn) && StringUtils.hasText(query.getEndTime())) {
             builder.append(" and ").append(queryConfig.timeColumn).append(" <= ?");
-            args.add(endTime.trim());
+            args.add(query.getEndTime().trim());
         }
-
-        return new QueryBuildResult(builder.append(orderPart).toString(), args);
+        return new QueryBuildResult(builder.toString(), args);
     }
 
     private List<Map<String, Object>> formatDateTimeValues(List<Map<String, Object>> records) {
@@ -145,6 +164,55 @@ public class LogisticsRequirementService {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    private ModuleQueryDTO query(int page, int pageSize, String keyword, String startTime, String endTime) {
+        ModuleQueryDTO query = new ModuleQueryDTO();
+        query.setPage(page);
+        query.setPageSize(pageSize);
+        query.setKeyword(keyword);
+        query.setStartTime(startTime);
+        query.setEndTime(endTime);
+        return query;
+    }
+
+    private int safePage(ModuleQueryDTO query) {
+        return Math.max(1, query == null ? 1 : query.getPage());
+    }
+
+    private int safePageSize(ModuleQueryDTO query) {
+        int pageSize = query == null ? 20 : query.getPageSize();
+        return Math.max(1, Math.min(pageSize, 100));
+    }
+
+    private boolean hasColumn(String tableName, String columnName) {
+        String cacheKey = tableName + "." + columnName;
+        return columnExistsCache.computeIfAbsent(cacheKey, key -> {
+            try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
+                DatabaseMetaData metaData = connection.getMetaData();
+                String[] tableCandidates = {tableName, tableName.toUpperCase(), tableName.toLowerCase()};
+                String[] columnCandidates = {columnName, columnName.toUpperCase(), columnName.toLowerCase()};
+                for (String table : tableCandidates) {
+                    for (String column : columnCandidates) {
+                        try (ResultSet rs = metaData.getColumns(connection.getCatalog(), null, table, column)) {
+                            if (rs.next()) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception exception) {
+                log.warn("检测表字段失败，tableName={}, columnName={}, reason={}", tableName, columnName, exception.getMessage());
+            }
+            return false;
+        });
+    }
+
+    private String resolveModuleSql(String module) {
+        if ("users".equals(module) && hasColumn("sys_user", "user_code")) {
+            return "select u.id, u.user_code, u.username, u.real_name, u.mobile, u.email, u.password, u.role_id, r.role_name, u.status, u.create_time, u.update_time from sys_user u left join sys_role r on r.id = u.role_id";
+        }
+        return moduleSql.get(module);
+    }
+
     private Map<String, String> buildModuleSql() {
         Map<String, String> sql = new HashMap<>();
         sql.put("customers", "select id, customer_code, customer_name, contact_name, contact_phone, province, city, address, status, created_at, updated_at from logistics_customer");
@@ -157,7 +225,7 @@ public class LogisticsRequirementService {
         sql.put("vehicles", "select id, vehicle_no, vehicle_type, load_capacity_kg, volume_capacity_cubic, current_city, status, created_at, updated_at from logistics_vehicle");
         sql.put("exceptions", "select e.id, e.order_id, o.order_no, e.task_id, e.exception_type, e.exception_desc, e.exception_status, e.report_user, e.report_time, e.handle_user, e.handle_time from logistics_exception e join logistics_order o on o.id = e.order_id");
         sql.put("fees", "select f.id, f.order_id, o.order_no, f.base_fee, f.weight_fee, f.distance_fee, f.additional_fee, f.discount_fee, f.payable_fee, f.actual_fee, f.payment_status, f.create_time, f.update_time from logistics_fee f join logistics_order o on o.id = f.order_id");
-        sql.put("users", "select u.id, u.username, u.real_name, u.mobile, u.email, u.password, u.role_id, r.role_name, u.status, u.create_time, u.update_time from sys_user u left join sys_role r on r.id = u.role_id");
+        sql.put("users", "select u.id, concat('U-', u.id) user_code, u.username, u.real_name, u.mobile, u.email, u.password, u.role_id, r.role_name, u.status, u.create_time, u.update_time from sys_user u left join sys_role r on r.id = u.role_id");
         sql.put("roles", "select id, role_code, role_name, status, create_time, update_time from sys_role");
         sql.put("operationLogs", "select id, username, operation, request_uri, request_method, operation_status, operation_time from sys_operation_log");
         sql.put("files", "select id, original_name, relative_path, file_size, content_type, upload_user, upload_time from sys_uploaded_file");
@@ -166,29 +234,35 @@ public class LogisticsRequirementService {
 
     private Map<String, ModuleQueryConfig> buildModuleQueryConfigs() {
         Map<String, ModuleQueryConfig> configs = new HashMap<>();
-        configs.put("customers", new ModuleQueryConfig("created_at", "customer_code", "customer_name", "contact_name", "contact_phone", "city", "address", "status"));
-        configs.put("orders", new ModuleQueryConfig("created_at", "order_no", "customer_name", "sender_address", "receiver_address", "cargo_name", "status"));
-        configs.put("waybills", new ModuleQueryConfig("w.create_time", "w.waybill_no", "o.order_no", "w.start_site", "w.target_site", "w.current_location", "w.transport_status"));
-        configs.put("dispatches", new ModuleQueryConfig("d.create_time", "o.order_no", "w.waybill_no", "dr.driver_name", "v.vehicle_no", "d.start_site", "d.target_site", "d.dispatch_status"));
-        configs.put("tasks", new ModuleQueryConfig("t.create_time", "t.task_no", "o.order_no", "dr.driver_name", "v.vehicle_no", "t.task_status"));
-        configs.put("tracks", new ModuleQueryConfig("tr.operation_time", "o.order_no", "w.waybill_no", "tr.current_status", "tr.current_location", "tr.operator_name", "tr.operation_desc"));
-        configs.put("drivers", new ModuleQueryConfig("created_at", "driver_code", "driver_name", "phone", "license_no", "license_type", "status"));
-        configs.put("vehicles", new ModuleQueryConfig("created_at", "vehicle_no", "vehicle_type", "current_city", "status"));
-        configs.put("exceptions", new ModuleQueryConfig("e.report_time", "o.order_no", "e.exception_type", "e.exception_desc", "e.exception_status", "e.report_user", "e.handle_user"));
-        configs.put("fees", new ModuleQueryConfig("f.create_time", "o.order_no", "f.payment_status"));
-        configs.put("users", new ModuleQueryConfig("u.create_time", "u.username", "u.real_name", "u.mobile", "u.email", "r.role_name"));
-        configs.put("roles", new ModuleQueryConfig("create_time", "role_code", "role_name"));
-        configs.put("operationLogs", new ModuleQueryConfig("operation_time", "username", "operation", "request_uri", "request_method", "operation_status"));
-        configs.put("files", new ModuleQueryConfig("upload_time", "original_name", "relative_path", "content_type", "upload_user"));
+        configs.put("customers", new ModuleQueryConfig("logistics_customer", "deleted", "created_at", "id", "customer_code", "customer_name", "contact_name", "contact_phone", "city", "address", "status"));
+        configs.put("orders", new ModuleQueryConfig("logistics_order", "deleted", "created_at", "id", "order_no", "customer_name", "sender_address", "receiver_address", "cargo_name", "status"));
+        configs.put("waybills", new ModuleQueryConfig("logistics_waybill", "w.deleted", "w.create_time", "w.id", "w.waybill_no", "o.order_no", "w.start_site", "w.target_site", "w.current_location", "w.transport_status"));
+        configs.put("dispatches", new ModuleQueryConfig("logistics_dispatch", "d.deleted", "d.create_time", "d.id", "o.order_no", "w.waybill_no", "dr.driver_name", "v.vehicle_no", "d.start_site", "d.target_site", "d.dispatch_status"));
+        configs.put("tasks", new ModuleQueryConfig("logistics_task", "t.deleted", "t.create_time", "t.id", "t.task_no", "o.order_no", "dr.driver_name", "v.vehicle_no", "t.task_status"));
+        configs.put("tracks", new ModuleQueryConfig("logistics_track", "tr.deleted", "tr.operation_time", "tr.id", "o.order_no", "w.waybill_no", "tr.current_status", "tr.current_location", "tr.operator_name", "tr.operation_desc"));
+        configs.put("drivers", new ModuleQueryConfig("logistics_driver", "deleted", "created_at", "id", "driver_code", "driver_name", "phone", "license_no", "license_type", "status"));
+        configs.put("vehicles", new ModuleQueryConfig("logistics_vehicle", "deleted", "created_at", "id", "vehicle_no", "vehicle_type", "current_city", "status"));
+        configs.put("exceptions", new ModuleQueryConfig("logistics_exception", "e.deleted", "e.report_time", "e.id", "o.order_no", "e.exception_type", "e.exception_desc", "e.exception_status", "e.report_user", "e.handle_user"));
+        configs.put("fees", new ModuleQueryConfig("logistics_fee", "f.deleted", "f.create_time", "f.id", "o.order_no", "f.payment_status"));
+        configs.put("users", new ModuleQueryConfig("sys_user", "u.deleted", "u.create_time", "u.id", "u.username", "u.real_name", "u.mobile", "u.email", "r.role_name"));
+        configs.put("roles", new ModuleQueryConfig("sys_role", "deleted", "create_time", "id", "role_code", "role_name"));
+        configs.put("operationLogs", new ModuleQueryConfig("sys_operation_log", "deleted", "operation_time", "id", "username", "operation", "request_uri", "request_method", "operation_status"));
+        configs.put("files", new ModuleQueryConfig("sys_uploaded_file", "deleted", "upload_time", "id", "original_name", "relative_path", "content_type", "upload_user"));
         return configs;
     }
 
     private static class ModuleQueryConfig {
+        private final String tableName;
+        private final String deletedColumn;
         private final String timeColumn;
+        private final String orderColumn;
         private final List<String> keywordColumns;
 
-        private ModuleQueryConfig(String timeColumn, String... keywordColumns) {
+        private ModuleQueryConfig(String tableName, String deletedColumn, String timeColumn, String orderColumn, String... keywordColumns) {
+            this.tableName = tableName;
+            this.deletedColumn = deletedColumn;
             this.timeColumn = timeColumn;
+            this.orderColumn = orderColumn;
             this.keywordColumns = Arrays.asList(keywordColumns);
         }
     }

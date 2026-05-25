@@ -1,8 +1,10 @@
 package jimmy.logistics.controller;
 
 import jimmy.logistics.annotation.OperationLog;
+import jimmy.logistics.model.OperationResultVO;
 import jimmy.logistics.service.LogisticsCrudService;
 import jimmy.logistics.service.LogisticsV2Service;
+import jimmy.model.ApiResponse;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -38,65 +40,65 @@ public class LogisticsV2Controller {
 
     @OperationLog("新增管理模块记录")
     @PostMapping("/modules/{module}")
-    public Map<String, Object> createModuleRecord(@PathVariable String module,
-                                                  @RequestBody Map<String, Object> payload) {
-        return logisticsCrudService.create(module, payload);
+    public ApiResponse<OperationResultVO> createModuleRecord(@PathVariable String module,
+                                                             @RequestBody Map<String, Object> payload) {
+        return ApiResponse.success(logisticsCrudService.create(module, payload));
     }
 
     @OperationLog("修改管理模块记录")
     @PostMapping("/modules/{module}/{id}")
-    public Map<String, Object> updateModuleRecord(@PathVariable String module,
-                                                  @PathVariable long id,
-                                                  @RequestBody Map<String, Object> payload) {
-        return logisticsCrudService.update(module, id, payload);
+    public ApiResponse<OperationResultVO> updateModuleRecord(@PathVariable String module,
+                                                             @PathVariable long id,
+                                                             @RequestBody Map<String, Object> payload) {
+        return ApiResponse.success(logisticsCrudService.update(module, id, payload));
     }
 
     @OperationLog("删除管理模块记录")
     @PostMapping("/modules/{module}/{id}/delete")
-    public Map<String, Object> deleteModuleRecord(@PathVariable String module,
-                                                  @PathVariable long id) {
-        return logisticsCrudService.delete(module, id);
+    public ApiResponse<OperationResultVO> deleteModuleRecord(@PathVariable String module,
+                                                             @PathVariable long id) {
+        return ApiResponse.success(logisticsCrudService.delete(module, id));
     }
 
     @OperationLog("上报运输异常")
     @PostMapping("/exceptions/report")
-    public Map<String, Object> reportException(@RequestBody Map<String, Object> request) {
-        return logisticsV2Service.reportException(request);
+    public ApiResponse<Map<String, Object>> reportException(@RequestBody Map<String, Object> request) {
+        return ApiResponse.success(logisticsV2Service.reportException(request));
     }
 
     @OperationLog("处理运输异常")
     @PostMapping("/exceptions/{exceptionId}/handle")
-    public Map<String, Object> handleException(@PathVariable long exceptionId,
-                                               @RequestBody Map<String, Object> request) {
-        return logisticsV2Service.handleException(exceptionId, request);
+    public ApiResponse<Map<String, Object>> handleException(@PathVariable long exceptionId,
+                                                            @RequestBody Map<String, Object> request) {
+        return ApiResponse.success(logisticsV2Service.handleException(exceptionId, request));
     }
 
     @OperationLog("生成订单费用")
     @PostMapping("/fees/generate/{orderNo}")
-    public Map<String, Object> generateFee(@PathVariable String orderNo) {
-        return logisticsV2Service.generateFee(orderNo);
+    public ApiResponse<Map<String, Object>> generateFee(@PathVariable String orderNo) {
+        return ApiResponse.success(logisticsV2Service.generateFee(orderNo));
     }
 
     @OperationLog("标记费用已付款")
     @PostMapping("/fees/{feeId}/pay")
-    public Map<String, Object> markFeePaid(@PathVariable long feeId) {
-        return logisticsV2Service.markFeePaid(feeId);
+    public ApiResponse<Map<String, Object>> markFeePaid(@PathVariable long feeId) {
+        return ApiResponse.success(logisticsV2Service.markFeePaid(feeId));
     }
 
     @GetMapping("/statistics/order-trend")
-    public List<Map<String, Object>> orderTrend(@RequestParam(defaultValue = "7") int days) {
-        return logisticsV2Service.orderTrend(days);
+    public ApiResponse<List<Map<String, Object>>> orderTrend(@RequestParam(defaultValue = "7") int days) {
+        return ApiResponse.success(logisticsV2Service.orderTrend(days));
     }
 
     @GetMapping("/statistics/income-trend")
-    public List<Map<String, Object>> incomeTrend(@RequestParam(defaultValue = "6") int months) {
-        return logisticsV2Service.incomeTrend(months);
+    public ApiResponse<List<Map<String, Object>>> incomeTrend(@RequestParam(defaultValue = "6") int months) {
+        return ApiResponse.success(logisticsV2Service.incomeTrend(months));
     }
 
     @OperationLog("上传业务文件")
     @PostMapping(value = "/files/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Map<String, Object> uploadFile(@RequestPart("file") MultipartFile file) throws IOException {
-        return logisticsV2Service.uploadFile(file);
+    public ApiResponse<Map<String, Object>> uploadFile(@RequestPart("file") MultipartFile file) throws IOException {
+        return ApiResponse.success(logisticsV2Service.uploadFile(file));
     }
 
     @OperationLog("导出模块 Excel")
@@ -117,7 +119,7 @@ public class LogisticsV2Controller {
 
     @OperationLog("导入客户 Excel")
     @PostMapping(value = "/excel/import/customers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Map<String, Object> importCustomers(@RequestPart("file") MultipartFile file) throws IOException {
-        return logisticsV2Service.importCustomers(file);
+    public ApiResponse<Map<String, Object>> importCustomers(@RequestPart("file") MultipartFile file) throws IOException {
+        return ApiResponse.success(logisticsV2Service.importCustomers(file));
     }
 }

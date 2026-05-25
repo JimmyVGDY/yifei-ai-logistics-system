@@ -1,10 +1,15 @@
 package jimmy.logistics.service;
 
+import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
+import jimmy.logistics.model.OperationResultVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -12,6 +17,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -20,6 +26,7 @@ public class LogisticsCrudService {
     private final JdbcTemplate jdbcTemplate;
     private final CompactSnowflakeIdGenerator idGenerator;
     private final Map<String, CrudConfig> configs;
+    private final Map<String, Boolean> columnExistsCache = new ConcurrentHashMap<>();
 
     public LogisticsCrudService(JdbcTemplate jdbcTemplate, CompactSnowflakeIdGenerator idGenerator) {
         this.jdbcTemplate = jdbcTemplate;
@@ -27,12 +34,13 @@ public class LogisticsCrudService {
         this.configs = buildConfigs();
     }
 
-    public Map<String, Object> create(String module, Map<String, Object> payload) {
+    public OperationResultVO create(String module, Map<String, Object> payload) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> values = filteredPayload(config, payload, false);
         Long id = idGenerator.nextId();
         values.put("id", id);
         fillCreateDefaults(config, values);
+        fillAuditDefaults(config, values, true);
 
         StringBuilder fields = new StringBuilder();
         StringBuilder placeholders = new StringBuilder();
@@ -48,15 +56,14 @@ public class LogisticsCrudService {
         }
         jdbcTemplate.update("insert into " + config.tableName + " (" + fields + ") values (" + placeholders + ")", args.toArray());
         log.info("管理模块新增完成，module={}, id={}", module, id);
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("id", id);
-        return result;
+        return new OperationResultVO(id);
     }
 
-    public Map<String, Object> update(String module, long id, Map<String, Object> payload) {
+    public OperationResultVO update(String module, long id, Map<String, Object> payload) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> values = filteredPayload(config, payload, true);
         fillUpdateDefaults(config, values);
+        fillAuditDefaults(config, values, false);
         if (values.isEmpty()) {
             throw new IllegalArgumentException("没有可更新字段");
         }
@@ -70,28 +77,46 @@ public class LogisticsCrudService {
             setClause.append(entry.getKey()).append(" = ?");
             args.add(entry.getValue());
         }
+        if (hasColumn(config.tableName, "version")) {
+            setClause.append(", version = version + 1");
+        }
         args.add(id);
         int updated = jdbcTemplate.update("update " + config.tableName + " set " + setClause + " where id = ?", args.toArray());
         if (updated == 0) {
             throw new IllegalArgumentException("记录不存在");
         }
         log.info("管理模块更新完成，module={}, id={}", module, id);
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("id", id);
-        return result;
+        return new OperationResultVO(id);
     }
 
-    public Map<String, Object> delete(String module, long id) {
+    public OperationResultVO delete(String module, long id) {
         CrudConfig config = requireConfig(module);
-        int updated = jdbcTemplate.update("delete from " + config.tableName + " where id = ?", id);
+        int updated;
+        if (hasColumn(config.tableName, "deleted")) {
+            StringBuilder sql = new StringBuilder("update ").append(config.tableName).append(" set deleted = 1");
+            List<Object> args = new ArrayList<>();
+            if (config.updateTimeColumn != null && hasColumn(config.tableName, config.updateTimeColumn)) {
+                sql.append(", ").append(config.updateTimeColumn).append(" = ?");
+                args.add(new Timestamp(System.currentTimeMillis()));
+            }
+            if (hasColumn(config.tableName, "update_by")) {
+                sql.append(", update_by = ?");
+                args.add(currentUserId());
+            }
+            if (hasColumn(config.tableName, "version")) {
+                sql.append(", version = version + 1");
+            }
+            sql.append(" where id = ? and deleted = 0");
+            args.add(id);
+            updated = jdbcTemplate.update(sql.toString(), args.toArray());
+        } else {
+            updated = jdbcTemplate.update("delete from " + config.tableName + " where id = ?", id);
+        }
         if (updated == 0) {
             throw new IllegalArgumentException("记录不存在");
         }
         log.info("管理模块删除完成，module={}, id={}", module, id);
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("id", id);
-        result.put("deleted", true);
-        return result;
+        return OperationResultVO.deleted(id);
     }
 
     private Map<String, Object> filteredPayload(CrudConfig config, Map<String, Object> payload, boolean update) {
@@ -103,7 +128,7 @@ public class LogisticsCrudService {
             if (update && (column.equals(config.createTimeColumn) || column.equals(config.updateTimeColumn))) {
                 continue;
             }
-            if (payload.containsKey(column)) {
+            if (hasColumn(config.tableName, column) && payload.containsKey(column)) {
                 values.put(column, payload.get(column));
             }
         }
@@ -112,17 +137,27 @@ public class LogisticsCrudService {
 
     private void fillCreateDefaults(CrudConfig config, Map<String, Object> values) {
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        if (config.createTimeColumn != null && !values.containsKey(config.createTimeColumn)) {
+        if (config.createTimeColumn != null && hasColumn(config.tableName, config.createTimeColumn) && !values.containsKey(config.createTimeColumn)) {
             values.put(config.createTimeColumn, now);
         }
-        if (config.updateTimeColumn != null && !values.containsKey(config.updateTimeColumn)) {
+        if (config.updateTimeColumn != null && hasColumn(config.tableName, config.updateTimeColumn) && !values.containsKey(config.updateTimeColumn)) {
             values.put(config.updateTimeColumn, now);
         }
     }
 
     private void fillUpdateDefaults(CrudConfig config, Map<String, Object> values) {
-        if (config.updateTimeColumn != null) {
+        if (config.updateTimeColumn != null && hasColumn(config.tableName, config.updateTimeColumn)) {
             values.put(config.updateTimeColumn, new Timestamp(System.currentTimeMillis()));
+        }
+    }
+
+    private void fillAuditDefaults(CrudConfig config, Map<String, Object> values, boolean create) {
+        Long userId = currentUserId();
+        if (create && hasColumn(config.tableName, "create_by")) {
+            values.put("create_by", userId);
+        }
+        if (hasColumn(config.tableName, "update_by")) {
+            values.put("update_by", userId);
         }
     }
 
@@ -132,6 +167,37 @@ public class LogisticsCrudService {
             throw new IllegalArgumentException("当前模块不支持增删改操作");
         }
         return config;
+    }
+
+    private Long currentUserId() {
+        Object loginId = StpUtil.getLoginIdDefaultNull();
+        if (loginId == null) {
+            return 0L;
+        }
+        return Long.valueOf(String.valueOf(loginId));
+    }
+
+    private boolean hasColumn(String tableName, String columnName) {
+        String cacheKey = tableName + "." + columnName;
+        return columnExistsCache.computeIfAbsent(cacheKey, key -> {
+            try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
+                DatabaseMetaData metaData = connection.getMetaData();
+                String[] tableCandidates = {tableName, tableName.toUpperCase(), tableName.toLowerCase()};
+                String[] columnCandidates = {columnName, columnName.toUpperCase(), columnName.toLowerCase()};
+                for (String table : tableCandidates) {
+                    for (String column : columnCandidates) {
+                        try (ResultSet rs = metaData.getColumns(connection.getCatalog(), null, table, column)) {
+                            if (rs.next()) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception exception) {
+                log.warn("检测表字段失败，tableName={}, columnName={}, reason={}", tableName, columnName, exception.getMessage());
+            }
+            return false;
+        });
     }
 
     private Map<String, CrudConfig> buildConfigs() {
