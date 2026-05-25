@@ -1,25 +1,38 @@
 const statusMap = {
   ACTIVE: '启用',
+  ENABLED: '启用',
   DISABLED: '停用',
+  INACTIVE: '停用',
   AVAILABLE: '空闲',
+  IDLE: '空闲',
   ON_ROUTE: '运输中',
-  WAIT_DISPATCH: '待调度',
   CREATED: '已创建',
+  WAIT_DISPATCH: '待调度',
   DISPATCHED: '已调度',
   ASSIGNED: '已分配',
+  PICKED_UP: '已揽收',
   IN_TRANSIT: '运输中',
   TRANSPORTING: '运输中',
+  ARRIVED: '已到达',
+  DELIVERING: '派送中',
   DELIVERED: '已送达',
   SIGNED: '已签收',
+  COMPLETED: '已完成',
+  FINISHED: '已完成',
+  CANCELLED: '已取消',
+  CANCELED: '已取消',
   EXCEPTION: '异常',
   WAIT_HANDLE: '待处理',
+  HANDLING: '处理中',
   CLOSED: '已关闭',
   PAID: '已付款',
   UNPAID: '未付款',
-  BLOCKED: '已限流',
-  QUERY_FALLBACK: '查询降级',
+  PART_PAID: '部分付款',
+  REFUNDED: '已退款',
   SUCCESS: '成功',
   FAILED: '失败',
+  BLOCKED: '已限流',
+  QUERY_FALLBACK: '查询降级',
   1: '启用',
   0: '停用'
 }
@@ -28,7 +41,7 @@ export function statusLabel(value) {
   if (value === null || value === undefined || value === '') {
     return ''
   }
-  return statusMap[value] || value
+  return statusMap[String(value)] || value
 }
 
 export function formatDateTime(value) {

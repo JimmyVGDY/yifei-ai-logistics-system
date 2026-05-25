@@ -23,7 +23,7 @@
       <el-table-column prop="cargoWeight" label="重量 kg" width="110" />
       <el-table-column prop="status" label="状态" width="130">
         <template #default="{ row }">
-          <el-tag>{{ row.status }}</el-tag>
+          <el-tag>{{ statusLabel(row.status) }}</el-tag>
         </template>
       </el-table-column>
     </el-table>
@@ -33,6 +33,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { fetchOrders } from '../api/logistics'
+import { statusLabel } from '../utils/status-labels'
 
 const limit = ref(20)
 const orders = ref([])

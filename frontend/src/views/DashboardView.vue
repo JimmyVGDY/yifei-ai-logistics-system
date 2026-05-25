@@ -1,7 +1,7 @@
 <template>
   <div class="page-stack">
     <el-row :gutter="16">
-      <el-col :xs="24" :sm="12" :lg="4" v-for="item in metrics" :key="item.label">
+      <el-col v-for="item in metrics" :key="item.label" :xs="24" :sm="12" :lg="4">
         <section class="metric-panel">
           <span>{{ item.label }}</span>
           <strong>{{ item.value }}</strong>
@@ -97,9 +97,9 @@ const loading = ref(false)
 
 const metrics = computed(() => [
   { label: '今日订单', value: summary.value?.todayOrders || 0, hint: '当天创建' },
-  { label: '已完成', value: summary.value?.completedOrders || 0, hint: 'COMPLETED / SIGNED' },
-  { label: '待调度', value: summary.value?.waitDispatchOrders || 0, hint: 'WAIT_DISPATCH' },
-  { label: '运输中', value: summary.value?.inTransitOrders || 0, hint: 'IN_TRANSIT' },
+  { label: '已完成', value: summary.value?.completedOrders || 0, hint: '已完成 / 已签收' },
+  { label: '待调度', value: summary.value?.waitDispatchOrders || 0, hint: '等待调度分配' },
+  { label: '运输中', value: summary.value?.inTransitOrders || 0, hint: '运输进行中' },
   { label: '异常订单', value: summary.value?.exceptionOrders || 0, hint: '未关闭异常' },
   { label: '月度收入', value: summary.value?.monthIncome || 0, hint: '已付款费用' }
 ])
