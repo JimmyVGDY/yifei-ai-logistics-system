@@ -24,7 +24,6 @@
             placeholder="请输入管理员密码"
             autocomplete="current-password"
             show-password
-            @keyup.enter="handleLogin"
           >
             <template #prefix>
               <el-icon><Lock /></el-icon>
@@ -55,6 +54,9 @@ const form = reactive({
 })
 
 async function handleLogin() {
+  if (loading.value) {
+    return
+  }
   loading.value = true
   try {
     const response = await login(form)
