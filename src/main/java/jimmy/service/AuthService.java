@@ -8,6 +8,7 @@ import jimmy.model.MenuVO;
 import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -21,6 +22,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class AuthService {
+
+    private static final BCryptPasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -37,13 +40,14 @@ public class AuthService {
         }
 
         LoginUser loginUser = findLoginUser(username);
-        if (loginUser == null || !password.equals(loginUser.password)) {
+        if (loginUser == null || !matchesPassword(password, loginUser.password)) {
             log.warn("登录失败，账号或密码错误，username={}", LogMaskUtils.maskAccount(username));
             throw new IllegalArgumentException("账号或密码错误");
         }
         if (loginUser.status == null || loginUser.status != 1) {
             throw new IllegalArgumentException("账号已停用");
         }
+        upgradePasswordIfNecessary(loginUser, password);
 
         List<MenuVO> menus = mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
         List<String> permissions = collectPermissions(menus);
@@ -127,6 +131,30 @@ public class AuthService {
                 userId
         );
         return users.isEmpty() ? null : users.get(0);
+    }
+
+    private boolean matchesPassword(String rawPassword, String storedPassword) {
+        if (!StringUtils.hasText(storedPassword)) {
+            return false;
+        }
+        if (isBcrypt(storedPassword)) {
+            return PASSWORD_ENCODER.matches(rawPassword, storedPassword);
+        }
+        return rawPassword.equals(storedPassword);
+    }
+
+    private void upgradePasswordIfNecessary(LoginUser loginUser, String rawPassword) {
+        if (isBcrypt(loginUser.password)) {
+            return;
+        }
+        String encoded = PASSWORD_ENCODER.encode(rawPassword);
+        jdbcTemplate.update("update sys_user set password = ? where id = ?", encoded, loginUser.id);
+        loginUser.password = encoded;
+        log.info("账号密码已升级为 BCrypt，userId={}, username={}", loginUser.id, LogMaskUtils.maskAccount(loginUser.username));
+    }
+
+    private boolean isBcrypt(String password) {
+        return password != null && (password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$"));
     }
 
     private LoginUser mapUser(Long id, String username, String realName, String password, Integer status,
