@@ -29,7 +29,7 @@
 
 ```text
 GET /logistics/dashboard
-GET /logistics/modules/{module}?limit=20&keyword=上海&startTime=2026-05-01 00:00:00&endTime=2026-05-31 23:59:59
+GET /logistics/modules/{module}?page=1&pageSize=20&keyword=上海&startTime=2026-05-01 00:00:00&endTime=2026-05-31 23:59:59
 POST /logistics/modules/{module}
 POST /logistics/modules/{module}/{id}
 POST /logistics/modules/{module}/{id}/delete
@@ -69,7 +69,6 @@ files
 
 - 运营看板
 - 运单管理
-- 新建运单
 - 客户管理
 - 运单中心
 - 调度管理
@@ -88,6 +87,10 @@ files
 
 管理页面的时间字段统一按 `yyyy-MM-dd HH:mm:ss` 展示。
 
+运单新增入口已合并到“运单管理”页面顶部，不再单独放置侧边栏“新建运单”。
+
+管理页按钮会按登录用户权限码控制显示，例如无 `fee:manage` 权限时不会显示费用生成和收款操作。
+
 ## 当前边界
 
-本次已完成需求书 v2.0 的基础能力框架：异常处理、费用收款、统计趋势、文件上传、Excel 导入导出、操作日志、管理页基础 CRUD 和组合查询。后续可以继续深化为细粒度角色权限、Excel 模板下载、上传文件预览、操作日志详情和审计检索。
+本次已完成需求书 v2.0 的基础能力框架：异常处理、费用收款、统计趋势、文件上传、Excel 导入导出、操作日志、管理页基础 CRUD、组合查询、真实分页和按钮级权限显示。后续可以继续深化为 Excel 模板下载、上传文件预览、操作日志详情、审计检索和更细颗粒度的数据权限。

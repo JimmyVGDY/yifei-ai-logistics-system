@@ -1,8 +1,16 @@
 # 物流系统权限、随机 ID 与结构化日志说明
 
-## 数据库重建说明
+## 数据库升级说明
 
-当前 `schema.sql` 已将主键 `id` 从自增改为显式 `BIGINT`，初始化数据由 `data.sql` 写入固定的 15 位短 ID。该方案适合本地开发环境重建数据库使用，会清空旧自增 ID 数据后重新初始化物流业务数据。
+当前默认配置不会在 MySQL 启动时自动执行 `schema.sql` 或 `data.sql`，避免覆盖本地已有业务数据。
+
+现有数据库升级采用手动增量迁移脚本：
+
+```sql
+source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
+```
+
+该脚本会保留旧数据，并补齐 `create_by`、`update_by`、`deleted`、`version`、用户业务编号和常用索引。`schema.sql`、`data.sql` 仍可用于全新 H2 或本地重建验证场景。
 
 ## 默认账号
 
@@ -25,6 +33,12 @@
 - `task:manage`：运输任务。
 - `fee:manage`：费用结算。
 - `system:user:manage`：用户管理。
+
+前端页面也会基于登录响应中的 `permissions` 控制按钮显示，例如新增、编辑、删除、导入、导出、异常处理和费用收款。
+
+## 密码安全
+
+系统兼容旧的明文密码数据。用户使用明文密码登录成功后，后端会自动将 `sys_user.password` 升级为 BCrypt 密文；已经是 BCrypt 的密码会直接按 BCrypt 校验。
 
 ## 结构化日志
 
