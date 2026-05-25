@@ -145,7 +145,7 @@
         <dependency>
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>
-            <version>7.4</version>
+            <version>7.3</version>
         </dependency>
 
         <!-- Excel 导入导出支持，用于物流基础数据和业务列表的本地办公流转。 -->
