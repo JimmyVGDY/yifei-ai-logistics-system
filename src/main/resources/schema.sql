@@ -67,6 +67,18 @@ create table if not exists sys_operation_log (
     index idx_operation_log_time (operation_time)
 );
 
+create table if not exists sys_uploaded_file (
+    id bigint primary key auto_increment,
+    original_name varchar(255) not null,
+    stored_name varchar(255) not null,
+    relative_path varchar(255) not null,
+    file_size bigint not null,
+    content_type varchar(128) null,
+    upload_user varchar(64) not null,
+    upload_time timestamp not null,
+    index idx_uploaded_file_time (upload_time)
+);
+
 create table if not exists logistics_customer (
     id bigint primary key auto_increment,
     customer_code varchar(32) not null unique,

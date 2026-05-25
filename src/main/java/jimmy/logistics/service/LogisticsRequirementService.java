@@ -81,6 +81,8 @@ public class LogisticsRequirementService {
         sql.put("fees", "select f.id, o.order_no, f.base_fee, f.weight_fee, f.distance_fee, f.payable_fee, f.actual_fee, f.payment_status from logistics_fee f join logistics_order o on o.id = f.order_id order by f.id desc limit ?");
         sql.put("users", "select u.id, u.username, u.real_name, u.mobile, u.email, r.role_name, u.status from sys_user u left join sys_role r on r.id = u.role_id order by u.id desc limit ?");
         sql.put("roles", "select id, role_code, role_name, status, create_time from sys_role order by id desc limit ?");
+        sql.put("operationLogs", "select id, username, operation, request_uri, request_method, operation_status, operation_time from sys_operation_log order by id desc limit ?");
+        sql.put("files", "select id, original_name, relative_path, file_size, content_type, upload_user, upload_time from sys_uploaded_file order by id desc limit ?");
         return sql;
     }
 }

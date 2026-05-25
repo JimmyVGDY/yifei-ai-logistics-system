@@ -1,5 +1,6 @@
 package jimmy.logistics.controller;
 
+import jimmy.logistics.annotation.OperationLog;
 import jimmy.logistics.entity.LogisticsOrder;
 import jimmy.logistics.model.CreateLogisticsOrderRequest;
 import jimmy.logistics.service.LogisticsOrderService;
@@ -23,6 +24,7 @@ public class LogisticsOrderController {
         this.logisticsOrderService = logisticsOrderService;
     }
 
+    @OperationLog("创建物流订单")
     @PostMapping
     public LogisticsOrder create(@RequestBody CreateLogisticsOrderRequest request) {
         return logisticsOrderService.create(request);

@@ -1,5 +1,6 @@
 package jimmy.controller;
 
+import jimmy.logistics.annotation.OperationLog;
 import jimmy.model.ApiResponse;
 import jimmy.model.LoginRequest;
 import jimmy.model.LoginResponse;
@@ -20,6 +21,7 @@ public class AuthController {
         this.authService = authService;
     }
 
+    @OperationLog("用户登录")
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@RequestBody LoginRequest request) {
         return ApiResponse.success(authService.login(request));
@@ -30,6 +32,7 @@ public class AuthController {
         return ApiResponse.success(authService.currentSession());
     }
 
+    @OperationLog("用户退出")
     @PostMapping("/logout")
     public ApiResponse<Boolean> logout() {
         authService.logout();
