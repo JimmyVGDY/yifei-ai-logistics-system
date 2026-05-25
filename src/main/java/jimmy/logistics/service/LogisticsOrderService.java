@@ -8,6 +8,7 @@ import jimmy.logistics.mapper.LogisticsOrderMapper;
 import jimmy.logistics.model.CreateLogisticsOrderRequest;
 import jimmy.logistics.model.LogisticsOrderEvent;
 import jimmy.logistics.repository.LogisticsOrderSearchDocument;
+import jimmy.service.BloomFilterService;
 import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -34,19 +35,22 @@ public class LogisticsOrderService {
     private final ElasticsearchOperations elasticsearchOperations;
     private final LogisticsProperties logisticsProperties;
     private final CompactSnowflakeIdGenerator idGenerator;
+    private final BloomFilterService bloomFilterService;
 
     public LogisticsOrderService(LogisticsOrderMapper logisticsOrderMapper,
                                  RedisTemplate<String, Object> redisTemplate,
                                  RabbitTemplate rabbitTemplate,
                                  ElasticsearchOperations elasticsearchOperations,
                                  LogisticsProperties logisticsProperties,
-                                 CompactSnowflakeIdGenerator idGenerator) {
+                                 CompactSnowflakeIdGenerator idGenerator,
+                                 BloomFilterService bloomFilterService) {
         this.logisticsOrderMapper = logisticsOrderMapper;
         this.redisTemplate = redisTemplate;
         this.rabbitTemplate = rabbitTemplate;
         this.elasticsearchOperations = elasticsearchOperations;
         this.logisticsProperties = logisticsProperties;
         this.idGenerator = idGenerator;
+        this.bloomFilterService = bloomFilterService;
     }
 
     @SentinelResource(value = "logisticsOrderCreate", fallback = "createFallback")
@@ -72,6 +76,7 @@ public class LogisticsOrderService {
 
         // 下单主流程：先落库保证核心数据可靠，再同步缓存、搜索索引和异步事件。
         logisticsOrderMapper.insert(logisticsOrder);
+        bloomFilterService.put(logisticsOrder.getOrderNo());
         cacheOrder(logisticsOrder);
         saveSearchDocument(logisticsOrder);
         publishOrderCreated(logisticsOrder);
@@ -85,6 +90,9 @@ public class LogisticsOrderService {
     @SentinelResource(value = "logisticsOrderQuery", fallback = "findByOrderNoFallback")
     public LogisticsOrder findByOrderNo(String orderNo) {
         log.info("查询物流订单详情，orderNo={}", orderNo);
+        if (!bloomFilterService.mightContain(orderNo)) {
+            log.info("物流订单未命中布隆过滤器，继续查询数据库避免重启后旧数据误判，orderNo={}", orderNo);
+        }
         // 查询优先走 Redis，未命中再查数据库，并把数据库结果回填缓存。
         String cacheKey = orderCacheKey(orderNo);
         Object cached = redisTemplate.opsForValue().get(cacheKey);
@@ -95,6 +103,7 @@ public class LogisticsOrderService {
 
         LogisticsOrder logisticsOrder = logisticsOrderMapper.findByOrderNo(orderNo);
         if (logisticsOrder != null) {
+            bloomFilterService.put(logisticsOrder.getOrderNo());
             cacheOrder(logisticsOrder);
             log.info("物流订单查询数据库成功并回填缓存，orderNo={}", orderNo);
         } else {
