@@ -14,6 +14,7 @@ public class LogisticsRabbitMqConfig {
 
     @Bean
     public DirectExchange logisticsOrderExchange(LogisticsProperties properties) {
+        // 物流订单独立使用一个交换机，避免与通用演示消息混在一起。
         return new DirectExchange(properties.getMq().getOrderExchange(), true, false);
     }
 
@@ -26,6 +27,7 @@ public class LogisticsRabbitMqConfig {
     public Binding logisticsOrderCreatedBinding(Queue logisticsOrderCreatedQueue,
                                                 DirectExchange logisticsOrderExchange,
                                                 LogisticsProperties properties) {
+        // 订单创建事件单独绑定队列，后续可扩展更多 routing key 处理不同物流事件。
         return BindingBuilder.bind(logisticsOrderCreatedQueue)
                 .to(logisticsOrderExchange)
                 .with(properties.getMq().getOrderCreatedRoutingKey());

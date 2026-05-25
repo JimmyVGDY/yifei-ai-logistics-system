@@ -14,6 +14,7 @@ public class BloomFilterConfig {
 
     @Bean
     public BloomFilter<CharSequence> stringBloomFilter(BloomFilterProperties properties) {
+        // 布隆过滤器用于快速判断字符串是否可能存在，适合后续做缓存穿透防护。
         return BloomFilter.create(
                 Funnels.stringFunnel(Charset.forName("UTF-8")),
                 properties.getExpectedInsertions(),

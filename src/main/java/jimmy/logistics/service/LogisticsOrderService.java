@@ -46,6 +46,7 @@ public class LogisticsOrderService {
     public LogisticsOrder create(CreateLogisticsOrderRequest request) {
         validate(request);
 
+        // 运单号在服务端生成，避免前端传入重复单号导致业务数据冲突。
         LocalDateTime now = LocalDateTime.now();
         LogisticsOrder logisticsOrder = new LogisticsOrder();
         logisticsOrder.setOrderNo(generateOrderNo(now));
@@ -58,6 +59,7 @@ public class LogisticsOrderService {
         logisticsOrder.setCreatedAt(now);
         logisticsOrder.setUpdatedAt(now);
 
+        // 下单主流程：先落库保证核心数据可靠，再同步缓存、搜索索引和异步事件。
         logisticsOrderMapper.insert(logisticsOrder);
         cacheOrder(logisticsOrder);
         saveSearchDocument(logisticsOrder);
@@ -67,6 +69,7 @@ public class LogisticsOrderService {
 
     @SentinelResource(value = "logisticsOrderQuery", fallback = "findByOrderNoFallback")
     public LogisticsOrder findByOrderNo(String orderNo) {
+        // 查询优先走 Redis，未命中再查数据库，并把数据库结果回填缓存。
         String cacheKey = orderCacheKey(orderNo);
         Object cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached instanceof LogisticsOrder) {
@@ -81,11 +84,13 @@ public class LogisticsOrderService {
     }
 
     public List<LogisticsOrder> findRecent(int limit) {
+        // 限制单次查询数量，避免前端误传过大 limit 压垮数据库。
         int safeLimit = Math.max(1, Math.min(limit, 100));
         return logisticsOrderMapper.findRecent(safeLimit);
     }
 
     public LogisticsOrder createFallback(CreateLogisticsOrderRequest request, Throwable throwable) {
+        // Sentinel 触发限流或熔断时返回可识别状态，调用方可以据此提示稍后重试。
         LogisticsOrder logisticsOrder = new LogisticsOrder();
         logisticsOrder.setOrderNo("SENTINEL-FALLBACK");
         logisticsOrder.setStatus("BLOCKED");
@@ -119,6 +124,7 @@ public class LogisticsOrderService {
     }
 
     private void cacheOrder(LogisticsOrder logisticsOrder) {
+        // 订单缓存设置过期时间，既提升查询速度，也避免长期保存脏数据。
         redisTemplate.opsForValue().set(
                 orderCacheKey(logisticsOrder.getOrderNo()),
                 logisticsOrder,
@@ -128,6 +134,7 @@ public class LogisticsOrderService {
     }
 
     private void saveSearchDocument(LogisticsOrder logisticsOrder) {
+        // 将订单关键字段写入 Elasticsearch，后续可扩展按客户、地址、货物名称检索。
         LogisticsOrderSearchDocument document = new LogisticsOrderSearchDocument();
         document.setOrderNo(logisticsOrder.getOrderNo());
         document.setStatus(logisticsOrder.getStatus());
@@ -143,6 +150,7 @@ public class LogisticsOrderService {
     }
 
     private void publishOrderCreated(LogisticsOrder logisticsOrder) {
+        // 创建订单事件用于解耦后续流程，例如通知、轨迹初始化、费用计算等。
         LogisticsOrderEvent event = new LogisticsOrderEvent(
                 "ORDER_CREATED",
                 logisticsOrder.getOrderNo(),
@@ -161,6 +169,7 @@ public class LogisticsOrderService {
     }
 
     private String generateOrderNo(LocalDateTime now) {
+        // 单号由时间戳和随机片段组成，便于按创建时间排查，同时降低并发重复概率。
         String datePart = now.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
         String randomPart = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
         return "LO" + datePart + randomPart;

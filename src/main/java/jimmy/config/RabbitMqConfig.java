@@ -14,6 +14,7 @@ public class RabbitMqConfig {
 
     @Bean
     public DirectExchange demoExchange(RabbitMqProperties properties) {
+        // DirectExchange 用 routing key 精确路由，适合作为本地消息队列联调示例。
         return new DirectExchange(properties.getDemoExchange(), true, false);
     }
 
@@ -26,6 +27,7 @@ public class RabbitMqConfig {
     public Binding demoBinding(Queue demoQueue,
                                DirectExchange demoExchange,
                                RabbitMqProperties properties) {
+        // 将队列绑定到交换机后，生产者只需要发送到 exchange + routing key。
         return BindingBuilder.bind(demoQueue)
                 .to(demoExchange)
                 .with(properties.getDemoRoutingKey());

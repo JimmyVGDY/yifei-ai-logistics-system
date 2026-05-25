@@ -21,10 +21,12 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
+  // 登录页等公开路由不做 token 校验，避免未登录时出现跳转循环。
   if (to.meta.public) {
     return true
   }
   if (!isAuthenticated()) {
+    // 记录原目标地址，登录成功后可以回到用户最初想访问的页面。
     return { path: '/login', query: { redirect: to.fullPath } }
   }
   return true
