@@ -15,7 +15,7 @@ select 'FINANCE', '财务人员', 1, current_timestamp, current_timestamp
 where not exists (select 1 from sys_role where role_code = 'FINANCE');
 
 insert into sys_user (username, real_name, mobile, email, password, role_id, status, create_time, update_time)
-select 'admin', '系统管理员', '138963311213', 'admin@example.com', 'xlh963311213', r.id, 1, current_timestamp, current_timestamp
+select 'admin', '系统管理员', '138963311213', 'admin@xlh-logistics.local', 'xlh963311213', r.id, 1, current_timestamp, current_timestamp
 from sys_role r
 where r.role_code = 'ADMIN'
   and not exists (select 1 from sys_user where username = 'admin');
@@ -36,110 +36,110 @@ insert into logistics_customer (
     customer_code, customer_name, contact_name, contact_phone,
     province, city, address, status, created_at, updated_at
 )
-select 'CUST-SH-001', 'Shanghai Fresh Retail Co.', 'Alice Chen', '13800010001',
-       'Shanghai', 'Shanghai', 'Pudong New Area, Zhangjiang Road 88', 'ACTIVE', current_timestamp, current_timestamp
+select 'CUST-SH-001', '上海鲜达供应链有限公司', '陈静怡', '13800010001',
+       '上海市', '上海', '浦东新区张江路 88 号', 'ACTIVE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_customer where customer_code = 'CUST-SH-001');
 
 insert into logistics_customer (
     customer_code, customer_name, contact_name, contact_phone,
     province, city, address, status, created_at, updated_at
 )
-select 'CUST-BJ-002', 'Beijing Smart Market Ltd.', 'Bob Li', '13800010002',
-       'Beijing', 'Beijing', 'Chaoyang District, Guanghua Road 66', 'ACTIVE', current_timestamp, current_timestamp
+select 'CUST-BJ-002', '北京智选商贸有限公司', '李明轩', '13800010002',
+       '北京市', '北京', '朝阳区光华路 66 号', 'ACTIVE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_customer where customer_code = 'CUST-BJ-002');
 
 insert into logistics_customer (
     customer_code, customer_name, contact_name, contact_phone,
     province, city, address, status, created_at, updated_at
 )
-select 'CUST-GZ-003', 'Guangzhou Auto Parts Hub', 'Cindy Wang', '13800010003',
-       'Guangdong', 'Guangzhou', 'Tianhe District, Software Road 18', 'ACTIVE', current_timestamp, current_timestamp
+select 'CUST-GZ-003', '广州恒越汽配有限公司', '王雅婷', '13800010003',
+       '广东省', '广州', '天河区软件路 18 号', 'ACTIVE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_customer where customer_code = 'CUST-GZ-003');
 
 insert into logistics_customer (
     customer_code, customer_name, contact_name, contact_phone,
     province, city, address, status, created_at, updated_at
 )
-select 'CUST-SZ-004', 'Shenzhen Cross Border Store', 'David Zhou', '13800010004',
-       'Guangdong', 'Shenzhen', 'Nanshan District, Keji Road 9', 'ACTIVE', current_timestamp, current_timestamp
+select 'CUST-SZ-004', '深圳跨境优选贸易有限公司', '周启航', '13800010004',
+       '广东省', '深圳', '南山区科技路 9 号', 'ACTIVE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_customer where customer_code = 'CUST-SZ-004');
 
 insert into logistics_warehouse (
     warehouse_code, warehouse_name, province, city, address,
     manager_name, contact_phone, capacity_cubic, status, created_at, updated_at
 )
-select 'WH-SH-01', 'Shanghai East Warehouse', 'Shanghai', 'Shanghai', 'Pudong Logistics Park A1',
-       'Henry Xu', '13900020001', 12000.00, 'ACTIVE', current_timestamp, current_timestamp
+select 'WH-SH-01', '上海东区云仓', '上海市', '上海', '浦东物流园 A1 库区',
+       '许文博', '13900020001', 12000.00, 'ACTIVE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_warehouse where warehouse_code = 'WH-SH-01');
 
 insert into logistics_warehouse (
     warehouse_code, warehouse_name, province, city, address,
     manager_name, contact_phone, capacity_cubic, status, created_at, updated_at
 )
-select 'WH-BJ-01', 'Beijing North Warehouse', 'Beijing', 'Beijing', 'Daxing Logistics Zone B2',
-       'Iris Zhao', '13900020002', 9000.00, 'ACTIVE', current_timestamp, current_timestamp
+select 'WH-BJ-01', '北京北区分拨仓', '北京市', '北京', '大兴物流园 B2 库区',
+       '赵雨桐', '13900020002', 9000.00, 'ACTIVE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_warehouse where warehouse_code = 'WH-BJ-01');
 
 insert into logistics_warehouse (
     warehouse_code, warehouse_name, province, city, address,
     manager_name, contact_phone, capacity_cubic, status, created_at, updated_at
 )
-select 'WH-GZ-01', 'Guangzhou South Warehouse', 'Guangdong', 'Guangzhou', 'Baiyun Logistics Center C3',
-       'Jack Huang', '13900020003', 15000.00, 'ACTIVE', current_timestamp, current_timestamp
+select 'WH-GZ-01', '广州南区冷链仓', '广东省', '广州', '白云物流中心 C3 库区',
+       '黄俊杰', '13900020003', 15000.00, 'ACTIVE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_warehouse where warehouse_code = 'WH-GZ-01');
 
 insert into logistics_driver (
     driver_code, driver_name, phone, license_no, license_type, status, created_at, updated_at
 )
-select 'DRV-001', 'Driver Zhang', '13700030001', 'A2-310001', 'A2', 'AVAILABLE', current_timestamp, current_timestamp
+select 'DRV-001', '张志强', '13700030001', 'A2-310001', 'A2', 'AVAILABLE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_driver where driver_code = 'DRV-001');
 
 insert into logistics_driver (
     driver_code, driver_name, phone, license_no, license_type, status, created_at, updated_at
 )
-select 'DRV-002', 'Driver Liu', '13700030002', 'A2-310002', 'A2', 'ON_ROUTE', current_timestamp, current_timestamp
+select 'DRV-002', '刘建国', '13700030002', 'A2-310002', 'A2', 'ON_ROUTE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_driver where driver_code = 'DRV-002');
 
 insert into logistics_driver (
     driver_code, driver_name, phone, license_no, license_type, status, created_at, updated_at
 )
-select 'DRV-003', 'Driver Sun', '13700030003', 'B2-310003', 'B2', 'AVAILABLE', current_timestamp, current_timestamp
+select 'DRV-003', '孙浩然', '13700030003', 'B2-310003', 'B2', 'AVAILABLE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_driver where driver_code = 'DRV-003');
 
 insert into logistics_vehicle (
     vehicle_no, vehicle_type, load_capacity_kg, volume_capacity_cubic, current_city, status, created_at, updated_at
 )
-select '沪A-LOG01', '9.6m Box Truck', 12000.00, 55.00, 'Shanghai', 'AVAILABLE', current_timestamp, current_timestamp
+select '沪A-LOG01', '9.6米厢式货车', 12000.00, 55.00, '上海', 'AVAILABLE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_vehicle where vehicle_no = '沪A-LOG01');
 
 insert into logistics_vehicle (
     vehicle_no, vehicle_type, load_capacity_kg, volume_capacity_cubic, current_city, status, created_at, updated_at
 )
-select '京B-LOG02', 'Cold Chain Truck', 8000.00, 40.00, 'Beijing', 'ON_ROUTE', current_timestamp, current_timestamp
+select '京B-LOG02', '冷链厢式货车', 8000.00, 40.00, '北京', 'ON_ROUTE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_vehicle where vehicle_no = '京B-LOG02');
 
 insert into logistics_vehicle (
     vehicle_no, vehicle_type, load_capacity_kg, volume_capacity_cubic, current_city, status, created_at, updated_at
 )
-select '粤C-LOG03', 'Van', 3000.00, 18.00, 'Guangzhou', 'AVAILABLE', current_timestamp, current_timestamp
+select '粤C-LOG03', '城市配送面包车', 3000.00, 18.00, '广州', 'AVAILABLE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_vehicle where vehicle_no = '粤C-LOG03');
 
 insert into logistics_route (
     route_code, origin_city, destination_city, distance_km, estimated_hours, status, created_at, updated_at
 )
-select 'RT-SH-BJ', 'Shanghai', 'Beijing', 1210.50, 20, 'ACTIVE', current_timestamp, current_timestamp
+select 'RT-SH-BJ', '上海', '北京', 1210.50, 20, 'ACTIVE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_route where route_code = 'RT-SH-BJ');
 
 insert into logistics_route (
     route_code, origin_city, destination_city, distance_km, estimated_hours, status, created_at, updated_at
 )
-select 'RT-SH-GZ', 'Shanghai', 'Guangzhou', 1435.20, 24, 'ACTIVE', current_timestamp, current_timestamp
+select 'RT-SH-GZ', '上海', '广州', 1435.20, 24, 'ACTIVE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_route where route_code = 'RT-SH-GZ');
 
 insert into logistics_route (
     route_code, origin_city, destination_city, distance_km, estimated_hours, status, created_at, updated_at
 )
-select 'RT-GZ-SZ', 'Guangzhou', 'Shenzhen', 136.80, 3, 'ACTIVE', current_timestamp, current_timestamp
+select 'RT-GZ-SZ', '广州', '深圳', 136.80, 3, 'ACTIVE', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_route where route_code = 'RT-GZ-SZ');
 
 insert into logistics_order (
@@ -149,7 +149,7 @@ insert into logistics_order (
     created_at, updated_at
 )
 select 'LO-DEMO-0001', c.id, r.id, w.id, v.id, d.id,
-       c.customer_name, 'Pudong New Area, Shanghai', 'Chaoyang District, Beijing', 'Apparel Samples',
+       c.customer_name, '上海市浦东新区发货仓', '北京市朝阳区收货点', '服装样品箱',
        12.500, 1.200, 'CREATED',
        timestampadd(hour, 2, current_timestamp), timestampadd(hour, 28, current_timestamp),
        current_timestamp, current_timestamp
@@ -168,7 +168,7 @@ insert into logistics_order (
     created_at, updated_at
 )
 select 'LO-DEMO-0002', c.id, r.id, w.id, v.id, d.id,
-       c.customer_name, 'Baiyun District, Guangzhou', 'Nanshan District, Shenzhen', 'Auto Parts',
+       c.customer_name, '广州市白云区发货仓', '深圳市南山区收货点', '汽车配件托盘',
        860.000, 6.800, 'IN_TRANSIT',
        timestampadd(hour, -5, current_timestamp), timestampadd(hour, 4, current_timestamp),
        current_timestamp, current_timestamp
@@ -187,7 +187,7 @@ insert into logistics_order (
     created_at, updated_at
 )
 select 'LO-DEMO-0003', c.id, r.id, w.id, v.id, d.id,
-       c.customer_name, 'Shanghai Warehouse A1', 'Tianhe District, Guangzhou', 'Fresh Retail Goods',
+       c.customer_name, '上海东区云仓 A1 库区', '广州市天河区客户现场', '生鲜零售周转箱',
        2450.000, 18.600, 'DELIVERED',
        timestampadd(day, -2, current_timestamp), timestampadd(day, -1, current_timestamp),
        current_timestamp, current_timestamp
@@ -202,35 +202,35 @@ where c.customer_code = 'CUST-SH-001'
 insert into logistics_order_tracking (
     order_no, tracking_status, location, description, operator_name, occurred_at, created_at
 )
-select 'LO-DEMO-0001', 'CREATED', 'Shanghai East Warehouse', 'Order created and waiting for pickup', 'System',
+select 'LO-DEMO-0001', 'CREATED', '上海东区云仓', '订单已创建，等待调度揽收', '系统',
        timestampadd(hour, -1, current_timestamp), current_timestamp
 where not exists (select 1 from logistics_order_tracking where order_no = 'LO-DEMO-0001' and tracking_status = 'CREATED');
 
 insert into logistics_order_tracking (
     order_no, tracking_status, location, description, operator_name, occurred_at, created_at
 )
-select 'LO-DEMO-0002', 'PICKED_UP', 'Guangzhou South Warehouse', 'Cargo picked up by driver', 'Driver Sun',
+select 'LO-DEMO-0002', 'PICKED_UP', '广州南区冷链仓', '司机已完成货物揽收', '孙浩然',
        timestampadd(hour, -4, current_timestamp), current_timestamp
 where not exists (select 1 from logistics_order_tracking where order_no = 'LO-DEMO-0002' and tracking_status = 'PICKED_UP');
 
 insert into logistics_order_tracking (
     order_no, tracking_status, location, description, operator_name, occurred_at, created_at
 )
-select 'LO-DEMO-0002', 'IN_TRANSIT', 'Guangshen Expressway', 'Vehicle is on route to destination', 'Dispatch Center',
+select 'LO-DEMO-0002', 'IN_TRANSIT', '广深高速', '车辆正在前往目的网点', '调度中心',
        timestampadd(hour, -2, current_timestamp), current_timestamp
 where not exists (select 1 from logistics_order_tracking where order_no = 'LO-DEMO-0002' and tracking_status = 'IN_TRANSIT');
 
 insert into logistics_order_tracking (
     order_no, tracking_status, location, description, operator_name, occurred_at, created_at
 )
-select 'LO-DEMO-0003', 'DELIVERED', 'Guangzhou Customer Site', 'Order delivered and signed', 'Driver Liu',
+select 'LO-DEMO-0003', 'DELIVERED', '广州客户现场', '客户已签收，订单完成配送', '刘建国',
        timestampadd(hour, -20, current_timestamp), current_timestamp
 where not exists (select 1 from logistics_order_tracking where order_no = 'LO-DEMO-0003' and tracking_status = 'DELIVERED');
 
 insert into logistics_inventory (
     warehouse_id, sku_code, sku_name, quantity, locked_quantity, updated_at
 )
-select w.id, 'SKU-APPAREL-001', 'Apparel Sample Box', 320, 20, current_timestamp
+select w.id, 'SKU-APPAREL-001', '服装样品纸箱', 320, 20, current_timestamp
 from logistics_warehouse w
 where w.warehouse_code = 'WH-SH-01'
   and not exists (select 1 from logistics_inventory i where i.warehouse_id = w.id and i.sku_code = 'SKU-APPAREL-001');
@@ -238,7 +238,7 @@ where w.warehouse_code = 'WH-SH-01'
 insert into logistics_inventory (
     warehouse_id, sku_code, sku_name, quantity, locked_quantity, updated_at
 )
-select w.id, 'SKU-FRESH-002', 'Fresh Retail Goods', 180, 45, current_timestamp
+select w.id, 'SKU-FRESH-002', '生鲜零售周转箱', 180, 45, current_timestamp
 from logistics_warehouse w
 where w.warehouse_code = 'WH-SH-01'
   and not exists (select 1 from logistics_inventory i where i.warehouse_id = w.id and i.sku_code = 'SKU-FRESH-002');
@@ -246,7 +246,7 @@ where w.warehouse_code = 'WH-SH-01'
 insert into logistics_inventory (
     warehouse_id, sku_code, sku_name, quantity, locked_quantity, updated_at
 )
-select w.id, 'SKU-AUTO-003', 'Auto Parts Package', 560, 80, current_timestamp
+select w.id, 'SKU-AUTO-003', '汽车配件托盘', 560, 80, current_timestamp
 from logistics_warehouse w
 where w.warehouse_code = 'WH-GZ-01'
   and not exists (select 1 from logistics_inventory i where i.warehouse_id = w.id and i.sku_code = 'SKU-AUTO-003');
@@ -362,8 +362,8 @@ where o.order_no = 'LO-DEMO-0002'
 insert into logistics_exception (
     order_id, task_id, exception_type, exception_desc, exception_status, report_user, report_time, handle_user, handle_time
 )
-select o.id, t.id, '地址错误', '客户收件地址门牌号缺失，已联系客户确认', 'PROCESSING', 'Driver Sun',
-       timestampadd(hour, -1, current_timestamp), 'Dispatcher Li', null
+select o.id, t.id, '地址错误', '客户收件地址门牌号缺失，已联系客户确认', 'PROCESSING', '孙浩然',
+       timestampadd(hour, -1, current_timestamp), '李文涛', null
 from logistics_order o
 join logistics_task t on t.order_id = o.id
 where o.order_no = 'LO-DEMO-0002'

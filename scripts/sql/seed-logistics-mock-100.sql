@@ -18,14 +18,14 @@ begin
 
     while i <= 100 do
         set mock_city = case mod(i, 8)
-            when 0 then 'Shanghai'
-            when 1 then 'Beijing'
-            when 2 then 'Guangzhou'
-            when 3 then 'Shenzhen'
-            when 4 then 'Hangzhou'
-            when 5 then 'Nanjing'
-            when 6 then 'Chengdu'
-            else 'Wuhan'
+            when 0 then '上海'
+            when 1 then '北京'
+            when 2 then '广州'
+            when 3 then '深圳'
+            when 4 then '杭州'
+            when 5 then '南京'
+            when 6 then '成都'
+            else '武汉'
         end;
 
         insert into logistics_customer (
@@ -33,12 +33,21 @@ begin
             province, city, address, status, created_at, updated_at
         )
         select concat('MOCK-CUST-', lpad(i, 3, '0')),
-               concat('Mock Customer ', lpad(i, 3, '0')),
-               concat('Contact ', lpad(i, 3, '0')),
+               concat(mock_city, elt(1 + mod(i, 12), '云帆商贸有限公司', '丰禾食品有限公司', '星河冷链供应链有限公司', '安捷汽配有限公司', '万汇家居有限公司', '瑞康医药物流有限公司', '嘉品电商有限公司', '海川制造有限公司', '天悦连锁超市有限公司', '启明电子有限公司', '盛达建材有限公司', '优鲜农产品有限公司')),
+               elt(1 + mod(i, 20), '陈静怡', '李明轩', '王雅婷', '周启航', '赵雨桐', '刘思远', '孙浩然', '黄俊杰', '吴嘉宁', '徐子涵', '郑凯文', '胡佳琪', '高雨辰', '林书瑶', '郭文博', '何欣怡', '马天宇', '罗梓涵', '谢思源', '唐若琳'),
                concat('1389', lpad(i, 7, '0')),
-               'Mock Province',
+               case mock_city
+                   when '上海' then '上海市'
+                   when '北京' then '北京市'
+                   when '广州' then '广东省'
+                   when '深圳' then '广东省'
+                   when '杭州' then '浙江省'
+                   when '南京' then '江苏省'
+                   when '成都' then '四川省'
+                   else '湖北省'
+               end,
                mock_city,
-               concat(mock_city, ' Logistics Street ', i),
+               concat(mock_city, '市临港物流园', 10 + mod(i, 80), '号'),
                if(mod(i, 10) = 0, 'PAUSED', 'ACTIVE'),
                current_timestamp,
                current_timestamp
@@ -52,11 +61,20 @@ begin
             manager_name, contact_phone, capacity_cubic, status, created_at, updated_at
         )
         select concat('MOCK-WH-', lpad(i, 3, '0')),
-               concat(mock_city, ' Mock Warehouse ', lpad(i, 3, '0')),
-               'Mock Province',
+               concat(mock_city, elt(1 + mod(i, 8), '东区云仓', '北区分拨中心', '南区冷链仓', '西区转运场', '综合保税仓', '快运集散中心', '城市配送仓', '智能立体仓')),
+               case mock_city
+                   when '上海' then '上海市'
+                   when '北京' then '北京市'
+                   when '广州' then '广东省'
+                   when '深圳' then '广东省'
+                   when '杭州' then '浙江省'
+                   when '南京' then '江苏省'
+                   when '成都' then '四川省'
+                   else '湖北省'
+               end,
                mock_city,
-               concat(mock_city, ' Warehouse Park ', i),
-               concat('Manager ', lpad(i, 3, '0')),
+               concat(mock_city, '市综合物流园', 1 + mod(i, 9), '号库'),
+               elt(1 + mod(i + 3, 20), '陈静怡', '李明轩', '王雅婷', '周启航', '赵雨桐', '刘思远', '孙浩然', '黄俊杰', '吴嘉宁', '徐子涵', '郑凯文', '胡佳琪', '高雨辰', '林书瑶', '郭文博', '何欣怡', '马天宇', '罗梓涵', '谢思源', '唐若琳'),
                concat('1398', lpad(i, 7, '0')),
                5000 + i * 25,
                if(mod(i, 15) = 0, 'MAINTENANCE', 'ACTIVE'),
@@ -71,7 +89,7 @@ begin
             driver_code, driver_name, phone, license_no, license_type, status, created_at, updated_at
         )
         select concat('MOCK-DRV-', lpad(i, 3, '0')),
-               concat('Mock Driver ', lpad(i, 3, '0')),
+               elt(1 + mod(i + 6, 20), '张志强', '刘建国', '孙浩然', '周启航', '赵鹏飞', '陈远航', '吴嘉宁', '黄俊杰', '徐子涵', '高雨辰', '林志远', '马天宇', '罗梓豪', '谢思源', '唐文杰', '韩宇航', '曹明哲', '潘俊峰', '邓博文', '梁嘉诚'),
                concat('1378', lpad(i, 7, '0')),
                concat('LIC-MOCK-', lpad(i, 5, '0')),
                if(mod(i, 3) = 0, 'B2', 'A2'),
@@ -94,10 +112,10 @@ begin
         )
         select concat('MOCK-VEH-', lpad(i, 3, '0')),
                case mod(i, 4)
-                   when 0 then 'Cold Chain Truck'
-                   when 1 then '9.6m Box Truck'
-                   when 2 then 'Van'
-                   else 'Heavy Truck'
+                    when 0 then '冷链厢式货车'
+                    when 1 then '9.6米厢式货车'
+                    when 2 then '城市配送面包车'
+                    else '重型半挂货车'
                end,
                3000 + i * 120,
                18 + mod(i, 50),
@@ -122,14 +140,14 @@ begin
         select concat('MOCK-RT-', lpad(i, 3, '0')),
                mock_city,
                case mod(i + 3, 8)
-                   when 0 then 'Shanghai'
-                   when 1 then 'Beijing'
-                   when 2 then 'Guangzhou'
-                   when 3 then 'Shenzhen'
-                   when 4 then 'Hangzhou'
-                   when 5 then 'Nanjing'
-                   when 6 then 'Chengdu'
-                   else 'Wuhan'
+                    when 0 then '上海'
+                    when 1 then '北京'
+                    when 2 then '广州'
+                    when 3 then '深圳'
+                    when 4 then '杭州'
+                    when 5 then '南京'
+                    when 6 then '成都'
+                    else '武汉'
                end,
                120 + i * 13.5,
                2 + mod(i, 36),
@@ -165,7 +183,7 @@ begin
         set order_no_value = concat('MOCK-ORDER-', lpad(i, 4, '0'));
         set mock_status = case mod(i, 5)
             when 0 then 'DELIVERED'
-            when 1 then 'CREATED'
+            when 1 then 'WAIT_DISPATCH'
             when 2 then 'PICKED_UP'
             when 3 then 'IN_TRANSIT'
             else 'SIGNED'
@@ -183,10 +201,19 @@ begin
                warehouse_id_value,
                vehicle_id_value,
                driver_id_value,
-               concat('Mock Customer ', lpad(@ref_index, 3, '0')),
-               concat(mock_city, ' Sender Site ', i),
-               concat('Destination Site ', i),
-               concat('Mock Cargo ', lpad(i, 3, '0')),
+                (select customer_name from logistics_customer where id = customer_id_value),
+                concat(mock_city, '市发货仓', 1 + mod(i, 12), '号'),
+                concat(case mod(i + 3, 8)
+                    when 0 then '上海'
+                    when 1 then '北京'
+                    when 2 then '广州'
+                    when 3 then '深圳'
+                    when 4 then '杭州'
+                    when 5 then '南京'
+                    when 6 then '成都'
+                    else '武汉'
+                end, '市客户收货点', 1 + mod(i, 16), '号'),
+                elt(1 + mod(i, 12), '生鲜冷链箱', '服装样品箱', '汽车配件托盘', '家电配件包裹', '医药恒温箱', '电商小件包裹', '办公设备箱', '建材五金托盘', '母婴用品箱', '电子元器件箱', '茶叶礼盒', '农产品周转箱'),
                10 + i * 8.75,
                1 + mod(i, 20) * 0.65,
                mock_status,
@@ -205,8 +232,8 @@ begin
         select order_no_value,
                mock_status,
                mock_city,
-               concat('Mock tracking update for ', order_no_value),
-               concat('Operator ', lpad(i, 3, '0')),
+                concat('订单状态更新为 ', mock_status, '，当前位置：', mock_city),
+                elt(1 + mod(i + 9, 20), '陈静怡', '李明轩', '王雅婷', '周启航', '赵雨桐', '刘思远', '孙浩然', '黄俊杰', '吴嘉宁', '徐子涵', '郑凯文', '胡佳琪', '高雨辰', '林书瑶', '郭文博', '何欣怡', '马天宇', '罗梓涵', '谢思源', '唐若琳'),
                timestampadd(minute, i * -10, current_timestamp),
                current_timestamp
         where not exists (
@@ -220,7 +247,7 @@ begin
         )
         select warehouse_id_value,
                concat('MOCK-SKU-', lpad(i, 4, '0')),
-               concat('Mock SKU ', lpad(i, 4, '0')),
+               elt(1 + mod(i, 12), '生鲜冷链周转箱', '服装样品纸箱', '汽车配件托盘', '家电配件包裹', '医药恒温包装箱', '电商小件包裹', '办公设备箱', '建材五金托盘', '母婴用品箱', '电子元器件箱', '茶叶礼盒', '农产品周转箱'),
                100 + i * 3,
                mod(i, 30),
                current_timestamp

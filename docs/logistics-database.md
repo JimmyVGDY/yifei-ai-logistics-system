@@ -54,3 +54,13 @@ F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_manage
 ```
 
 脚本会生成 `MOCK-*` 前缀的数据，并且可以重复执行；已有相同业务编号的数据不会重复插入。
+
+## 刷新可读演示名称
+
+如果旧数据中出现 `Mock Customer 001`、`Driver Sun` 或编码异常的演示名称，可以执行：
+
+```bash
+F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_management < scripts/sql/refresh-logistics-readable-names.sql
+```
+
+该脚本会把客户公司、联系人、司机、仓库负责人、轨迹操作人、货物和 SKU 名称刷新成更贴近真实物流系统的中文演示数据。
