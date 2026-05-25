@@ -25,11 +25,12 @@
 
 - Sa-Token 登录认证、会话校验、RBAC 菜单权限和按钮权限。
 - 物流订单创建、查询、管理页分页、模糊查询和时间范围查询。
+- 运单支持部分字段后补：货物名称、重量、体积、计划时间等可暂缺，更新接口只修改明确传入字段。
 - 客户、运单、调度、任务、轨迹、司机、车辆、异常、费用、用户、角色等管理页基础 CRUD。
 - Redis 订单详情缓存，订单查询时回填缓存。
 - BloomFilter 参与订单号查询预检，降低不存在单号反复查询的风险。
 - RabbitMQ 订单创建事件，消费后自动初始化物流轨迹。
-- Elasticsearch 订单搜索索引写入，便于后续扩展组合搜索。
+- Elasticsearch 订单搜索索引写入和搜索接口，支持按订单号、客户、地址、货物名检索。
 - Sentinel 保护订单创建和订单查询等高频接口。
 - 结构化 JSON 文件日志、操作日志表、敏感用户名/姓名脱敏。
 - Excel 导出和客户资料导入。
@@ -129,6 +130,9 @@ src/main/resources/data.sql
 - [前端工程说明](docs/frontend.md)
 - [需求匹配说明](docs/requirements-mapping.md)
 - [物流接口文档](docs/logistics-api.md)
+- [认证接口文档](docs/auth-api.md)
+- [用户接口文档](docs/user-api.md)
+- [角色权限接口文档](docs/role-permission-api.md)
 - [数据库增量迁移说明](docs/incremental-migration.md)
 - [权限和结构化日志说明](docs/logistics-rbac-structured-log.md)
 
@@ -145,6 +149,7 @@ POST /logistics/modules/{module}/{id}
 POST /logistics/modules/{module}/{id}/delete
 POST /logistics/orders
 GET  /logistics/orders/{orderNo}
+GET  /logistics/orders/search?keyword=上海&page=1&pageSize=20
 GET  /logistics/excel/export/{module}
 POST /logistics/excel/import/customers
 GET  /infra/status

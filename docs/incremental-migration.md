@@ -16,5 +16,8 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 - `version`
 - `sys_user.user_code` 用户业务编号
 - 状态、时间、手机号、订单号等常用查询索引
+- 放宽运单可后补字段：货物名称、重量、体积、计划提货时间、计划送达时间、线路、仓库、司机、车辆
 
 脚本使用 `information_schema` 判断字段和索引是否已存在，可重复执行。
+
+该脚本不会删除表、不会清空数据，也不会在应用启动时自动执行。已有数据环境优先执行该增量脚本；`schema.sql` 和 `data.sql` 主要用于 H2 或全新开发库初始化。

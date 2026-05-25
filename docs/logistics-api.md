@@ -55,7 +55,7 @@ exceptions, fees, users, roles, operationLogs, files
 | --- | --- | --- | --- |
 | GET | `/logistics/modules/{module}` | `{模块}:query` | 分页查询 |
 | POST | `/logistics/modules/{module}` | `{模块}:create` | 新增记录 |
-| POST | `/logistics/modules/{module}/{id}` | `{模块}:update` | 修改记录，只更新传入且非 null 的字段 |
+| POST | `/logistics/modules/{module}/{id}` | `{模块}:update` | 修改记录，只更新请求体中明确传入的字段 |
 | POST | `/logistics/modules/{module}/{id}/delete` | `{模块}:delete` | 删除记录，优先逻辑删除 |
 
 查询参数：
@@ -67,6 +67,12 @@ exceptions, fees, users, roles, operationLogs, files
 | `keyword` | 否 | 关键词模糊查询 |
 | `startTime` | 否 | 开始时间，格式 `yyyy-MM-dd HH:mm:ss` |
 | `endTime` | 否 | 结束时间，格式 `yyyy-MM-dd HH:mm:ss` |
+
+更新规则：
+
+- 未传入的字段保持原值。
+- 传入 `null` 时，只有后端配置为允许清空的字段才会写入空值。
+- 运单的货物名称、重量、体积、计划提货时间、计划送达时间、线路、仓库、司机、车辆允许后补。
 
 权限模块映射：
 
@@ -94,6 +100,17 @@ exceptions, fees, users, roles, operationLogs, files
 | POST | `/logistics/orders` | `order:create` | 创建物流订单 |
 | GET | `/logistics/orders` | `order:query` | 查询最近订单 |
 | GET | `/logistics/orders/{orderNo}` | `order:query` | 查询订单详情 |
+| GET | `/logistics/orders/search` | `order:query` | Elasticsearch 订单搜索 |
+
+创建订单必填：客户名称、发货地址、收货地址。货物名称、重量、体积和计划时间允许暂缺，后续可在运单管理里补充。
+
+订单搜索参数：
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `page` | 否 | 页码，默认 1 |
+| `pageSize` | 否 | 每页数量，默认 20，最大 100 |
+| `keyword` | 否 | 按订单号、客户、收货地址、货物名搜索 |
 
 订单创建会执行业务链路：
 
