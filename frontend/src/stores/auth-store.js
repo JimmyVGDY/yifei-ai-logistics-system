@@ -1,15 +1,25 @@
-export function saveAuthToken(session) {
-  localStorage.setItem('auth.tokenName', session.tokenName)
-  localStorage.setItem('auth.tokenValue', session.tokenValue)
-  localStorage.setItem('auth.username', session.usernameMasked || session.username)
-  localStorage.setItem('auth.userId', session.userId || session.loginId)
-  localStorage.setItem('auth.roleCode', session.roleCode || '')
-  localStorage.setItem('auth.roleName', session.roleName || '')
-  localStorage.setItem('auth.permissions', JSON.stringify(session.permissions || []))
-  localStorage.setItem('auth.menus', JSON.stringify(session.menus || []))
+import { reactive } from 'vue'
+
+const authState = reactive(readAuthFromStorage())
+
+export function saveAuthToken(payload) {
+  const session = normalizeSession(payload)
+  const nextState = {
+    tokenName: session.tokenName || '',
+    tokenValue: session.tokenValue || '',
+    username: session.usernameMasked || session.username || '',
+    userId: String(session.userId || session.loginId || ''),
+    roleCode: session.roleCode || '',
+    roleName: session.roleName || '',
+    permissions: session.permissions || [],
+    menus: session.menus || []
+  }
+  Object.assign(authState, nextState)
+  writeAuthToStorage(nextState)
 }
 
 export function clearAuthToken() {
+  Object.assign(authState, emptyAuth())
   ;[
     'auth.tokenName',
     'auth.tokenValue',
@@ -23,33 +33,69 @@ export function clearAuthToken() {
 }
 
 export function getAuthToken() {
+  return authState
+}
+
+export function isAuthenticated() {
+  return Boolean(authState.tokenName && authState.tokenValue)
+}
+
+export function canVisit(path) {
+  if (!authState.menus.length) {
+    return true
+  }
+  return flattenMenus(authState.menus).some((menu) => path === menu.path || path.startsWith(`${menu.path}/`))
+}
+
+export function firstMenuPath() {
+  return flattenMenus(authState.menus).find((menu) => menu.path && menu.path !== '/system')?.path || '/dashboard'
+}
+
+function normalizeSession(payload) {
+  if (!payload) {
+    return {}
+  }
+  if (payload.data && payload.tokenName === undefined) {
+    return payload.data
+  }
+  return payload
+}
+
+function readAuthFromStorage() {
   return {
-    tokenName: localStorage.getItem('auth.tokenName'),
-    tokenValue: localStorage.getItem('auth.tokenValue'),
-    username: localStorage.getItem('auth.username'),
-    userId: localStorage.getItem('auth.userId'),
-    roleCode: localStorage.getItem('auth.roleCode'),
-    roleName: localStorage.getItem('auth.roleName'),
+    tokenName: localStorage.getItem('auth.tokenName') || '',
+    tokenValue: localStorage.getItem('auth.tokenValue') || '',
+    username: localStorage.getItem('auth.username') || '',
+    userId: localStorage.getItem('auth.userId') || '',
+    roleCode: localStorage.getItem('auth.roleCode') || '',
+    roleName: localStorage.getItem('auth.roleName') || '',
     permissions: readJson('auth.permissions', []),
     menus: readJson('auth.menus', [])
   }
 }
 
-export function isAuthenticated() {
-  const { tokenName, tokenValue } = getAuthToken()
-  return Boolean(tokenName && tokenValue)
+function writeAuthToStorage(state) {
+  localStorage.setItem('auth.tokenName', state.tokenName)
+  localStorage.setItem('auth.tokenValue', state.tokenValue)
+  localStorage.setItem('auth.username', state.username)
+  localStorage.setItem('auth.userId', state.userId)
+  localStorage.setItem('auth.roleCode', state.roleCode)
+  localStorage.setItem('auth.roleName', state.roleName)
+  localStorage.setItem('auth.permissions', JSON.stringify(state.permissions))
+  localStorage.setItem('auth.menus', JSON.stringify(state.menus))
 }
 
-export function canVisit(path) {
-  const { menus } = getAuthToken()
-  if (!menus.length) {
-    return true
+function emptyAuth() {
+  return {
+    tokenName: '',
+    tokenValue: '',
+    username: '',
+    userId: '',
+    roleCode: '',
+    roleName: '',
+    permissions: [],
+    menus: []
   }
-  return flattenMenus(menus).some((menu) => path === menu.path || path.startsWith(`${menu.path}/`))
-}
-
-export function firstMenuPath() {
-  return flattenMenus(getAuthToken().menus).find((menu) => menu.path && menu.path !== '/system')?.path || '/dashboard'
 }
 
 function flattenMenus(menus) {

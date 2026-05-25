@@ -23,7 +23,9 @@
             </el-button>
           </div>
           <el-table :data="summary?.statusDistribution || []" v-loading="loading" height="320">
-            <el-table-column prop="status" label="状态" min-width="160" />
+            <el-table-column prop="status" label="状态" min-width="160">
+              <template #default="{ row }">{{ statusLabel(row.status) }}</template>
+            </el-table-column>
             <el-table-column prop="total" label="数量" width="120" />
           </el-table>
         </section>
@@ -40,7 +42,9 @@
           <el-table :data="summary?.recentExceptions || []" v-loading="loading" height="320">
             <el-table-column prop="order_no" label="订单号" min-width="160" />
             <el-table-column prop="exception_type" label="异常类型" width="120" />
-            <el-table-column prop="exception_status" label="状态" width="120" />
+            <el-table-column prop="exception_status" label="状态" width="120">
+              <template #default="{ row }">{{ statusLabel(row.exception_status) }}</template>
+            </el-table-column>
             <el-table-column prop="report_user" label="上报人" width="120" />
           </el-table>
         </section>
@@ -84,6 +88,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { fetchDashboardSummary, fetchIncomeTrend, fetchOrderTrend } from '../api/logistics'
+import { statusLabel } from '../utils/status-labels'
 
 const summary = ref(null)
 const orderTrend = ref([])

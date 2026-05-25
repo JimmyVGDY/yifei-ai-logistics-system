@@ -56,10 +56,10 @@ import { logout } from './api/auth'
 import { clearAuthToken, getAuthToken } from './stores/auth-store'
 
 const router = useRouter()
-const auth = computed(() => getAuthToken())
-const username = computed(() => auth.value.username || '未登录')
-const roleName = computed(() => auth.value.roleName || '未分配角色')
-const menus = computed(() => auth.value.menus || [])
+const auth = getAuthToken()
+const username = computed(() => auth.username || '未登录')
+const roleName = computed(() => auth.roleName || '未分配角色')
+const menus = computed(() => auth.menus || [])
 
 function iconName(path) {
   const icons = {
