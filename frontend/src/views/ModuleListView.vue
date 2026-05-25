@@ -16,13 +16,13 @@
           style="width: 360px"
         />
         <el-input-number v-model="limit" :min="1" :max="100" />
-        <el-button v-if="meta.editable" type="primary" @click="openCreateDialog">新增</el-button>
-        <el-button v-if="route.meta.module === 'exceptions'" type="warning" @click="exceptionDialogVisible = true">上报异常</el-button>
-        <el-button v-if="route.meta.module === 'fees'" type="success" @click="feeDialogVisible = true">生成费用</el-button>
-        <el-upload v-if="route.meta.module === 'customers'" :show-file-list="false" :auto-upload="false" accept=".xlsx" @change="handleCustomerImport">
+        <el-button v-if="canCreate" type="primary" @click="openCreateDialog">新增</el-button>
+        <el-button v-if="canReportException" type="warning" @click="exceptionDialogVisible = true">上报异常</el-button>
+        <el-button v-if="canGenerateFee" type="success" @click="feeDialogVisible = true">生成费用</el-button>
+        <el-upload v-if="canImportCustomer" :show-file-list="false" :auto-upload="false" accept=".xlsx" @change="handleCustomerImport">
           <el-button>导入客户</el-button>
         </el-upload>
-        <el-button @click="downloadExcel">导出 Excel</el-button>
+        <el-button v-if="canExport" @click="downloadExcel">导出 Excel</el-button>
         <el-button type="primary" :loading="loading" @click="loadData">
           <el-icon><Search /></el-icon>
           查询
@@ -34,18 +34,18 @@
       <el-table-column v-for="column in meta.columns" :key="column.prop" :prop="column.prop" :label="column.label" :min-width="column.minWidth || 120">
         <template #default="{ row }">{{ formatCell(column.prop, row[column.prop]) }}</template>
       </el-table-column>
-      <el-table-column v-if="meta.editable" label="操作" width="170" fixed="right">
+      <el-table-column v-if="showCrudColumn" label="操作" width="170" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
-          <el-button link type="danger" @click="deleteRow(row)">删除</el-button>
+          <el-button v-if="canUpdate" link type="primary" @click="openEditDialog(row)">编辑</el-button>
+          <el-button v-if="canDelete" link type="danger" @click="deleteRow(row)">删除</el-button>
         </template>
       </el-table-column>
-      <el-table-column v-if="route.meta.module === 'exceptions'" label="处理" width="100" fixed="right">
+      <el-table-column v-if="canHandleException" label="处理" width="100" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="handleExceptionRow(row)">关闭</el-button>
         </template>
       </el-table-column>
-      <el-table-column v-if="route.meta.module === 'fees'" label="收款" width="100" fixed="right">
+      <el-table-column v-if="canPayFee" label="收款" width="100" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="handlePayRow(row)">收款</el-button>
         </template>
@@ -70,7 +70,10 @@
         <el-row :gutter="16">
           <el-col v-for="field in activeEditFields" :key="field.prop" :xs="24" :md="12">
             <el-form-item :label="field.label">
-              <el-input-number v-if="field.type === 'number'" v-model="crudForm[field.prop]" :precision="field.precision || 0" style="width: 100%" />
+              <el-select v-if="field.options" v-model="crudForm[field.prop]" clearable filterable style="width: 100%">
+                <el-option v-for="option in field.options" :key="option.value" :label="option.label" :value="option.value" />
+              </el-select>
+              <el-input-number v-else-if="field.type === 'number'" v-model="crudForm[field.prop]" :precision="field.precision || 0" style="width: 100%" />
               <el-date-picker v-else-if="field.type === 'datetime'" v-model="crudForm[field.prop]" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="选择时间" style="width: 100%" />
               <el-input v-else v-model="crudForm[field.prop]" clearable />
             </el-form-item>
@@ -125,6 +128,7 @@ import {
   updateModuleRecord
 } from '../api/logistics'
 import { formatDateTime, statusLabel } from '../utils/status-labels'
+import { hasPermission } from '../stores/auth-store'
 
 const route = useRoute()
 const page = ref(1)
@@ -144,25 +148,47 @@ const crudForm = reactive({})
 const exceptionForm = reactive({ orderNo: '', exceptionType: '', exceptionDesc: '' })
 const feeForm = reactive({ orderNo: '' })
 
+const statusOptions = {
+  common: options('1:启用,0:停用,ACTIVE:启用,DISABLED:停用,PAUSED:暂停'),
+  order: options('CREATED:已创建,WAIT_DISPATCH:待调度,DISPATCHED:已调度,PICKED_UP:已揽收,IN_TRANSIT:运输中,DELIVERING:派送中,DELIVERED:已送达,SIGNED:已签收,COMPLETED:已完成,CANCELLED:已取消,EXCEPTION:异常'),
+  transport: options('WAIT_DISPATCH:待调度,DISPATCHED:已调度,IN_TRANSIT:运输中,ARRIVED:已到达,DELIVERED:已送达,SIGNED:已签收,EXCEPTION:异常'),
+  dispatch: options('WAIT_DISPATCH:待调度,DISPATCHED:已调度,PROCESSING:处理中,COMPLETED:已完成,CANCELLED:已取消'),
+  task: options('ASSIGNED:已分配,PICKED_UP:已揽收,IN_TRANSIT:运输中,DELIVERING:派送中,SIGNED:已签收,COMPLETED:已完成,EXCEPTION:异常'),
+  driverVehicle: options('AVAILABLE:空闲,IDLE:空闲,ON_ROUTE:运输中,RESTING:休息中,MAINTENANCE:维修中,DISABLED:停用'),
+  exception: options('PROCESSING:处理中,HANDLING:处理中,CLOSED:已关闭'),
+  fee: options('UNPAID:未付款,PART_PAID:部分付款,PAID:已付款,REFUNDED:已退款')
+}
+
 const moduleMetas = {
-  orders: moduleMeta('运单管理', '统一维护订单、调度前状态和业务下单入口', 'order_no:订单号,customer_name:客户名称,sender_address:发货地址,receiver_address:收货地址,cargo_name:货物名称,cargo_weight:重量,status:状态,created_at:创建时间,updated_at:更新时间', 'customerName:客户名称,senderAddress:发货地址,receiverAddress:收货地址,cargoName:货物名称,cargoWeight:重量:number:3'),
-  customers: moduleMeta('客户管理', '维护寄件客户和联系人资料', 'customer_code:客户编号,customer_name:客户名称,contact_name:联系人,contact_phone:联系电话,province:省份,city:城市,address:地址,status:状态,created_at:创建时间,updated_at:更新时间', 'customer_code:客户编号,customer_name:客户名称,contact_name:联系人,contact_phone:联系电话,province:省份,city:城市,address:地址,status:状态'),
-  waybills: moduleMeta('运单中心', '订单创建后生成的运单和运输状态', 'waybill_no:运单号,order_id:订单ID,order_no:订单号,start_site:始发网点,target_site:目的网点,current_location:当前位置,transport_status:运输状态,create_time:创建时间,update_time:更新时间', 'waybill_no:运单号,order_id:订单ID,start_site:始发网点,target_site:目的网点,current_location:当前位置,transport_status:运输状态'),
-  dispatches: moduleMeta('调度管理', '分配司机、车辆并跟踪调度状态', 'order_id:订单ID,order_no:订单号,waybill_id:运单ID,driver_id:司机ID,driver_name:司机,vehicle_id:车辆ID,vehicle_no:车辆,start_site:始发网点,target_site:目的网点,dispatch_status:调度状态,create_time:创建时间,update_time:更新时间', 'order_id:订单ID,waybill_id:运单ID,driver_id:司机ID,vehicle_id:车辆ID,start_site:始发网点,target_site:目的网点,dispatch_status:调度状态'),
-  tasks: moduleMeta('运输任务', '司机接单、运输、签收和异常上报', 'task_no:任务号,order_id:订单ID,order_no:订单号,driver_id:司机ID,driver_name:司机,vehicle_id:车辆ID,vehicle_no:车辆,task_status:任务状态,proof_url:签收凭证,create_time:创建时间,update_time:更新时间', 'task_no:任务号,order_id:订单ID,waybill_id:运单ID,dispatch_id:调度ID,driver_id:司机ID,vehicle_id:车辆ID,task_status:任务状态,proof_url:签收凭证'),
-  tracks: moduleMeta('物流轨迹', '按时间线记录订单运输轨迹', 'order_id:订单ID,order_no:订单号,waybill_id:运单ID,current_status:当前状态,current_location:当前位置,operator_name:操作人,operation_desc:操作说明,operation_time:操作时间', 'order_id:订单ID,waybill_id:运单ID,current_status:当前状态,current_location:当前位置,operator_name:操作人,operation_desc:操作说明,operation_time:操作时间:datetime'),
-  drivers: moduleMeta('司机管理', '维护司机证件和可用状态', 'driver_code:司机编号,driver_name:司机姓名,phone:手机号,license_no:驾驶证号,license_type:准驾车型,status:状态,created_at:创建时间,updated_at:更新时间', 'driver_code:司机编号,driver_name:司机姓名,phone:手机号,license_no:驾驶证号,license_type:准驾车型,status:状态'),
-  vehicles: moduleMeta('车辆管理', '维护车辆、容量和当前位置', 'vehicle_no:车牌号,vehicle_type:车辆类型,load_capacity_kg:载重,volume_capacity_cubic:容积,current_city:当前城市,status:状态,created_at:创建时间,updated_at:更新时间', 'vehicle_no:车牌号,vehicle_type:车辆类型,load_capacity_kg:载重:number:2,volume_capacity_cubic:容积:number:2,current_city:当前城市,status:状态'),
-  exceptions: moduleMeta('异常管理', '运输异常上报、处理和查询', 'order_id:订单ID,order_no:订单号,task_id:任务ID,exception_type:异常类型,exception_desc:异常描述,exception_status:异常状态,report_user:上报人,report_time:上报时间,handle_user:处理人,handle_time:处理时间', 'order_id:订单ID,task_id:任务ID,exception_type:异常类型,exception_desc:异常描述,exception_status:异常状态,report_user:上报人,handle_user:处理人'),
-  fees: moduleMeta('费用结算', '订单费用计算、账单和付款状态', 'order_id:订单ID,order_no:订单号,base_fee:基础运费,weight_fee:重量费用,distance_fee:距离费用,additional_fee:附加费,discount_fee:优惠金额,payable_fee:应收金额,actual_fee:实收金额,payment_status:付款状态,create_time:创建时间,update_time:更新时间', 'order_id:订单ID,base_fee:基础运费:number:2,weight_fee:重量费用:number:2,distance_fee:距离费用:number:2,additional_fee:附加费:number:2,discount_fee:优惠金额:number:2,payable_fee:应收金额:number:2,actual_fee:实收金额:number:2,payment_status:付款状态'),
-  users: moduleMeta('用户管理', '后台用户、状态和角色分配', 'user_code:用户编号,username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,role_id:角色ID,role_name:角色,status:状态,create_time:创建时间,update_time:更新时间', 'user_code:用户编号,username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,password:密码,role_id:角色ID,status:状态'),
-  roles: moduleMeta('角色管理', '系统管理员、客服、调度、司机、财务和客户角色', 'role_code:角色编码,role_name:角色名称,status:状态,create_time:创建时间,update_time:更新时间', 'role_code:角色编码,role_name:角色名称,status:状态'),
+  orders: moduleMeta('orders', '运单管理', '统一维护订单、调度前状态和业务下单入口', 'order_no:订单号,customer_name:客户名称,sender_address:发货地址,receiver_address:收货地址,cargo_name:货物名称,cargo_weight:重量,status:状态,created_at:创建时间,updated_at:更新时间', 'customerName:客户名称,senderAddress:发货地址,receiverAddress:收货地址,cargoName:货物名称,cargoWeight:重量:number:3'),
+  customers: moduleMeta('customers', '客户管理', '维护寄件客户和联系人资料', 'customer_code:客户编号,customer_name:客户名称,contact_name:联系人,contact_phone:联系电话,province:省份,city:城市,address:地址,status:状态,created_at:创建时间,updated_at:更新时间', 'customer_code:客户编号,customer_name:客户名称,contact_name:联系人,contact_phone:联系电话,province:省份,city:城市,address:地址,status:状态'),
+  waybills: moduleMeta('waybills', '运单中心', '订单创建后生成的运单和运输状态', 'waybill_no:运单号,order_id:订单ID,order_no:订单号,start_site:始发网点,target_site:目的网点,current_location:当前位置,transport_status:运输状态,create_time:创建时间,update_time:更新时间', 'waybill_no:运单号,order_id:订单ID,start_site:始发网点,target_site:目的网点,current_location:当前位置,transport_status:运输状态'),
+  dispatches: moduleMeta('dispatches', '调度管理', '分配司机、车辆并跟踪调度状态', 'order_id:订单ID,order_no:订单号,waybill_id:运单ID,driver_id:司机ID,driver_name:司机,vehicle_id:车辆ID,vehicle_no:车辆,start_site:始发网点,target_site:目的网点,dispatch_status:调度状态,create_time:创建时间,update_time:更新时间', 'order_id:订单ID,waybill_id:运单ID,driver_id:司机ID,vehicle_id:车辆ID,start_site:始发网点,target_site:目的网点,dispatch_status:调度状态'),
+  tasks: moduleMeta('tasks', '运输任务', '司机接单、运输、签收和异常上报', 'task_no:任务号,order_id:订单ID,order_no:订单号,driver_id:司机ID,driver_name:司机,vehicle_id:车辆ID,vehicle_no:车辆,task_status:任务状态,proof_url:签收凭证,create_time:创建时间,update_time:更新时间', 'task_no:任务号,order_id:订单ID,waybill_id:运单ID,dispatch_id:调度ID,driver_id:司机ID,vehicle_id:车辆ID,task_status:任务状态,proof_url:签收凭证'),
+  tracks: moduleMeta('tracks', '物流轨迹', '按时间线记录订单运输轨迹', 'order_id:订单ID,order_no:订单号,waybill_id:运单ID,current_status:当前状态,current_location:当前位置,operator_name:操作人,operation_desc:操作说明,operation_time:操作时间', 'order_id:订单ID,waybill_id:运单ID,current_status:当前状态,current_location:当前位置,operator_name:操作人,operation_desc:操作说明,operation_time:操作时间:datetime'),
+  drivers: moduleMeta('drivers', '司机管理', '维护司机证件和可用状态', 'driver_code:司机编号,driver_name:司机姓名,phone:手机号,license_no:驾驶证号,license_type:准驾车型,status:状态,created_at:创建时间,updated_at:更新时间', 'driver_code:司机编号,driver_name:司机姓名,phone:手机号,license_no:驾驶证号,license_type:准驾车型,status:状态'),
+  vehicles: moduleMeta('vehicles', '车辆管理', '维护车辆、容量和当前位置', 'vehicle_no:车牌号,vehicle_type:车辆类型,load_capacity_kg:载重,volume_capacity_cubic:容积,current_city:当前城市,status:状态,created_at:创建时间,updated_at:更新时间', 'vehicle_no:车牌号,vehicle_type:车辆类型,load_capacity_kg:载重:number:2,volume_capacity_cubic:容积:number:2,current_city:当前城市,status:状态'),
+  exceptions: moduleMeta('exceptions', '异常管理', '运输异常上报、处理和查询', 'order_id:订单ID,order_no:订单号,task_id:任务ID,exception_type:异常类型,exception_desc:异常描述,exception_status:异常状态,report_user:上报人,report_time:上报时间,handle_user:处理人,handle_time:处理时间', 'order_id:订单ID,task_id:任务ID,exception_type:异常类型,exception_desc:异常描述,exception_status:异常状态,report_user:上报人,handle_user:处理人'),
+  fees: moduleMeta('fees', '费用结算', '订单费用计算、账单和付款状态', 'order_id:订单ID,order_no:订单号,base_fee:基础运费,weight_fee:重量费用,distance_fee:距离费用,additional_fee:附加费,discount_fee:优惠金额,payable_fee:应收金额,actual_fee:实收金额,payment_status:付款状态,create_time:创建时间,update_time:更新时间', 'order_id:订单ID,base_fee:基础运费:number:2,weight_fee:重量费用:number:2,distance_fee:距离费用:number:2,additional_fee:附加费:number:2,discount_fee:优惠金额:number:2,payable_fee:应收金额:number:2,actual_fee:实收金额:number:2,payment_status:付款状态'),
+  users: moduleMeta('users', '用户管理', '后台用户、状态和角色分配', 'user_code:用户编号,username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,role_id:角色ID,role_name:角色,status:状态,create_time:创建时间,update_time:更新时间', 'user_code:用户编号,username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,password:密码,role_id:角色ID,status:状态'),
+  roles: moduleMeta('roles', '角色管理', '系统管理员、客服、调度、司机、财务和客户角色', 'role_code:角色编码,role_name:角色名称,status:状态,create_time:创建时间,update_time:更新时间', 'role_code:角色编码,role_name:角色名称,status:状态'),
   operationLogs: { title: '操作日志', description: '记录关键接口和业务写操作', editable: false, columns: columns('username:操作人,operation:操作内容,request_uri:请求地址,request_method:方法,operation_status:状态,operation_time:操作时间') },
   files: { title: '上传文件', description: '查看上传到本地的业务附件记录', editable: false, columns: columns('original_name:原文件名,relative_path:保存路径,file_size:大小,content_type:类型,upload_user:上传人,upload_time:上传时间') }
 }
 
 const meta = computed(() => moduleMetas[route.meta.module] || moduleMetas.customers)
 const activeEditFields = computed(() => meta.value.editFields || [])
+const modulePermission = computed(() => route.meta.permission || meta.value.permission)
+const canCreate = computed(() => meta.value.editable && hasPermission(modulePermission.value))
+const canUpdate = computed(() => meta.value.editable && hasPermission(modulePermission.value))
+const canDelete = computed(() => meta.value.editable && hasPermission(modulePermission.value))
+const canExport = computed(() => hasPermission(modulePermission.value))
+const canImportCustomer = computed(() => route.meta.module === 'customers' && hasPermission('customer:manage'))
+const canReportException = computed(() => route.meta.module === 'exceptions' && hasPermission('exception:manage'))
+const canHandleException = computed(() => route.meta.module === 'exceptions' && hasPermission('exception:manage'))
+const canGenerateFee = computed(() => route.meta.module === 'fees' && hasPermission('fee:manage'))
+const canPayFee = computed(() => route.meta.module === 'fees' && hasPermission('fee:manage'))
+const showCrudColumn = computed(() => canUpdate.value || canDelete.value)
 
 function columns(definition) {
   return definition.split(',').map((item) => {
@@ -171,15 +197,50 @@ function columns(definition) {
   })
 }
 
-function moduleMeta(title, description, columnDefinition, editDefinition) {
-  return { title, description, columns: columns(columnDefinition), editable: true, editFields: editFields(editDefinition) }
+function moduleMeta(module, title, description, columnDefinition, editDefinition) {
+  return { title, description, columns: columns(columnDefinition), editable: true, editFields: editFields(editDefinition, module) }
 }
 
-function editFields(definition) {
+function editFields(definition, module) {
   return definition.split(',').map((item) => {
     const [prop, label, type, precision] = item.split(':')
-    return { prop, label, type: type || 'text', precision: precision ? Number(precision) : undefined }
+    return { prop, label, type: type || 'text', precision: precision ? Number(precision) : undefined, options: fieldOptions(prop, module) }
   })
+}
+
+function options(definition) {
+  return definition.split(',').map((item) => {
+    const [value, label] = item.split(':')
+    return { value, label }
+  })
+}
+
+function fieldOptions(prop, module) {
+  if (prop === 'status') {
+    if (['orders'].includes(module)) {
+      return statusOptions.order
+    }
+    if (['drivers', 'vehicles'].includes(module)) {
+      return statusOptions.driverVehicle
+    }
+    return statusOptions.common
+  }
+  if (prop === 'transport_status' || prop === 'current_status') {
+    return statusOptions.transport
+  }
+  if (prop === 'dispatch_status') {
+    return statusOptions.dispatch
+  }
+  if (prop === 'task_status') {
+    return statusOptions.task
+  }
+  if (prop === 'exception_status') {
+    return statusOptions.exception
+  }
+  if (prop === 'payment_status') {
+    return statusOptions.fee
+  }
+  return undefined
 }
 
 function formatCell(prop, value) {

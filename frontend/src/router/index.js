@@ -8,22 +8,22 @@ import { canVisit, firstMenuPath, isAuthenticated } from '../stores/auth-store'
 const routes = [
   { path: '/', redirect: '/dashboard' },
   { path: '/login', component: LoginView, meta: { title: '用户登录', public: true } },
-  { path: '/dashboard', component: DashboardView, meta: { title: '运营看板' } },
-  { path: '/orders', component: ModuleListView, meta: { title: '运单管理', module: 'orders', businessCreate: true } },
-  { path: '/customers', component: ModuleListView, meta: { title: '客户管理', module: 'customers' } },
-  { path: '/waybills', component: ModuleListView, meta: { title: '运单中心', module: 'waybills' } },
-  { path: '/dispatches', component: ModuleListView, meta: { title: '调度管理', module: 'dispatches' } },
-  { path: '/tasks', component: ModuleListView, meta: { title: '运输任务', module: 'tasks' } },
-  { path: '/tracks', component: ModuleListView, meta: { title: '物流轨迹', module: 'tracks' } },
-  { path: '/drivers', component: ModuleListView, meta: { title: '司机管理', module: 'drivers' } },
-  { path: '/vehicles', component: ModuleListView, meta: { title: '车辆管理', module: 'vehicles' } },
-  { path: '/exceptions', component: ModuleListView, meta: { title: '异常管理', module: 'exceptions' } },
-  { path: '/fees', component: ModuleListView, meta: { title: '费用结算', module: 'fees' } },
-  { path: '/system/users', component: ModuleListView, meta: { title: '用户管理', module: 'users' } },
-  { path: '/system/roles', component: ModuleListView, meta: { title: '角色管理', module: 'roles' } },
-  { path: '/system/operation-logs', component: ModuleListView, meta: { title: '操作日志', module: 'operationLogs' } },
-  { path: '/files', component: ModuleListView, meta: { title: '上传文件', module: 'files' } },
-  { path: '/resources', component: ResourcesView, meta: { title: '资源中心' } }
+  { path: '/dashboard', component: DashboardView, meta: { title: '运营看板', permission: 'dashboard:view' } },
+  { path: '/orders', component: ModuleListView, meta: { title: '运单管理', module: 'orders', permission: 'order:manage', businessCreate: true } },
+  { path: '/customers', component: ModuleListView, meta: { title: '客户管理', module: 'customers', permission: 'customer:manage' } },
+  { path: '/waybills', component: ModuleListView, meta: { title: '运单中心', module: 'waybills', permission: 'waybill:manage' } },
+  { path: '/dispatches', component: ModuleListView, meta: { title: '调度管理', module: 'dispatches', permission: 'dispatch:manage' } },
+  { path: '/tasks', component: ModuleListView, meta: { title: '运输任务', module: 'tasks', permission: 'task:manage' } },
+  { path: '/tracks', component: ModuleListView, meta: { title: '物流轨迹', module: 'tracks', permission: 'track:view' } },
+  { path: '/drivers', component: ModuleListView, meta: { title: '司机管理', module: 'drivers', permission: 'driver:manage' } },
+  { path: '/vehicles', component: ModuleListView, meta: { title: '车辆管理', module: 'vehicles', permission: 'vehicle:manage' } },
+  { path: '/exceptions', component: ModuleListView, meta: { title: '异常管理', module: 'exceptions', permission: 'exception:manage' } },
+  { path: '/fees', component: ModuleListView, meta: { title: '费用结算', module: 'fees', permission: 'fee:manage' } },
+  { path: '/system/users', component: ModuleListView, meta: { title: '用户管理', module: 'users', permission: 'system:user:manage' } },
+  { path: '/system/roles', component: ModuleListView, meta: { title: '角色管理', module: 'roles', permission: 'system:role:manage' } },
+  { path: '/system/operation-logs', component: ModuleListView, meta: { title: '操作日志', module: 'operationLogs', permission: 'system:log:view' } },
+  { path: '/files', component: ModuleListView, meta: { title: '上传文件', module: 'files', permission: 'file:manage' } },
+  { path: '/resources', component: ResourcesView, meta: { title: '资源中心', permission: 'resource:view' } }
 ]
 
 const router = createRouter({

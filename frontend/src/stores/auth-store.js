@@ -47,6 +47,13 @@ export function canVisit(path) {
   return flattenMenus(authState.menus).some((menu) => path === menu.path || path.startsWith(`${menu.path}/`))
 }
 
+export function hasPermission(permission) {
+  if (!permission) {
+    return true
+  }
+  return authState.permissions.includes(permission)
+}
+
 export function firstMenuPath() {
   return flattenMenus(authState.menus).find((menu) => menu.path && menu.path !== '/system')?.path || '/dashboard'
 }
