@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,11 +45,8 @@ public class AuthService {
             throw new IllegalArgumentException("账号已停用");
         }
 
-        List<MenuVO> menus = queryMenus(loginUser.roleId);
-        List<String> permissions = menus.stream()
-                .map(MenuVO::getPermissionCode)
-                .filter(StringUtils::hasText)
-                .collect(Collectors.toList());
+        List<MenuVO> menus = mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
+        List<String> permissions = collectPermissions(menus);
 
         StpUtil.login(loginUser.id);
         StpUtil.getSession().set("username", loginUser.username);
@@ -72,10 +70,10 @@ public class AuthService {
         List<MenuVO> menus = getSessionList("menus");
         List<String> permissions = getSessionList("permissions");
         if (menus.isEmpty() && loginUser != null) {
-            menus = queryMenus(loginUser.roleId);
+            menus = mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
         }
         if (permissions.isEmpty()) {
-            permissions = menus.stream().map(MenuVO::getPermissionCode).filter(StringUtils::hasText).collect(Collectors.toList());
+            permissions = collectPermissions(menus);
         }
         return buildResponse(loginUser, StpUtil.getTokenInfo(), permissions, menus);
     }
@@ -173,6 +171,109 @@ public class AuthService {
             }
         }
         return roots;
+    }
+
+    private List<MenuVO> mergeDefaultMenus(String roleCode, List<MenuVO> dbMenus) {
+        Map<String, MenuVO> merged = new LinkedHashMap<>();
+        for (MenuVO menu : defaultMenus(roleCode)) {
+            merged.put(menu.getPath(), menu);
+        }
+        for (MenuVO menu : dbMenus) {
+            if (StringUtils.hasText(menu.getPath()) && !merged.containsKey(menu.getPath())) {
+                merged.put(menu.getPath(), menu);
+            }
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private List<String> collectPermissions(List<MenuVO> menus) {
+        return flattenMenus(menus).stream()
+                .map(MenuVO::getPermissionCode)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    private List<MenuVO> flattenMenus(List<MenuVO> menus) {
+        List<MenuVO> flattened = new ArrayList<>();
+        for (MenuVO menu : menus) {
+            flattened.add(menu);
+            if (menu.getChildren() != null && !menu.getChildren().isEmpty()) {
+                flattened.addAll(flattenMenus(menu.getChildren()));
+            }
+        }
+        return flattened;
+    }
+
+    private List<MenuVO> defaultMenus(String roleCode) {
+        if ("CUSTOMER_SERVICE".equals(roleCode)) {
+            return menus("customers", "orders", "waybills", "tracks");
+        }
+        if ("DISPATCHER".equals(roleCode)) {
+            return menus("dispatches", "tasks", "drivers", "vehicles", "tracks", "exceptions");
+        }
+        if ("DRIVER".equals(roleCode)) {
+            return menus("tasks", "tracks", "exceptions");
+        }
+        if ("FINANCE".equals(roleCode)) {
+            return menus("fees", "dashboard");
+        }
+        if ("CUSTOMER".equals(roleCode)) {
+            return menus("orders", "tracks");
+        }
+        return menus("dashboard", "orders", "customers", "waybills", "dispatches", "tasks", "tracks",
+                "drivers", "vehicles", "exceptions", "fees", "system", "users", "roles", "logs", "files", "resources");
+    }
+
+    private List<MenuVO> menus(String... keys) {
+        Map<String, MenuVO> all = allDefaultMenus();
+        List<MenuVO> result = new ArrayList<>();
+        for (String key : keys) {
+            MenuVO menu = all.get(key);
+            if (menu != null) {
+                result.add(menu);
+            }
+        }
+        return result;
+    }
+
+    private Map<String, MenuVO> allDefaultMenus() {
+        Map<String, MenuVO> menus = new LinkedHashMap<>();
+        menus.put("dashboard", menu(-1L, 0L, "运营看板", "/dashboard", "dashboard:view", 10));
+        menus.put("orders", menu(-2L, 0L, "运单管理", "/orders", "order:manage", 20));
+        menus.put("customers", menu(-3L, 0L, "客户管理", "/customers", "customer:manage", 30));
+        menus.put("waybills", menu(-4L, 0L, "运单中心", "/waybills", "waybill:manage", 40));
+        menus.put("dispatches", menu(-5L, 0L, "调度管理", "/dispatches", "dispatch:manage", 50));
+        menus.put("tasks", menu(-6L, 0L, "运输任务", "/tasks", "task:manage", 60));
+        menus.put("tracks", menu(-7L, 0L, "物流轨迹", "/tracks", "track:view", 70));
+        menus.put("drivers", menu(-8L, 0L, "司机管理", "/drivers", "driver:manage", 80));
+        menus.put("vehicles", menu(-9L, 0L, "车辆管理", "/vehicles", "vehicle:manage", 90));
+        menus.put("exceptions", menu(-10L, 0L, "异常管理", "/exceptions", "exception:manage", 100));
+        menus.put("fees", menu(-11L, 0L, "费用结算", "/fees", "fee:manage", 110));
+        MenuVO system = menu(-12L, 0L, "系统管理", "/system", "system:manage", 900);
+        system.setChildren(Arrays.asList(
+                menu(-13L, -12L, "用户管理", "/system/users", "system:user:manage", 910),
+                menu(-14L, -12L, "角色管理", "/system/roles", "system:role:manage", 920),
+                menu(-15L, -12L, "操作日志", "/system/operation-logs", "system:log:view", 930)
+        ));
+        menus.put("system", system);
+        menus.put("users", system.getChildren().get(0));
+        menus.put("roles", system.getChildren().get(1));
+        menus.put("logs", system.getChildren().get(2));
+        menus.put("files", menu(-16L, 0L, "上传文件", "/files", "file:manage", 940));
+        menus.put("resources", menu(-17L, 0L, "资源中心", "/resources", "resource:view", 950));
+        return menus;
+    }
+
+    private MenuVO menu(Long id, Long parentId, String name, String path, String permissionCode, Integer sortNo) {
+        MenuVO menu = new MenuVO();
+        menu.setId(id);
+        menu.setParentId(parentId);
+        menu.setName(name);
+        menu.setPath(path);
+        menu.setPermissionCode(permissionCode);
+        menu.setSortNo(sortNo);
+        return menu;
     }
 
     @SuppressWarnings("unchecked")
