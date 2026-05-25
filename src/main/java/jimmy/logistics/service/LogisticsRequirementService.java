@@ -60,6 +60,7 @@ public class LogisticsRequirementService {
         summary.setRecentExceptions(jdbcTemplate.queryForList(
                 "select e.id, o.order_no, e.exception_type, e.exception_status, e.report_user, e.report_time " +
                         "from logistics_exception e join logistics_order o on o.id = e.order_id " +
+                        "where e.exception_status <> 'CLOSED' " +
                         "order by e.report_time desc limit 5"
         ));
         log.info("物流运营看板统计完成，todayOrders={}, waitDispatch={}, inTransit={}, exceptionOrders={}",

@@ -39,7 +39,7 @@
               <p>最近上报且未关闭的运输异常</p>
             </div>
           </div>
-          <el-table :data="summary?.recentExceptions || []" v-loading="loading" height="320">
+          <el-table :data="openRecentExceptions" v-loading="loading" height="320">
             <el-table-column prop="order_no" label="订单号" min-width="160" />
             <el-table-column prop="exception_type" label="异常类型" width="120" />
             <el-table-column prop="exception_status" label="状态" width="120">
@@ -103,6 +103,10 @@ const metrics = computed(() => [
   { label: '异常订单', value: summary.value?.exceptionOrders || 0, hint: '未关闭异常' },
   { label: '月度收入', value: summary.value?.monthIncome || 0, hint: '已付款费用' }
 ])
+
+const openRecentExceptions = computed(() => {
+  return (summary.value?.recentExceptions || []).filter((item) => item.exception_status !== 'CLOSED')
+})
 
 async function loadData() {
   loading.value = true
