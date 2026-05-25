@@ -140,7 +140,8 @@ const exceptionForm = reactive({ orderNo: '', exceptionType: '', exceptionDesc: 
 const feeForm = reactive({ orderNo: '' })
 
 const statusOptions = {
-  common: options('1:启用,0:停用,ACTIVE:启用,DISABLED:停用,PAUSED:暂停'),
+  numeric: options('1:启用,0:停用'),
+  common: options('ACTIVE:启用,DISABLED:停用,PAUSED:暂停'),
   order: options('CREATED:已创建,WAIT_DISPATCH:待调度,DISPATCHED:已调度,PICKED_UP:已揽收,IN_TRANSIT:运输中,DELIVERING:派送中,DELIVERED:已送达,SIGNED:已签收,COMPLETED:已完成,CANCELLED:已取消,EXCEPTION:异常'),
   transport: options('WAIT_DISPATCH:待调度,DISPATCHED:已调度,IN_TRANSIT:运输中,ARRIVED:已到达,DELIVERED:已送达,SIGNED:已签收,EXCEPTION:异常'),
   dispatch: options('WAIT_DISPATCH:待调度,DISPATCHED:已调度,PROCESSING:处理中,COMPLETED:已完成,CANCELLED:已取消'),
@@ -213,6 +214,9 @@ function fieldOptions(prop, module) {
     }
     if (['drivers', 'vehicles'].includes(module)) {
       return statusOptions.driverVehicle
+    }
+    if (['users', 'roles'].includes(module)) {
+      return statusOptions.numeric
     }
     return statusOptions.common
   }
