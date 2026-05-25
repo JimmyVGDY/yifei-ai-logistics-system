@@ -1,3 +1,28 @@
+-- 本地开发环境允许重建数据库，启动时先删除旧表，避免旧自增结构和初始化数据重复。
+drop table if exists logistics_freight_bill;
+drop table if exists logistics_inventory;
+drop table if exists logistics_order_tracking;
+drop table if exists logistics_fee;
+drop table if exists logistics_exception;
+drop table if exists logistics_track;
+drop table if exists logistics_task;
+drop table if exists logistics_dispatch;
+drop table if exists logistics_waybill;
+drop table if exists logistics_order;
+drop table if exists logistics_route;
+drop table if exists logistics_vehicle;
+drop table if exists logistics_driver;
+drop table if exists logistics_warehouse;
+drop table if exists logistics_customer;
+drop table if exists sys_uploaded_file;
+drop table if exists sys_operation_log;
+drop table if exists sys_role_menu;
+drop table if exists sys_user_role;
+drop table if exists sys_menu;
+drop table if exists sys_user;
+drop table if exists sys_role;
+drop table if exists demo_user;
+
 create table if not exists demo_user (
     id bigint primary key,
     username varchar(64) not null unique,
