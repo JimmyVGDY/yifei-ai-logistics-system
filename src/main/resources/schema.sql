@@ -1,12 +1,12 @@
-create table if not exists demo_user (
-    id bigint primary key auto_increment,
+﻿create table if not exists demo_user (
+    id bigint primary key,
     username varchar(64) not null unique,
     display_name varchar(128) not null,
     created_at timestamp not null
 );
 
 create table if not exists sys_role (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     role_code varchar(64) not null unique,
     role_name varchar(64) not null,
     status tinyint not null,
@@ -15,7 +15,8 @@ create table if not exists sys_role (
 );
 
 create table if not exists sys_user (
-    id bigint primary key auto_increment,
+    id bigint primary key,
+    user_code varchar(32) not null unique,
     username varchar(64) not null unique,
     real_name varchar(64) not null,
     mobile varchar(32) not null,
@@ -30,7 +31,7 @@ create table if not exists sys_user (
 );
 
 create table if not exists sys_menu (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     parent_id bigint not null default 0,
     menu_name varchar(64) not null,
     menu_path varchar(128) not null,
@@ -42,21 +43,21 @@ create table if not exists sys_menu (
 );
 
 create table if not exists sys_user_role (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     user_id bigint not null,
     role_id bigint not null,
     unique key uk_sys_user_role (user_id, role_id)
 );
 
 create table if not exists sys_role_menu (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     role_id bigint not null,
     menu_id bigint not null,
     unique key uk_sys_role_menu (role_id, menu_id)
 );
 
 create table if not exists sys_operation_log (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     username varchar(64) not null,
     operation varchar(128) not null,
     request_uri varchar(255) not null,
@@ -68,7 +69,7 @@ create table if not exists sys_operation_log (
 );
 
 create table if not exists sys_uploaded_file (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     original_name varchar(255) not null,
     stored_name varchar(255) not null,
     relative_path varchar(255) not null,
@@ -80,7 +81,7 @@ create table if not exists sys_uploaded_file (
 );
 
 create table if not exists logistics_customer (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     customer_code varchar(32) not null unique,
     customer_name varchar(128) not null,
     contact_name varchar(64) not null,
@@ -96,7 +97,7 @@ create table if not exists logistics_customer (
 );
 
 create table if not exists logistics_warehouse (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     warehouse_code varchar(32) not null unique,
     warehouse_name varchar(128) not null,
     province varchar(64) not null,
@@ -113,7 +114,7 @@ create table if not exists logistics_warehouse (
 );
 
 create table if not exists logistics_driver (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     driver_code varchar(32) not null unique,
     driver_name varchar(64) not null,
     phone varchar(32) not null,
@@ -126,7 +127,7 @@ create table if not exists logistics_driver (
 );
 
 create table if not exists logistics_vehicle (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     vehicle_no varchar(32) not null unique,
     vehicle_type varchar(64) not null,
     load_capacity_kg decimal(12, 2) not null,
@@ -140,7 +141,7 @@ create table if not exists logistics_vehicle (
 );
 
 create table if not exists logistics_route (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     route_code varchar(32) not null unique,
     origin_city varchar(64) not null,
     destination_city varchar(64) not null,
@@ -153,7 +154,7 @@ create table if not exists logistics_route (
 );
 
 create table if not exists logistics_order (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     order_no varchar(64) not null unique,
     customer_id bigint null,
     route_id bigint null,
@@ -178,7 +179,7 @@ create table if not exists logistics_order (
 );
 
 create table if not exists logistics_waybill (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     waybill_no varchar(64) not null unique,
     order_id bigint not null,
     start_site varchar(128) not null,
@@ -192,7 +193,7 @@ create table if not exists logistics_waybill (
 );
 
 create table if not exists logistics_dispatch (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     order_id bigint not null,
     waybill_id bigint not null,
     driver_id bigint not null,
@@ -211,7 +212,7 @@ create table if not exists logistics_dispatch (
 );
 
 create table if not exists logistics_task (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     task_no varchar(64) not null unique,
     order_id bigint not null,
     waybill_id bigint not null,
@@ -228,7 +229,7 @@ create table if not exists logistics_task (
 );
 
 create table if not exists logistics_track (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     order_id bigint not null,
     waybill_id bigint not null,
     current_status varchar(32) not null,
@@ -242,7 +243,7 @@ create table if not exists logistics_track (
 );
 
 create table if not exists logistics_exception (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     order_id bigint not null,
     task_id bigint null,
     exception_type varchar(64) not null,
@@ -257,7 +258,7 @@ create table if not exists logistics_exception (
 );
 
 create table if not exists logistics_fee (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     order_id bigint not null,
     base_fee decimal(12, 2) not null,
     weight_fee decimal(12, 2) not null,
@@ -274,7 +275,7 @@ create table if not exists logistics_fee (
 );
 
 create table if not exists logistics_order_tracking (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     order_no varchar(64) not null,
     tracking_status varchar(32) not null,
     location varchar(128) not null,
@@ -287,7 +288,7 @@ create table if not exists logistics_order_tracking (
 );
 
 create table if not exists logistics_inventory (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     warehouse_id bigint not null,
     sku_code varchar(64) not null,
     sku_name varchar(128) not null,
@@ -299,7 +300,7 @@ create table if not exists logistics_inventory (
 );
 
 create table if not exists logistics_freight_bill (
-    id bigint primary key auto_increment,
+    id bigint primary key,
     bill_no varchar(64) not null unique,
     order_no varchar(64) not null,
     base_amount decimal(12, 2) not null,

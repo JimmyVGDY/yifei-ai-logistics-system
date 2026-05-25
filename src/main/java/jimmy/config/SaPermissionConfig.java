@@ -1,0 +1,29 @@
+package jimmy.config;
+
+import cn.dev33.satoken.stp.StpInterface;
+import cn.dev33.satoken.stp.StpUtil;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Component
+public class SaPermissionConfig implements StpInterface {
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public List<String> getPermissionList(Object loginId, String loginType) {
+        Object permissions = StpUtil.getSessionByLoginId(loginId).get("permissions");
+        return permissions instanceof List ? (List<String>) permissions : new ArrayList<>();
+    }
+
+    @Override
+    public List<String> getRoleList(Object loginId, String loginType) {
+        Object roleCode = StpUtil.getSessionByLoginId(loginId).get("roleCode");
+        List<String> roles = new ArrayList<>();
+        if (roleCode != null) {
+            roles.add(String.valueOf(roleCode));
+        }
+        return roles;
+    }
+}

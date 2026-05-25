@@ -1,9 +1,11 @@
 package jimmy.logistics.service;
 
+import jimmy.common.id.CompactSnowflakeIdGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -16,16 +18,20 @@ import java.util.Map;
 public class LogisticsCrudService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final CompactSnowflakeIdGenerator idGenerator;
     private final Map<String, CrudConfig> configs;
 
-    public LogisticsCrudService(JdbcTemplate jdbcTemplate) {
+    public LogisticsCrudService(JdbcTemplate jdbcTemplate, CompactSnowflakeIdGenerator idGenerator) {
         this.jdbcTemplate = jdbcTemplate;
+        this.idGenerator = idGenerator;
         this.configs = buildConfigs();
     }
 
     public Map<String, Object> create(String module, Map<String, Object> payload) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> values = filteredPayload(config, payload, false);
+        Long id = idGenerator.nextId();
+        values.put("id", id);
         fillCreateDefaults(config, values);
 
         StringBuilder fields = new StringBuilder();
@@ -41,7 +47,6 @@ public class LogisticsCrudService {
             args.add(entry.getValue());
         }
         jdbcTemplate.update("insert into " + config.tableName + " (" + fields + ") values (" + placeholders + ")", args.toArray());
-        Long id = jdbcTemplate.queryForObject("select max(id) from " + config.tableName, Long.class);
         log.info("管理模块新增完成，module={}, id={}", module, id);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", id);
@@ -106,17 +111,18 @@ public class LogisticsCrudService {
     }
 
     private void fillCreateDefaults(CrudConfig config, Map<String, Object> values) {
+        Timestamp now = new Timestamp(System.currentTimeMillis());
         if (config.createTimeColumn != null && !values.containsKey(config.createTimeColumn)) {
-            values.put(config.createTimeColumn, new java.sql.Timestamp(System.currentTimeMillis()));
+            values.put(config.createTimeColumn, now);
         }
         if (config.updateTimeColumn != null && !values.containsKey(config.updateTimeColumn)) {
-            values.put(config.updateTimeColumn, new java.sql.Timestamp(System.currentTimeMillis()));
+            values.put(config.updateTimeColumn, now);
         }
     }
 
     private void fillUpdateDefaults(CrudConfig config, Map<String, Object> values) {
         if (config.updateTimeColumn != null) {
-            values.put(config.updateTimeColumn, new java.sql.Timestamp(System.currentTimeMillis()));
+            values.put(config.updateTimeColumn, new Timestamp(System.currentTimeMillis()));
         }
     }
 
@@ -140,7 +146,7 @@ public class LogisticsCrudService {
         map.put("vehicles", new CrudConfig("logistics_vehicle", "created_at", "updated_at", "vehicle_no", "vehicle_type", "load_capacity_kg", "volume_capacity_cubic", "current_city", "status"));
         map.put("exceptions", new CrudConfig("logistics_exception", "report_time", "handle_time", "order_id", "task_id", "exception_type", "exception_desc", "exception_status", "report_user", "handle_user"));
         map.put("fees", new CrudConfig("logistics_fee", "create_time", "update_time", "order_id", "base_fee", "weight_fee", "distance_fee", "additional_fee", "discount_fee", "payable_fee", "actual_fee", "payment_status"));
-        map.put("users", new CrudConfig("sys_user", "create_time", "update_time", "username", "real_name", "mobile", "email", "password", "role_id", "status"));
+        map.put("users", new CrudConfig("sys_user", "create_time", "update_time", "user_code", "username", "real_name", "mobile", "email", "password", "role_id", "status"));
         map.put("roles", new CrudConfig("sys_role", "create_time", "update_time", "role_code", "role_name", "status"));
         return map;
     }

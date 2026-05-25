@@ -32,13 +32,13 @@
         where order_no = #{orderNo}
     </select>
 
-    <insert id="insert" parameterType="jimmy.logistics.entity.LogisticsOrder" useGeneratedKeys="true" keyProperty="id">
+    <insert id="insert" parameterType="jimmy.logistics.entity.LogisticsOrder">
         insert into logistics_order (
-            order_no, customer_name, sender_address, receiver_address,
+            id, order_no, customer_name, sender_address, receiver_address,
             cargo_name, cargo_weight, status, created_at, updated_at
         )
         values (
-            #{orderNo}, #{customerName}, #{senderAddress}, #{receiverAddress},
+            #{id}, #{orderNo}, #{customerName}, #{senderAddress}, #{receiverAddress},
             #{cargoName}, #{cargoWeight}, #{status}, #{createdAt}, #{updatedAt}
         )
     </insert>

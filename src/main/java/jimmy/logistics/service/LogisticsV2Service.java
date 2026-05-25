@@ -1,6 +1,7 @@
 package jimmy.logistics.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.common.id.CompactSnowflakeIdGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -36,13 +37,16 @@ public class LogisticsV2Service {
 
     private final JdbcTemplate jdbcTemplate;
     private final LogisticsRequirementService logisticsRequirementService;
+    private final CompactSnowflakeIdGenerator idGenerator;
     private final Path uploadRoot;
 
     public LogisticsV2Service(JdbcTemplate jdbcTemplate,
                               LogisticsRequirementService logisticsRequirementService,
+                              CompactSnowflakeIdGenerator idGenerator,
                               @Value("${app.upload.root-directory:uploads}") String uploadRoot) {
         this.jdbcTemplate = jdbcTemplate;
         this.logisticsRequirementService = logisticsRequirementService;
+        this.idGenerator = idGenerator;
         this.uploadRoot = Paths.get(uploadRoot).toAbsolutePath().normalize();
     }
 
@@ -53,13 +57,13 @@ public class LogisticsV2Service {
         Long orderId = findOrderId(orderNo);
         Long taskId = findTaskId(orderId);
         String reportUser = currentUser();
+        Long exceptionId = idGenerator.nextId();
         jdbcTemplate.update(
-                "insert into logistics_exception (order_id, task_id, exception_type, exception_desc, exception_status, report_user, report_time, handle_user, handle_time) " +
-                        "values (?, ?, ?, ?, 'WAIT_HANDLE', ?, current_timestamp, null, null)",
-                orderId, taskId, exceptionType, exceptionDesc, reportUser
+                "insert into logistics_exception (id, order_id, task_id, exception_type, exception_desc, exception_status, report_user, report_time, handle_user, handle_time) " +
+                        "values (?, ?, ?, ?, ?, 'WAIT_HANDLE', ?, current_timestamp, null, null)",
+                exceptionId, orderId, taskId, exceptionType, exceptionDesc, reportUser
         );
         jdbcTemplate.update("update logistics_order set status = 'EXCEPTION', updated_at = current_timestamp where id = ?", orderId);
-        Long exceptionId = jdbcTemplate.queryForObject("select max(id) from logistics_exception where order_id = ?", Long.class, orderId);
         log.info("运输异常已上报，orderNo={}, exceptionType={}, reportUser={}", orderNo, exceptionType, reportUser);
         return record("exceptionId", exceptionId, "status", "WAIT_HANDLE");
     }
@@ -99,10 +103,11 @@ public class LogisticsV2Service {
                     baseFee, weightFee, distanceFee, additionalFee, discountFee, payableFee, orderId
             );
         } else {
+            Long feeId = idGenerator.nextId();
             jdbcTemplate.update(
-                    "insert into logistics_fee (order_id, base_fee, weight_fee, distance_fee, additional_fee, discount_fee, payable_fee, actual_fee, payment_status, create_time, update_time) " +
-                            "values (?, ?, ?, ?, ?, ?, ?, 0, 'UNPAID', current_timestamp, current_timestamp)",
-                    orderId, baseFee, weightFee, distanceFee, additionalFee, discountFee, payableFee
+                    "insert into logistics_fee (id, order_id, base_fee, weight_fee, distance_fee, additional_fee, discount_fee, payable_fee, actual_fee, payment_status, create_time, update_time) " +
+                            "values (?, ?, ?, ?, ?, ?, ?, ?, 0, 'UNPAID', current_timestamp, current_timestamp)",
+                    feeId, orderId, baseFee, weightFee, distanceFee, additionalFee, discountFee, payableFee
             );
         }
         log.info("订单费用已生成，orderNo={}, payableFee={}", orderNo, payableFee);
@@ -158,8 +163,8 @@ public class LogisticsV2Service {
         file.transferTo(targetPath.toFile());
         String relativePath = uploadRoot.getFileName() + "/" + storedName;
         jdbcTemplate.update(
-                "insert into sys_uploaded_file (original_name, stored_name, relative_path, file_size, content_type, upload_user, upload_time) values (?, ?, ?, ?, ?, ?, current_timestamp)",
-                originalName, storedName, relativePath, file.getSize(), file.getContentType(), currentUser()
+                "insert into sys_uploaded_file (id, original_name, stored_name, relative_path, file_size, content_type, upload_user, upload_time) values (?, ?, ?, ?, ?, ?, ?, current_timestamp)",
+                idGenerator.nextId(), originalName, storedName, relativePath, file.getSize(), file.getContentType(), currentUser()
         );
         log.info("文件上传完成，originalName={}, size={}", originalName, file.getSize());
         return record("originalName", originalName, "relativePath", relativePath, "fileSize", file.getSize());
@@ -206,8 +211,9 @@ public class LogisticsV2Service {
             }
             String customerCode = "CUST-IMP-" + FILE_TIME_FORMATTER.format(LocalDateTime.now()) + "-" + rowIndex;
             jdbcTemplate.update(
-                    "insert into logistics_customer (customer_code, customer_name, contact_name, contact_phone, province, city, address, status, created_at, updated_at) " +
-                            "values (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', current_timestamp, current_timestamp)",
+                    "insert into logistics_customer (id, customer_code, customer_name, contact_name, contact_phone, province, city, address, status, created_at, updated_at) " +
+                            "values (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', current_timestamp, current_timestamp)",
+                    idGenerator.nextId(),
                     customerCode,
                     cell(row, 0),
                     text(cell(row, 1), "待维护"),

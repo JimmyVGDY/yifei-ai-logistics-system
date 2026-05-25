@@ -1,9 +1,11 @@
 package jimmy.logistics.config;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.annotation.OperationLog;
 import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
@@ -17,18 +19,20 @@ import javax.servlet.http.HttpServletResponse;
 public class OperationLogInterceptor implements HandlerInterceptor {
 
     private static final String OPERATION_USERNAME_ATTRIBUTE = "operationLogUsername";
+    private static final String START_TIME_ATTRIBUTE = "operationLogStartTime";
 
     private final JdbcTemplate jdbcTemplate;
+    private final CompactSnowflakeIdGenerator idGenerator;
 
-    public OperationLogInterceptor(JdbcTemplate jdbcTemplate) {
+    public OperationLogInterceptor(JdbcTemplate jdbcTemplate, CompactSnowflakeIdGenerator idGenerator) {
         this.jdbcTemplate = jdbcTemplate;
+        this.idGenerator = idGenerator;
     }
 
     @Override
-    public boolean preHandle(HttpServletRequest request,
-                             HttpServletResponse response,
-                             Object handler) {
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         request.setAttribute(OPERATION_USERNAME_ATTRIBUTE, currentUsername());
+        request.setAttribute(START_TIME_ATTRIBUTE, System.currentTimeMillis());
         return true;
     }
 
@@ -55,20 +59,30 @@ public class OperationLogInterceptor implements HandlerInterceptor {
             username = currentUsername();
         }
         String status = exception == null && response.getStatus() < 400 ? "SUCCESS" : "FAILED";
+        long costMs = System.currentTimeMillis() - (Long) request.getAttribute(START_TIME_ATTRIBUTE);
+        MDC.put("module", firstPath(request.getRequestURI()));
+        MDC.put("operation", operation);
+        MDC.put("costMs", String.valueOf(costMs));
+        MDC.put("result", status);
         try {
             jdbcTemplate.update(
-                    "insert into sys_operation_log (username, operation, request_uri, request_method, operation_status, operation_time) values (?, ?, ?, ?, ?, current_timestamp)",
+                    "insert into sys_operation_log (id, username, operation, request_uri, request_method, operation_status, operation_time) values (?, ?, ?, ?, ?, ?, current_timestamp)",
+                    idGenerator.nextId(),
                     username,
                     operation,
                     request.getRequestURI(),
                     request.getMethod(),
                     status
             );
-            log.info("操作日志已记录，username={}, operation={}, status={}",
-                    LogMaskUtils.maskAccount(username), operation, status);
+            log.info("操作日志已记录，userId={}, username={}, operation={}, status={}, costMs={}",
+                    StpUtil.getLoginIdDefaultNull(), LogMaskUtils.maskAccount(username), operation, status, costMs);
         } catch (RuntimeException logException) {
-            // 操作日志不能影响主业务请求，写入失败只保留系统日志用于排查。
             log.warn("操作日志写入失败，operation={}, reason={}", operation, logException.getMessage());
+        } finally {
+            MDC.remove("module");
+            MDC.remove("operation");
+            MDC.remove("costMs");
+            MDC.remove("result");
         }
     }
 
@@ -93,6 +107,17 @@ public class OperationLogInterceptor implements HandlerInterceptor {
 
     private String currentUsername() {
         Object loginId = StpUtil.getLoginIdDefaultNull();
-        return loginId == null ? "anonymous" : String.valueOf(loginId);
+        if (loginId == null) {
+            return "anonymous";
+        }
+        return String.valueOf(StpUtil.getSession().get("username", loginId));
+    }
+
+    private String firstPath(String uri) {
+        if (uri == null || uri.length() <= 1) {
+            return "system";
+        }
+        String[] parts = uri.substring(1).split("/");
+        return parts.length == 0 ? "system" : parts[0];
     }
 }

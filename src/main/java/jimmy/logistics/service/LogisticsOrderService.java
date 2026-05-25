@@ -2,6 +2,7 @@ package jimmy.logistics.service;
 
 import com.alibaba.csp.sentinel.annotation.SentinelResource;
 import jimmy.config.LogisticsProperties;
+import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.entity.LogisticsOrder;
 import jimmy.logistics.mapper.LogisticsOrderMapper;
 import jimmy.logistics.model.CreateLogisticsOrderRequest;
@@ -32,17 +33,20 @@ public class LogisticsOrderService {
     private final RabbitTemplate rabbitTemplate;
     private final ElasticsearchOperations elasticsearchOperations;
     private final LogisticsProperties logisticsProperties;
+    private final CompactSnowflakeIdGenerator idGenerator;
 
     public LogisticsOrderService(LogisticsOrderMapper logisticsOrderMapper,
                                  RedisTemplate<String, Object> redisTemplate,
                                  RabbitTemplate rabbitTemplate,
                                  ElasticsearchOperations elasticsearchOperations,
-                                 LogisticsProperties logisticsProperties) {
+                                 LogisticsProperties logisticsProperties,
+                                 CompactSnowflakeIdGenerator idGenerator) {
         this.logisticsOrderMapper = logisticsOrderMapper;
         this.redisTemplate = redisTemplate;
         this.rabbitTemplate = rabbitTemplate;
         this.elasticsearchOperations = elasticsearchOperations;
         this.logisticsProperties = logisticsProperties;
+        this.idGenerator = idGenerator;
     }
 
     @SentinelResource(value = "logisticsOrderCreate", fallback = "createFallback")
@@ -55,6 +59,7 @@ public class LogisticsOrderService {
         // 运单号在服务端生成，避免前端传入重复单号导致业务数据冲突。
         LocalDateTime now = LocalDateTime.now();
         LogisticsOrder logisticsOrder = new LogisticsOrder();
+        logisticsOrder.setId(idGenerator.nextId());
         logisticsOrder.setOrderNo(generateOrderNo(now));
         logisticsOrder.setCustomerName(request.getCustomerName());
         logisticsOrder.setSenderAddress(request.getSenderAddress());
