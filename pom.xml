@@ -52,6 +52,12 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- 参数校验支持，用于 DTO 入参的必填、范围和格式校验。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <!-- 健康检查和指标端点，用于服务治理与运行状态观测。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

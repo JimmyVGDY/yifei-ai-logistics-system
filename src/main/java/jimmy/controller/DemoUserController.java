@@ -1,6 +1,7 @@
 package jimmy.controller;
 
 import jimmy.entity.DemoUser;
+import jimmy.model.ApiResponse;
 import jimmy.service.DemoUserService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,18 +22,18 @@ public class DemoUserController {
     }
 
     @GetMapping
-    public List<DemoUser> findAll() {
-        return demoUserService.findAll();
+    public ApiResponse<List<DemoUser>> findAll() {
+        return ApiResponse.success(demoUserService.findAll());
     }
 
     @GetMapping("/detail")
-    public DemoUser findById(@RequestParam Long id) {
-        return demoUserService.findById(id);
+    public ApiResponse<DemoUser> findById(@RequestParam Long id) {
+        return ApiResponse.success(demoUserService.findById(id));
     }
 
     @PostMapping
-    public DemoUser create(@RequestParam String username,
-                           @RequestParam String displayName) {
-        return demoUserService.create(username, displayName);
+    public ApiResponse<DemoUser> create(@RequestParam String username,
+                                        @RequestParam String displayName) {
+        return ApiResponse.success(demoUserService.create(username, displayName));
     }
 }

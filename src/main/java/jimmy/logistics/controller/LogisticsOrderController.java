@@ -1,10 +1,13 @@
 package jimmy.logistics.controller;
 
 import jimmy.logistics.annotation.OperationLog;
-import jimmy.logistics.entity.LogisticsOrder;
 import jimmy.logistics.model.CreateLogisticsOrderRequest;
+import jimmy.logistics.model.LogisticsOrderVO;
+import jimmy.logistics.model.OrderSearchQueryDTO;
 import jimmy.logistics.service.LogisticsOrderService;
+import jimmy.logistics.service.LogisticsOrderSearchService;
 import jimmy.model.ApiResponse;
+import jimmy.model.PageResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.validation.Valid;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -20,24 +25,34 @@ import java.util.List;
 public class LogisticsOrderController {
 
     private final LogisticsOrderService logisticsOrderService;
+    private final LogisticsOrderSearchService logisticsOrderSearchService;
 
-    public LogisticsOrderController(LogisticsOrderService logisticsOrderService) {
+    public LogisticsOrderController(LogisticsOrderService logisticsOrderService,
+                                    LogisticsOrderSearchService logisticsOrderSearchService) {
         this.logisticsOrderService = logisticsOrderService;
+        this.logisticsOrderSearchService = logisticsOrderSearchService;
     }
 
     @OperationLog("创建物流订单")
     @PostMapping
-    public ApiResponse<LogisticsOrder> create(@RequestBody CreateLogisticsOrderRequest request) {
-        return ApiResponse.success(logisticsOrderService.create(request));
+    public ApiResponse<LogisticsOrderVO> create(@Valid @RequestBody CreateLogisticsOrderRequest request) {
+        return ApiResponse.success(LogisticsOrderVO.from(logisticsOrderService.create(request)));
     }
 
     @GetMapping("/{orderNo}")
-    public ApiResponse<LogisticsOrder> findByOrderNo(@PathVariable String orderNo) {
-        return ApiResponse.success(logisticsOrderService.findByOrderNo(orderNo));
+    public ApiResponse<LogisticsOrderVO> findByOrderNo(@PathVariable String orderNo) {
+        return ApiResponse.success(LogisticsOrderVO.from(logisticsOrderService.findByOrderNo(orderNo)));
     }
 
     @GetMapping
-    public ApiResponse<List<LogisticsOrder>> findRecent(@RequestParam(defaultValue = "20") int limit) {
-        return ApiResponse.success(logisticsOrderService.findRecent(limit));
+    public ApiResponse<List<LogisticsOrderVO>> findRecent(@RequestParam(defaultValue = "20") int limit) {
+        List<LogisticsOrderVO> records = new ArrayList<>();
+        logisticsOrderService.findRecent(limit).forEach(order -> records.add(LogisticsOrderVO.from(order)));
+        return ApiResponse.success(records);
+    }
+
+    @GetMapping("/search")
+    public ApiResponse<PageResult<LogisticsOrderVO>> search(OrderSearchQueryDTO query) {
+        return ApiResponse.success(logisticsOrderSearchService.search(query));
     }
 }

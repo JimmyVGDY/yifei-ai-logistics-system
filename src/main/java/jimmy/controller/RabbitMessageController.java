@@ -1,5 +1,6 @@
 package jimmy.controller;
 
+import jimmy.model.ApiResponse;
 import jimmy.model.InfrastructureStatus;
 import jimmy.service.RabbitMessageService;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,9 +19,9 @@ public class RabbitMessageController {
     }
 
     @PostMapping("/messages")
-    public InfrastructureStatus send(@RequestParam String message) {
+    public ApiResponse<InfrastructureStatus> send(@RequestParam String message) {
         rabbitMessageService.sendDemoMessage(message);
-        return InfrastructureStatus.of("rabbitmq", "sent")
-                .detail("message", message);
+        return ApiResponse.success(InfrastructureStatus.of("rabbitmq", "sent")
+                .detail("message", message));
     }
 }

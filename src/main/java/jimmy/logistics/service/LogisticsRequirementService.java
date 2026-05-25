@@ -3,6 +3,7 @@ package jimmy.logistics.service;
 import jimmy.logistics.model.LogisticsDashboardSummary;
 import jimmy.logistics.model.ModuleQueryDTO;
 import jimmy.logistics.model.ModuleRecordVO;
+import jimmy.logistics.model.StatusLabel;
 import jimmy.model.PageResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -137,7 +138,11 @@ public class LogisticsRequirementService {
         for (int i = 0; i < records.size(); i++) {
             Map<String, Object> formatted = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : records.get(i).entrySet()) {
-                formatted.put(entry.getKey(), formatValue(entry.getValue()));
+                Object value = formatValue(entry.getValue());
+                formatted.put(entry.getKey(), value);
+                if (entry.getKey().contains("status") || "status".equals(entry.getKey())) {
+                    formatted.put(entry.getKey() + "Label", StatusLabel.label(value == null ? null : String.valueOf(value)));
+                }
             }
             records.set(i, formatted);
         }

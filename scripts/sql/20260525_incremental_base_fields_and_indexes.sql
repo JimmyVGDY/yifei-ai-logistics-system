@@ -46,6 +46,27 @@ begin
     end if;
 end//
 
+drop procedure if exists modify_column_if_exists//
+create procedure modify_column_if_exists(
+    in p_table_name varchar(128),
+    in p_column_name varchar(128),
+    in p_column_definition varchar(512)
+)
+begin
+    if exists (
+        select 1
+        from information_schema.columns
+        where table_schema = database()
+          and table_name = p_table_name
+          and column_name = p_column_name
+    ) then
+        set @ddl = concat('alter table ', p_table_name, ' modify column ', p_column_name, ' ', p_column_definition);
+        prepare stmt from @ddl;
+        execute stmt;
+        deallocate prepare stmt;
+    end if;
+end//
+
 drop procedure if exists migrate_common_fields//
 create procedure migrate_common_fields(in p_table_name varchar(128))
 begin
@@ -103,6 +124,18 @@ call add_index_if_missing('logistics_exception', 'idx_exception_status_time', '(
 call add_index_if_missing('logistics_fee', 'idx_fee_status_time', '(payment_status, create_time)');
 call add_index_if_missing('sys_operation_log', 'idx_operation_status_time', '(operation_status, operation_time)');
 
+-- 运单允许先录入草稿性质的基础信息，非核心字段可暂缺；客户和收发地址仍由代码层保持必填。
+call modify_column_if_exists('logistics_order', 'cargo_name', 'varchar(128) null comment ''货物名称，可后补''');
+call modify_column_if_exists('logistics_order', 'cargo_weight', 'decimal(12, 3) null comment ''货物重量，可后补''');
+call modify_column_if_exists('logistics_order', 'cargo_volume', 'decimal(12, 3) null default 0 comment ''货物体积，可后补''');
+call modify_column_if_exists('logistics_order', 'planned_pickup_time', 'timestamp null comment ''计划提货时间''');
+call modify_column_if_exists('logistics_order', 'planned_delivery_time', 'timestamp null comment ''计划送达时间''');
+call modify_column_if_exists('logistics_order', 'route_id', 'bigint null comment ''线路ID，可后补''');
+call modify_column_if_exists('logistics_order', 'warehouse_id', 'bigint null comment ''仓库ID，可后补''');
+call modify_column_if_exists('logistics_order', 'vehicle_id', 'bigint null comment ''车辆ID，可后补''');
+call modify_column_if_exists('logistics_order', 'driver_id', 'bigint null comment ''司机ID，可后补''');
+
 drop procedure if exists migrate_common_fields;
+drop procedure if exists modify_column_if_exists;
 drop procedure if exists add_index_if_missing;
 drop procedure if exists add_column_if_missing;

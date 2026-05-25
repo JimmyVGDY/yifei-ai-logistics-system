@@ -1,5 +1,6 @@
 package jimmy.controller;
 
+import jimmy.model.ApiResponse;
 import jimmy.model.InfrastructureStatus;
 import jimmy.service.BloomFilterService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,18 +20,18 @@ public class BloomFilterController {
     }
 
     @PostMapping("/items")
-    public InfrastructureStatus put(@RequestParam String value) {
+    public ApiResponse<InfrastructureStatus> put(@RequestParam String value) {
         boolean changed = bloomFilterService.put(value);
-        return InfrastructureStatus.of("bloom-filter", "stored")
+        return ApiResponse.success(InfrastructureStatus.of("bloom-filter", "stored")
                 .detail("value", value)
-                .detail("changed", changed);
+                .detail("changed", changed));
     }
 
     @GetMapping("/items")
-    public InfrastructureStatus mightContain(@RequestParam String value) {
+    public ApiResponse<InfrastructureStatus> mightContain(@RequestParam String value) {
         boolean mightContain = bloomFilterService.mightContain(value);
-        return InfrastructureStatus.of("bloom-filter", "checked")
+        return ApiResponse.success(InfrastructureStatus.of("bloom-filter", "checked")
                 .detail("value", value)
-                .detail("mightContain", mightContain);
+                .detail("mightContain", mightContain));
     }
 }

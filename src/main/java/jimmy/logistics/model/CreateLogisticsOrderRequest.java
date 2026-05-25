@@ -1,11 +1,15 @@
 package jimmy.logistics.model;
 
 import java.math.BigDecimal;
+import javax.validation.constraints.NotBlank;
 
 public class CreateLogisticsOrderRequest {
 
+    @NotBlank(message = "客户名称不能为空")
     private String customerName;
+    @NotBlank(message = "发货地址不能为空")
     private String senderAddress;
+    @NotBlank(message = "收货地址不能为空")
     private String receiverAddress;
     private String cargoName;
     private BigDecimal cargoWeight;

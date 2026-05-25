@@ -1,6 +1,7 @@
 package jimmy.controller;
 
 import com.alibaba.csp.sentinel.annotation.SentinelResource;
+import jimmy.model.ApiResponse;
 import jimmy.model.InfrastructureStatus;
 import jimmy.service.InfrastructureStatusService;
 import org.springframework.cloud.client.ServiceInstance;
@@ -21,42 +22,42 @@ public class InfrastructureController {
     }
 
     @GetMapping("/status")
-    public InfrastructureStatus status() {
-        return infrastructureStatusService.status();
+    public ApiResponse<InfrastructureStatus> status() {
+        return ApiResponse.success(infrastructureStatusService.status());
     }
 
     @GetMapping("/nacos/services")
-    public List<String> services() {
-        return infrastructureStatusService.services();
+    public ApiResponse<List<String>> services() {
+        return ApiResponse.success(infrastructureStatusService.services());
     }
 
     @GetMapping("/nacos/instances")
-    public List<ServiceInstance> instances(String serviceId) {
-        return infrastructureStatusService.instances(serviceId);
+    public ApiResponse<List<ServiceInstance>> instances(String serviceId) {
+        return ApiResponse.success(infrastructureStatusService.instances(serviceId));
     }
 
     @GetMapping("/sentinel/ping")
     @SentinelResource(value = "infraSentinelPing", fallback = "sentinelFallback")
-    public InfrastructureStatus sentinelPing() {
-        return infrastructureStatusService.sentinelPing();
+    public ApiResponse<InfrastructureStatus> sentinelPing() {
+        return ApiResponse.success(infrastructureStatusService.sentinelPing());
     }
 
     @GetMapping("/elasticsearch/client")
-    public InfrastructureStatus elasticsearchClient() {
-        return infrastructureStatusService.elasticsearchClient();
+    public ApiResponse<InfrastructureStatus> elasticsearchClient() {
+        return ApiResponse.success(infrastructureStatusService.elasticsearchClient());
     }
 
     @GetMapping("/redis/client")
-    public InfrastructureStatus redisClient() {
-        return infrastructureStatusService.redisClient();
+    public ApiResponse<InfrastructureStatus> redisClient() {
+        return ApiResponse.success(infrastructureStatusService.redisClient());
     }
 
     @GetMapping("/rabbitmq/client")
-    public InfrastructureStatus rabbitmqClient() {
-        return infrastructureStatusService.rabbitmqClient();
+    public ApiResponse<InfrastructureStatus> rabbitmqClient() {
+        return ApiResponse.success(infrastructureStatusService.rabbitmqClient());
     }
 
-    public InfrastructureStatus sentinelFallback() {
-        return infrastructureStatusService.sentinelFallback();
+    public ApiResponse<InfrastructureStatus> sentinelFallback() {
+        return ApiResponse.success(infrastructureStatusService.sentinelFallback());
     }
 }

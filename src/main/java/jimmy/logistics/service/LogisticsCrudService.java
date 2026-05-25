@@ -128,7 +128,7 @@ public class LogisticsCrudService {
             if (update && (column.equals(config.createTimeColumn) || column.equals(config.updateTimeColumn))) {
                 continue;
             }
-            if (update && payload.get(column) == null) {
+            if (update && payload.get(column) == null && !config.nullableColumns.contains(column)) {
                 continue;
             }
             if (hasColumn(config.tableName, column) && payload.containsKey(column)) {
@@ -206,7 +206,9 @@ public class LogisticsCrudService {
     private Map<String, CrudConfig> buildConfigs() {
         Map<String, CrudConfig> map = new HashMap<>();
         map.put("customers", new CrudConfig("logistics_customer", "created_at", "updated_at", "customer_code", "customer_name", "contact_name", "contact_phone", "province", "city", "address", "status"));
-        map.put("orders", new CrudConfig("logistics_order", "created_at", "updated_at", "order_no", "customer_id", "route_id", "warehouse_id", "vehicle_id", "driver_id", "customer_name", "sender_address", "receiver_address", "cargo_name", "cargo_weight", "cargo_volume", "status", "planned_pickup_time", "planned_delivery_time"));
+        map.put("orders", new CrudConfig("logistics_order", "created_at", "updated_at",
+                Arrays.asList("cargo_name", "cargo_weight", "cargo_volume", "planned_pickup_time", "planned_delivery_time", "route_id", "warehouse_id", "vehicle_id", "driver_id"),
+                "order_no", "customer_id", "route_id", "warehouse_id", "vehicle_id", "driver_id", "customer_name", "sender_address", "receiver_address", "cargo_name", "cargo_weight", "cargo_volume", "status", "planned_pickup_time", "planned_delivery_time"));
         map.put("waybills", new CrudConfig("logistics_waybill", "create_time", "update_time", "waybill_no", "order_id", "start_site", "target_site", "current_location", "transport_status"));
         map.put("dispatches", new CrudConfig("logistics_dispatch", "create_time", "update_time", "order_id", "waybill_id", "driver_id", "vehicle_id", "start_site", "target_site", "planned_departure_time", "planned_arrival_time", "dispatch_status"));
         map.put("tasks", new CrudConfig("logistics_task", "create_time", "update_time", "task_no", "order_id", "waybill_id", "dispatch_id", "driver_id", "vehicle_id", "task_status", "proof_url"));
@@ -225,12 +227,18 @@ public class LogisticsCrudService {
         private final String createTimeColumn;
         private final String updateTimeColumn;
         private final List<String> columns;
+        private final List<String> nullableColumns;
 
         private CrudConfig(String tableName, String createTimeColumn, String updateTimeColumn, String... columns) {
+            this(tableName, createTimeColumn, updateTimeColumn, new ArrayList<>(), columns);
+        }
+
+        private CrudConfig(String tableName, String createTimeColumn, String updateTimeColumn, List<String> nullableColumns, String... columns) {
             this.tableName = tableName;
             this.createTimeColumn = createTimeColumn;
             this.updateTimeColumn = updateTimeColumn;
             this.columns = Arrays.asList(columns);
+            this.nullableColumns = nullableColumns;
         }
     }
 }

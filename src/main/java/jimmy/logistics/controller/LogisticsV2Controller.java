@@ -1,8 +1,16 @@
 package jimmy.logistics.controller;
 
 import jimmy.logistics.annotation.OperationLog;
+import jimmy.logistics.model.ExceptionHandleDTO;
+import jimmy.logistics.model.ExceptionReportDTO;
+import jimmy.logistics.model.ModuleMutationDTO;
 import jimmy.logistics.model.OperationResultVO;
+import jimmy.logistics.model.SimpleResultVO;
+import jimmy.logistics.model.TrendPointVO;
 import jimmy.logistics.service.LogisticsCrudService;
+import jimmy.logistics.service.LogisticsExceptionService;
+import jimmy.logistics.service.LogisticsFeeService;
+import jimmy.logistics.service.LogisticsStatisticsService;
 import jimmy.logistics.service.LogisticsV2Service;
 import jimmy.model.ApiResponse;
 import org.springframework.core.io.ByteArrayResource;
@@ -23,7 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
+import javax.validation.Valid;
 
 @RestController
 @RequestMapping("/logistics")
@@ -31,26 +39,35 @@ public class LogisticsV2Controller {
 
     private final LogisticsV2Service logisticsV2Service;
     private final LogisticsCrudService logisticsCrudService;
+    private final LogisticsExceptionService logisticsExceptionService;
+    private final LogisticsFeeService logisticsFeeService;
+    private final LogisticsStatisticsService logisticsStatisticsService;
 
     public LogisticsV2Controller(LogisticsV2Service logisticsV2Service,
-                                 LogisticsCrudService logisticsCrudService) {
+                                 LogisticsCrudService logisticsCrudService,
+                                 LogisticsExceptionService logisticsExceptionService,
+                                 LogisticsFeeService logisticsFeeService,
+                                 LogisticsStatisticsService logisticsStatisticsService) {
         this.logisticsV2Service = logisticsV2Service;
         this.logisticsCrudService = logisticsCrudService;
+        this.logisticsExceptionService = logisticsExceptionService;
+        this.logisticsFeeService = logisticsFeeService;
+        this.logisticsStatisticsService = logisticsStatisticsService;
     }
 
     @OperationLog("新增管理模块记录")
     @PostMapping("/modules/{module}")
     public ApiResponse<OperationResultVO> createModuleRecord(@PathVariable String module,
-                                                             @RequestBody Map<String, Object> payload) {
-        return ApiResponse.success(logisticsCrudService.create(module, payload));
+                                                             @RequestBody ModuleMutationDTO payload) {
+        return ApiResponse.success(logisticsCrudService.create(module, payload.getValues()));
     }
 
     @OperationLog("修改管理模块记录")
     @PostMapping("/modules/{module}/{id}")
     public ApiResponse<OperationResultVO> updateModuleRecord(@PathVariable String module,
                                                              @PathVariable long id,
-                                                             @RequestBody Map<String, Object> payload) {
-        return ApiResponse.success(logisticsCrudService.update(module, id, payload));
+                                                             @RequestBody ModuleMutationDTO payload) {
+        return ApiResponse.success(logisticsCrudService.update(module, id, payload.getValues()));
     }
 
     @OperationLog("删除管理模块记录")
@@ -62,43 +79,43 @@ public class LogisticsV2Controller {
 
     @OperationLog("上报运输异常")
     @PostMapping("/exceptions/report")
-    public ApiResponse<Map<String, Object>> reportException(@RequestBody Map<String, Object> request) {
-        return ApiResponse.success(logisticsV2Service.reportException(request));
+    public ApiResponse<SimpleResultVO> reportException(@Valid @RequestBody ExceptionReportDTO request) {
+        return ApiResponse.success(logisticsExceptionService.reportException(request));
     }
 
     @OperationLog("处理运输异常")
     @PostMapping("/exceptions/{exceptionId}/handle")
-    public ApiResponse<Map<String, Object>> handleException(@PathVariable long exceptionId,
-                                                            @RequestBody Map<String, Object> request) {
-        return ApiResponse.success(logisticsV2Service.handleException(exceptionId, request));
+    public ApiResponse<SimpleResultVO> handleException(@PathVariable long exceptionId,
+                                                       @RequestBody ExceptionHandleDTO request) {
+        return ApiResponse.success(logisticsExceptionService.handleException(exceptionId, request));
     }
 
     @OperationLog("生成订单费用")
     @PostMapping("/fees/generate/{orderNo}")
-    public ApiResponse<Map<String, Object>> generateFee(@PathVariable String orderNo) {
-        return ApiResponse.success(logisticsV2Service.generateFee(orderNo));
+    public ApiResponse<SimpleResultVO> generateFee(@PathVariable String orderNo) {
+        return ApiResponse.success(logisticsFeeService.generateFee(orderNo));
     }
 
     @OperationLog("标记费用已付款")
     @PostMapping("/fees/{feeId}/pay")
-    public ApiResponse<Map<String, Object>> markFeePaid(@PathVariable long feeId) {
-        return ApiResponse.success(logisticsV2Service.markFeePaid(feeId));
+    public ApiResponse<SimpleResultVO> markFeePaid(@PathVariable long feeId) {
+        return ApiResponse.success(logisticsFeeService.markFeePaid(feeId));
     }
 
     @GetMapping("/statistics/order-trend")
-    public ApiResponse<List<Map<String, Object>>> orderTrend(@RequestParam(defaultValue = "7") int days) {
-        return ApiResponse.success(logisticsV2Service.orderTrend(days));
+    public ApiResponse<List<TrendPointVO>> orderTrend(@RequestParam(defaultValue = "7") int days) {
+        return ApiResponse.success(logisticsStatisticsService.orderTrend(days));
     }
 
     @GetMapping("/statistics/income-trend")
-    public ApiResponse<List<Map<String, Object>>> incomeTrend(@RequestParam(defaultValue = "6") int months) {
-        return ApiResponse.success(logisticsV2Service.incomeTrend(months));
+    public ApiResponse<List<TrendPointVO>> incomeTrend(@RequestParam(defaultValue = "6") int months) {
+        return ApiResponse.success(logisticsStatisticsService.incomeTrend(months));
     }
 
     @OperationLog("上传业务文件")
     @PostMapping(value = "/files/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<Map<String, Object>> uploadFile(@RequestPart("file") MultipartFile file) throws IOException {
-        return ApiResponse.success(logisticsV2Service.uploadFile(file));
+    public ApiResponse<SimpleResultVO> uploadFile(@RequestPart("file") MultipartFile file) throws IOException {
+        return ApiResponse.success(SimpleResultVO.from(logisticsV2Service.uploadFile(file)));
     }
 
     @OperationLog("导出模块 Excel")
@@ -119,7 +136,7 @@ public class LogisticsV2Controller {
 
     @OperationLog("导入客户 Excel")
     @PostMapping(value = "/excel/import/customers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<Map<String, Object>> importCustomers(@RequestPart("file") MultipartFile file) throws IOException {
-        return ApiResponse.success(logisticsV2Service.importCustomers(file));
+    public ApiResponse<SimpleResultVO> importCustomers(@RequestPart("file") MultipartFile file) throws IOException {
+        return ApiResponse.success(SimpleResultVO.from(logisticsV2Service.importCustomers(file)));
     }
 }
