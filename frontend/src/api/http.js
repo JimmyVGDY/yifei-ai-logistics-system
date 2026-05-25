@@ -17,7 +17,15 @@ http.interceptors.request.use((config) => {
 })
 
 http.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    if (response.config.responseType === 'blob') {
+      return response.data
+    }
+    if (response.data && typeof response.data === 'object' && 'code' in response.data && 'data' in response.data) {
+      return response.data.data
+    }
+    return response.data
+  },
   (error) => {
     const message = error.response?.data?.message || error.message || '请求失败'
     if (error.response?.status === 401) {

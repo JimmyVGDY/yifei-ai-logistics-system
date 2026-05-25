@@ -60,7 +60,7 @@ async function handleLogin() {
   loading.value = true
   try {
     const response = await login(form)
-    saveAuthToken(response.data)
+    saveAuthToken(response)
     ElMessage.success('登录成功')
     router.replace(route.query.redirect || '/dashboard')
   } finally {
