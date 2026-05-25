@@ -2,6 +2,36 @@ insert into demo_user (username, display_name, created_at)
 select 'admin', 'Administrator', current_timestamp
 where not exists (select 1 from demo_user where username = 'admin');
 
+insert into sys_role (role_code, role_name, status, create_time, update_time)
+select 'ADMIN', '系统管理员', 1, current_timestamp, current_timestamp
+where not exists (select 1 from sys_role where role_code = 'ADMIN');
+
+insert into sys_role (role_code, role_name, status, create_time, update_time)
+select 'DISPATCHER', '调度人员', 1, current_timestamp, current_timestamp
+where not exists (select 1 from sys_role where role_code = 'DISPATCHER');
+
+insert into sys_role (role_code, role_name, status, create_time, update_time)
+select 'FINANCE', '财务人员', 1, current_timestamp, current_timestamp
+where not exists (select 1 from sys_role where role_code = 'FINANCE');
+
+insert into sys_user (username, real_name, mobile, email, password, role_id, status, create_time, update_time)
+select 'admin', '系统管理员', '138963311213', 'admin@example.com', 'xlh963311213', r.id, 1, current_timestamp, current_timestamp
+from sys_role r
+where r.role_code = 'ADMIN'
+  and not exists (select 1 from sys_user where username = 'admin');
+
+insert into sys_menu (parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time)
+select 0, '订单管理', '/orders', 'logistics:order:list', 10, 1, current_timestamp, current_timestamp
+where not exists (select 1 from sys_menu where permission_code = 'logistics:order:list');
+
+insert into sys_menu (parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time)
+select 0, '调度管理', '/dispatch', 'logistics:dispatch:list', 20, 1, current_timestamp, current_timestamp
+where not exists (select 1 from sys_menu where permission_code = 'logistics:dispatch:list');
+
+insert into sys_operation_log (username, operation, request_uri, request_method, operation_status, operation_time)
+select 'admin', '系统初始化', '/system/init', 'SYSTEM', 'SUCCESS', current_timestamp
+where not exists (select 1 from sys_operation_log where username = 'admin' and operation = '系统初始化');
+
 insert into logistics_customer (
     customer_code, customer_name, contact_name, contact_phone,
     province, city, address, status, created_at, updated_at
@@ -238,3 +268,121 @@ insert into logistics_freight_bill (
 )
 select 'FB-DEMO-0003', 'LO-DEMO-0003', 1680.00, 120.00, 80.00, 1720.00, 'PAID', current_timestamp, current_timestamp
 where not exists (select 1 from logistics_freight_bill where bill_no = 'FB-DEMO-0003');
+
+insert into logistics_waybill (
+    waybill_no, order_id, start_site, target_site, current_location, transport_status, create_time, update_time
+)
+select concat('WB-', o.order_no), o.id, '上海东仓网点', '北京朝阳网点', '上海东仓网点', 'WAIT_DISPATCH', current_timestamp, current_timestamp
+from logistics_order o
+where o.order_no = 'LO-DEMO-0001'
+  and not exists (select 1 from logistics_waybill where waybill_no = concat('WB-', o.order_no));
+
+insert into logistics_waybill (
+    waybill_no, order_id, start_site, target_site, current_location, transport_status, create_time, update_time
+)
+select concat('WB-', o.order_no), o.id, '广州南仓网点', '深圳南山网点', '广深高速', 'IN_TRANSIT', current_timestamp, current_timestamp
+from logistics_order o
+where o.order_no = 'LO-DEMO-0002'
+  and not exists (select 1 from logistics_waybill where waybill_no = concat('WB-', o.order_no));
+
+insert into logistics_waybill (
+    waybill_no, order_id, start_site, target_site, current_location, transport_status, create_time, update_time
+)
+select concat('WB-', o.order_no), o.id, '上海东仓网点', '广州天河网点', '广州客户现场', 'SIGNED', current_timestamp, current_timestamp
+from logistics_order o
+where o.order_no = 'LO-DEMO-0003'
+  and not exists (select 1 from logistics_waybill where waybill_no = concat('WB-', o.order_no));
+
+insert into logistics_dispatch (
+    order_id, waybill_id, driver_id, vehicle_id, start_site, target_site,
+    planned_departure_time, planned_arrival_time, dispatch_status, create_time, update_time
+)
+select o.id, w.id, d.id, v.id, w.start_site, w.target_site,
+       timestampadd(hour, 1, current_timestamp), timestampadd(hour, 28, current_timestamp),
+       'WAIT_DISPATCH', current_timestamp, current_timestamp
+from logistics_order o
+join logistics_waybill w on w.order_id = o.id
+join logistics_driver d on d.driver_code = 'DRV-001'
+join logistics_vehicle v on v.vehicle_no = '沪A-LOG01'
+where o.order_no = 'LO-DEMO-0001'
+  and not exists (select 1 from logistics_dispatch where order_id = o.id);
+
+insert into logistics_dispatch (
+    order_id, waybill_id, driver_id, vehicle_id, start_site, target_site,
+    planned_departure_time, planned_arrival_time, dispatch_status, create_time, update_time
+)
+select o.id, w.id, d.id, v.id, w.start_site, w.target_site,
+       timestampadd(hour, -5, current_timestamp), timestampadd(hour, 4, current_timestamp),
+       'DISPATCHED', current_timestamp, current_timestamp
+from logistics_order o
+join logistics_waybill w on w.order_id = o.id
+join logistics_driver d on d.driver_code = 'DRV-003'
+join logistics_vehicle v on v.vehicle_no = '粤C-LOG03'
+where o.order_no = 'LO-DEMO-0002'
+  and not exists (select 1 from logistics_dispatch where order_id = o.id);
+
+insert into logistics_task (
+    task_no, order_id, waybill_id, dispatch_id, driver_id, vehicle_id, task_status, proof_url, create_time, update_time
+)
+select concat('TASK-', o.order_no), o.id, w.id, dp.id, dp.driver_id, dp.vehicle_id, '待接单', null, current_timestamp, current_timestamp
+from logistics_order o
+join logistics_waybill w on w.order_id = o.id
+join logistics_dispatch dp on dp.order_id = o.id
+where o.order_no = 'LO-DEMO-0001'
+  and not exists (select 1 from logistics_task where task_no = concat('TASK-', o.order_no));
+
+insert into logistics_task (
+    task_no, order_id, waybill_id, dispatch_id, driver_id, vehicle_id, task_status, proof_url, create_time, update_time
+)
+select concat('TASK-', o.order_no), o.id, w.id, dp.id, dp.driver_id, dp.vehicle_id, '运输中', null, current_timestamp, current_timestamp
+from logistics_order o
+join logistics_waybill w on w.order_id = o.id
+join logistics_dispatch dp on dp.order_id = o.id
+where o.order_no = 'LO-DEMO-0002'
+  and not exists (select 1 from logistics_task where task_no = concat('TASK-', o.order_no));
+
+insert into logistics_track (
+    order_id, waybill_id, current_status, current_location, operator_name, operation_desc, operation_time
+)
+select o.id, w.id, 'WAIT_DISPATCH', '上海东仓网点', '系统', '订单已创建，等待调度', timestampadd(hour, -1, current_timestamp)
+from logistics_order o
+join logistics_waybill w on w.order_id = o.id
+where o.order_no = 'LO-DEMO-0001'
+  and not exists (select 1 from logistics_track where order_id = o.id and current_status = 'WAIT_DISPATCH');
+
+insert into logistics_track (
+    order_id, waybill_id, current_status, current_location, operator_name, operation_desc, operation_time
+)
+select o.id, w.id, 'IN_TRANSIT', '广深高速', '调度中心', '车辆正在前往目的网点', timestampadd(hour, -2, current_timestamp)
+from logistics_order o
+join logistics_waybill w on w.order_id = o.id
+where o.order_no = 'LO-DEMO-0002'
+  and not exists (select 1 from logistics_track where order_id = o.id and current_status = 'IN_TRANSIT');
+
+insert into logistics_exception (
+    order_id, task_id, exception_type, exception_desc, exception_status, report_user, report_time, handle_user, handle_time
+)
+select o.id, t.id, '地址错误', '客户收件地址门牌号缺失，已联系客户确认', 'PROCESSING', 'Driver Sun',
+       timestampadd(hour, -1, current_timestamp), 'Dispatcher Li', null
+from logistics_order o
+join logistics_task t on t.order_id = o.id
+where o.order_no = 'LO-DEMO-0002'
+  and not exists (select 1 from logistics_exception where order_id = o.id and exception_type = '地址错误');
+
+insert into logistics_fee (
+    order_id, base_fee, weight_fee, distance_fee, additional_fee, discount_fee,
+    payable_fee, actual_fee, payment_status, create_time, update_time
+)
+select o.id, 280.00, 25.00, 120.00, 15.00, 0.00, 440.00, 0.00, 'UNPAID', current_timestamp, current_timestamp
+from logistics_order o
+where o.order_no = 'LO-DEMO-0001'
+  and not exists (select 1 from logistics_fee where order_id = o.id);
+
+insert into logistics_fee (
+    order_id, base_fee, weight_fee, distance_fee, additional_fee, discount_fee,
+    payable_fee, actual_fee, payment_status, create_time, update_time
+)
+select o.id, 680.00, 172.00, 30.00, 45.00, 20.00, 907.00, 0.00, 'UNPAID', current_timestamp, current_timestamp
+from logistics_order o
+where o.order_no = 'LO-DEMO-0002'
+  and not exists (select 1 from logistics_fee where order_id = o.id);

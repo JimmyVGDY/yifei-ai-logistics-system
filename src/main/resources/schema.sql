@@ -5,6 +5,68 @@ create table if not exists demo_user (
     created_at timestamp not null
 );
 
+create table if not exists sys_role (
+    id bigint primary key auto_increment,
+    role_code varchar(64) not null unique,
+    role_name varchar(64) not null,
+    status tinyint not null,
+    create_time timestamp not null,
+    update_time timestamp not null
+);
+
+create table if not exists sys_user (
+    id bigint primary key auto_increment,
+    username varchar(64) not null unique,
+    real_name varchar(64) not null,
+    mobile varchar(32) not null,
+    email varchar(128) null,
+    password varchar(128) not null,
+    role_id bigint null,
+    status tinyint not null,
+    create_time timestamp not null,
+    update_time timestamp not null,
+    index idx_sys_user_role (role_id),
+    index idx_sys_user_status (status)
+);
+
+create table if not exists sys_menu (
+    id bigint primary key auto_increment,
+    parent_id bigint not null default 0,
+    menu_name varchar(64) not null,
+    menu_path varchar(128) not null,
+    permission_code varchar(128) not null,
+    sort_no int not null,
+    status tinyint not null,
+    create_time timestamp not null,
+    update_time timestamp not null
+);
+
+create table if not exists sys_user_role (
+    id bigint primary key auto_increment,
+    user_id bigint not null,
+    role_id bigint not null,
+    unique key uk_sys_user_role (user_id, role_id)
+);
+
+create table if not exists sys_role_menu (
+    id bigint primary key auto_increment,
+    role_id bigint not null,
+    menu_id bigint not null,
+    unique key uk_sys_role_menu (role_id, menu_id)
+);
+
+create table if not exists sys_operation_log (
+    id bigint primary key auto_increment,
+    username varchar(64) not null,
+    operation varchar(128) not null,
+    request_uri varchar(255) not null,
+    request_method varchar(16) not null,
+    operation_status varchar(32) not null,
+    operation_time timestamp not null,
+    index idx_operation_log_user (username),
+    index idx_operation_log_time (operation_time)
+);
+
 create table if not exists logistics_customer (
     id bigint primary key auto_increment,
     customer_code varchar(32) not null unique,
@@ -101,6 +163,102 @@ create table if not exists logistics_order (
     index idx_logistics_order_route (route_id),
     index idx_logistics_order_status (status),
     index idx_logistics_order_created_at (created_at)
+);
+
+create table if not exists logistics_waybill (
+    id bigint primary key auto_increment,
+    waybill_no varchar(64) not null unique,
+    order_id bigint not null,
+    start_site varchar(128) not null,
+    target_site varchar(128) not null,
+    current_location varchar(128) not null,
+    transport_status varchar(32) not null,
+    create_time timestamp not null,
+    update_time timestamp not null,
+    index idx_waybill_order (order_id),
+    index idx_waybill_status (transport_status)
+);
+
+create table if not exists logistics_dispatch (
+    id bigint primary key auto_increment,
+    order_id bigint not null,
+    waybill_id bigint not null,
+    driver_id bigint not null,
+    vehicle_id bigint not null,
+    start_site varchar(128) not null,
+    target_site varchar(128) not null,
+    planned_departure_time timestamp null,
+    planned_arrival_time timestamp null,
+    dispatch_status varchar(32) not null,
+    create_time timestamp not null,
+    update_time timestamp not null,
+    index idx_dispatch_order (order_id),
+    index idx_dispatch_driver (driver_id),
+    index idx_dispatch_vehicle (vehicle_id),
+    index idx_dispatch_status (dispatch_status)
+);
+
+create table if not exists logistics_task (
+    id bigint primary key auto_increment,
+    task_no varchar(64) not null unique,
+    order_id bigint not null,
+    waybill_id bigint not null,
+    dispatch_id bigint not null,
+    driver_id bigint not null,
+    vehicle_id bigint not null,
+    task_status varchar(32) not null,
+    proof_url varchar(255) null,
+    create_time timestamp not null,
+    update_time timestamp not null,
+    index idx_task_order (order_id),
+    index idx_task_driver (driver_id),
+    index idx_task_status (task_status)
+);
+
+create table if not exists logistics_track (
+    id bigint primary key auto_increment,
+    order_id bigint not null,
+    waybill_id bigint not null,
+    current_status varchar(32) not null,
+    current_location varchar(128) not null,
+    operator_name varchar(64) not null,
+    operation_desc varchar(255) not null,
+    operation_time timestamp not null,
+    index idx_track_order (order_id),
+    index idx_track_waybill (waybill_id),
+    index idx_track_time (operation_time)
+);
+
+create table if not exists logistics_exception (
+    id bigint primary key auto_increment,
+    order_id bigint not null,
+    task_id bigint null,
+    exception_type varchar(64) not null,
+    exception_desc varchar(255) not null,
+    exception_status varchar(32) not null,
+    report_user varchar(64) not null,
+    report_time timestamp not null,
+    handle_user varchar(64) null,
+    handle_time timestamp null,
+    index idx_exception_order (order_id),
+    index idx_exception_status (exception_status)
+);
+
+create table if not exists logistics_fee (
+    id bigint primary key auto_increment,
+    order_id bigint not null,
+    base_fee decimal(12, 2) not null,
+    weight_fee decimal(12, 2) not null,
+    distance_fee decimal(12, 2) not null,
+    additional_fee decimal(12, 2) not null,
+    discount_fee decimal(12, 2) not null,
+    payable_fee decimal(12, 2) not null,
+    actual_fee decimal(12, 2) not null,
+    payment_status varchar(32) not null,
+    create_time timestamp not null,
+    update_time timestamp not null,
+    index idx_fee_order (order_id),
+    index idx_fee_payment_status (payment_status)
 );
 
 create table if not exists logistics_order_tracking (

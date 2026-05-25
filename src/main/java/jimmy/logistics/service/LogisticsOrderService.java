@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class LogisticsOrderService {
 
-    private static final String STATUS_CREATED = "CREATED";
+    private static final String STATUS_CREATED = "WAIT_DISPATCH";
 
     private final LogisticsOrderMapper logisticsOrderMapper;
     private final RedisTemplate<String, Object> redisTemplate;

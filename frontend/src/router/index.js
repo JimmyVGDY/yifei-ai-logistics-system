@@ -4,6 +4,7 @@ import OrdersView from '../views/OrdersView.vue'
 import CreateOrderView from '../views/CreateOrderView.vue'
 import ResourcesView from '../views/ResourcesView.vue'
 import LoginView from '../views/LoginView.vue'
+import ModuleListView from '../views/ModuleListView.vue'
 import { isAuthenticated } from '../stores/auth-store'
 
 const routes = [
@@ -12,6 +13,17 @@ const routes = [
   { path: '/dashboard', component: DashboardView, meta: { title: '运营看板' } },
   { path: '/orders', component: OrdersView, meta: { title: '运单管理' } },
   { path: '/orders/create', component: CreateOrderView, meta: { title: '新建运单' } },
+  { path: '/customers', component: ModuleListView, meta: { title: '客户管理', module: 'customers' } },
+  { path: '/waybills', component: ModuleListView, meta: { title: '运单中心', module: 'waybills' } },
+  { path: '/dispatches', component: ModuleListView, meta: { title: '调度管理', module: 'dispatches' } },
+  { path: '/tasks', component: ModuleListView, meta: { title: '运输任务', module: 'tasks' } },
+  { path: '/tracks', component: ModuleListView, meta: { title: '物流轨迹', module: 'tracks' } },
+  { path: '/drivers', component: ModuleListView, meta: { title: '司机管理', module: 'drivers' } },
+  { path: '/vehicles', component: ModuleListView, meta: { title: '车辆管理', module: 'vehicles' } },
+  { path: '/exceptions', component: ModuleListView, meta: { title: '异常管理', module: 'exceptions' } },
+  { path: '/fees', component: ModuleListView, meta: { title: '费用结算', module: 'fees' } },
+  { path: '/system/users', component: ModuleListView, meta: { title: '用户管理', module: 'users' } },
+  { path: '/system/roles', component: ModuleListView, meta: { title: '角色管理', module: 'roles' } },
   { path: '/resources', component: ResourcesView, meta: { title: '资源中心' } }
 ]
 
