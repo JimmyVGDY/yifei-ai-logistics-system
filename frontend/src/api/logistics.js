@@ -12,6 +12,49 @@ export function fetchModuleRecords(module, limit = 20) {
   return http.get(`/logistics/modules/${module}`, { params: { limit } })
 }
 
+export function reportException(payload) {
+  return http.post('/logistics/exceptions/report', payload)
+}
+
+export function handleException(exceptionId, payload = { exceptionStatus: 'CLOSED' }) {
+  return http.post(`/logistics/exceptions/${exceptionId}/handle`, payload)
+}
+
+export function generateFee(orderNo) {
+  return http.post(`/logistics/fees/generate/${orderNo}`)
+}
+
+export function markFeePaid(feeId) {
+  return http.post(`/logistics/fees/${feeId}/pay`)
+}
+
+export function exportModuleExcel(module, limit = 100) {
+  return http.get(`/logistics/excel/export/${module}`, {
+    params: { limit },
+    responseType: 'blob'
+  })
+}
+
+export function importCustomers(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return http.post('/logistics/excel/import/customers', formData)
+}
+
+export function uploadBusinessFile(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return http.post('/logistics/files/upload', formData)
+}
+
+export function fetchOrderTrend(days = 7) {
+  return http.get('/logistics/statistics/order-trend', { params: { days } })
+}
+
+export function fetchIncomeTrend(months = 6) {
+  return http.get('/logistics/statistics/income-trend', { params: { months } })
+}
+
 export function fetchOrder(orderNo) {
   return http.get(`/logistics/orders/${orderNo}`)
 }

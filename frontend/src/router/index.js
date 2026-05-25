@@ -24,6 +24,8 @@ const routes = [
   { path: '/fees', component: ModuleListView, meta: { title: '费用结算', module: 'fees' } },
   { path: '/system/users', component: ModuleListView, meta: { title: '用户管理', module: 'users' } },
   { path: '/system/roles', component: ModuleListView, meta: { title: '角色管理', module: 'roles' } },
+  { path: '/system/operation-logs', component: ModuleListView, meta: { title: '操作日志', module: 'operationLogs' } },
+  { path: '/files', component: ModuleListView, meta: { title: '上传文件', module: 'files' } },
   { path: '/resources', component: ResourcesView, meta: { title: '资源中心' } }
 ]
 

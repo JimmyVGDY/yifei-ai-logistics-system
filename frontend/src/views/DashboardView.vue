@@ -46,14 +46,48 @@
         </section>
       </el-col>
     </el-row>
+
+    <el-row :gutter="16">
+      <el-col :xs="24" :lg="12">
+        <section class="content-panel">
+          <div class="panel-header">
+            <div>
+              <h3>订单趋势</h3>
+              <p>最近 7 天订单创建量</p>
+            </div>
+          </div>
+          <el-table :data="orderTrend" v-loading="loading" height="260">
+            <el-table-column prop="stat_date" label="日期" min-width="160" />
+            <el-table-column prop="total" label="订单数" width="120" />
+          </el-table>
+        </section>
+      </el-col>
+
+      <el-col :xs="24" :lg="12">
+        <section class="content-panel">
+          <div class="panel-header">
+            <div>
+              <h3>收入趋势</h3>
+              <p>最近 6 个月已收款金额</p>
+            </div>
+          </div>
+          <el-table :data="incomeTrend" v-loading="loading" height="260">
+            <el-table-column prop="stat_month" label="月份" min-width="160" />
+            <el-table-column prop="total" label="收入" width="140" />
+          </el-table>
+        </section>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { fetchDashboardSummary } from '../api/logistics'
+import { fetchDashboardSummary, fetchIncomeTrend, fetchOrderTrend } from '../api/logistics'
 
 const summary = ref(null)
+const orderTrend = ref([])
+const incomeTrend = ref([])
 const loading = ref(false)
 
 const metrics = computed(() => [
@@ -68,7 +102,14 @@ const metrics = computed(() => [
 async function loadData() {
   loading.value = true
   try {
-    summary.value = await fetchDashboardSummary()
+    const [summaryData, orderTrendData, incomeTrendData] = await Promise.all([
+      fetchDashboardSummary(),
+      fetchOrderTrend(7),
+      fetchIncomeTrend(6)
+    ])
+    summary.value = summaryData
+    orderTrend.value = orderTrendData
+    incomeTrend.value = incomeTrendData
   } finally {
     loading.value = false
   }

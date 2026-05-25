@@ -65,7 +65,12 @@
           </template>
           <el-menu-item index="/system/users">用户管理</el-menu-item>
           <el-menu-item index="/system/roles">角色管理</el-menu-item>
+          <el-menu-item index="/system/operation-logs">操作日志</el-menu-item>
         </el-sub-menu>
+        <el-menu-item index="/files">
+          <el-icon><Upload /></el-icon>
+          <span>上传文件</span>
+        </el-menu-item>
         <el-menu-item index="/resources">
           <el-icon><SetUp /></el-icon>
           <span>资源中心</span>
