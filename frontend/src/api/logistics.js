@@ -71,6 +71,10 @@ export function fetchOrder(orderNo) {
   return http.get(`/logistics/orders/${orderNo}`)
 }
 
+export function searchOrders(params = {}) {
+  return http.get('/logistics/orders/search', { params })
+}
+
 export function createOrder(payload) {
   return http.post('/logistics/orders', payload)
 }

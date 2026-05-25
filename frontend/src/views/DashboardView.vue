@@ -61,7 +61,7 @@
             </div>
           </div>
           <el-table :data="orderTrend" v-loading="loading" height="260">
-            <el-table-column prop="stat_date" label="日期" min-width="160" />
+            <el-table-column prop="name" label="日期" min-width="160" />
             <el-table-column prop="total" label="订单数" width="120" />
           </el-table>
         </section>
@@ -76,7 +76,7 @@
             </div>
           </div>
           <el-table :data="incomeTrend" v-loading="loading" height="260">
-            <el-table-column prop="stat_month" label="月份" min-width="160" />
+            <el-table-column prop="name" label="月份" min-width="160" />
             <el-table-column prop="total" label="收入" width="140" />
           </el-table>
         </section>

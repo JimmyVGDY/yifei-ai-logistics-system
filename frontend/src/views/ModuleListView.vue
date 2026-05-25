@@ -5,29 +5,23 @@
         <h3>{{ meta.title }}</h3>
         <p>{{ meta.description }}</p>
       </div>
-      <div class="toolbar">
-        <el-input v-model="keyword" placeholder="关键词模糊查询" clearable style="width: 180px" />
-        <el-date-picker
-          v-model="timeRange"
-          type="datetimerange"
-          start-placeholder="开始时间"
-          end-placeholder="结束时间"
-          value-format="YYYY-MM-DD HH:mm:ss"
-          style="width: 360px"
-        />
-        <el-input-number v-model="limit" :min="1" :max="100" />
-        <el-button v-if="canCreate" type="primary" @click="openCreateDialog">新增</el-button>
-        <el-button v-if="canReportException" type="warning" @click="exceptionDialogVisible = true">上报异常</el-button>
-        <el-button v-if="canGenerateFee" type="success" @click="feeDialogVisible = true">生成费用</el-button>
-        <el-upload v-if="canImportCustomer" :show-file-list="false" :auto-upload="false" accept=".xlsx" @change="handleCustomerImport">
-          <el-button>导入客户</el-button>
-        </el-upload>
-        <el-button v-if="canExport" @click="downloadExcel">导出 Excel</el-button>
-        <el-button type="primary" :loading="loading" @click="loadData">
-          <el-icon><Search /></el-icon>
-          查询
-        </el-button>
-      </div>
+      <ModuleToolbar
+        v-model:keyword="keyword"
+        v-model:time-range="timeRange"
+        v-model:page-size="limit"
+        :loading="loading"
+        :can-create="canCreate"
+        :can-report-exception="canReportException"
+        :can-generate-fee="canGenerateFee"
+        :can-import-customer="canImportCustomer"
+        :can-export="canExport"
+        @create="openCreateDialog"
+        @report-exception="exceptionDialogVisible = true"
+        @generate-fee="feeDialogVisible = true"
+        @import-customer="handleCustomerImport"
+        @export="downloadExcel"
+        @search="loadData"
+      />
     </div>
 
     <el-table :data="records" v-loading="loading" height="640">
@@ -52,18 +46,13 @@
       </el-table-column>
     </el-table>
 
-    <div class="table-pagination">
-      <el-pagination
-        background
-        layout="total, sizes, prev, pager, next, jumper"
-        :current-page="page"
-        :page-size="limit"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="total"
-        @current-change="handlePageChange"
-        @size-change="handlePageSizeChange"
-      />
-    </div>
+    <ModulePagination
+      :page="page"
+      :page-size="limit"
+      :total="total"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+    />
 
     <el-dialog v-model="crudDialogVisible" :title="crudMode === 'create' ? `新增${meta.title}` : `编辑${meta.title}`" width="720px">
       <el-form label-position="top" :model="crudForm">
@@ -129,6 +118,8 @@ import {
 } from '../api/logistics'
 import { formatDateTime, statusLabel } from '../utils/status-labels'
 import { hasPermission } from '../stores/auth-store'
+import ModulePagination from '../components/ModulePagination.vue'
+import ModuleToolbar from '../components/ModuleToolbar.vue'
 
 const route = useRoute()
 const page = ref(1)
