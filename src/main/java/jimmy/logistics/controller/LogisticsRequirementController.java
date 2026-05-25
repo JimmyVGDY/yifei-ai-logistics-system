@@ -28,7 +28,10 @@ public class LogisticsRequirementController {
 
     @GetMapping("/modules/{module}")
     public List<Map<String, Object>> moduleRecords(@PathVariable String module,
-                                                   @RequestParam(defaultValue = "20") int limit) {
-        return logisticsRequirementService.moduleRecords(module, limit);
+                                                   @RequestParam(defaultValue = "20") int limit,
+                                                   @RequestParam(required = false) String keyword,
+                                                   @RequestParam(required = false) String startTime,
+                                                   @RequestParam(required = false) String endTime) {
+        return logisticsRequirementService.moduleRecords(module, limit, keyword, startTime, endTime);
     }
 }

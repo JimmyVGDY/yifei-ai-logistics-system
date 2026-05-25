@@ -22,12 +22,17 @@
 | 文件上传 | 新增业务附件上传接口和 `sys_uploaded_file` 文件记录表 |
 | Excel 导入导出 | 支持模块列表导出 `.xlsx`，客户基础资料支持 `.xlsx` 导入 |
 | 操作日志 | 新增操作日志拦截器，物流写操作和重点接口写入 `sys_operation_log` |
+| 管理页 CRUD | 客户、订单、运单、调度、任务、轨迹、司机、车辆、异常、费用、用户、角色页面支持新增、编辑、删除 |
+| 查询增强 | 管理页支持关键词模糊查询、开始时间查询、结束时间查询和时间范围查询 |
 
 ## 新增后端接口
 
 ```text
 GET /logistics/dashboard
-GET /logistics/modules/{module}?limit=20
+GET /logistics/modules/{module}?limit=20&keyword=上海&startTime=2026-05-01 00:00:00&endTime=2026-05-31 23:59:59
+POST /logistics/modules/{module}
+POST /logistics/modules/{module}/{id}
+POST /logistics/modules/{module}/{id}/delete
 POST /logistics/exceptions/report
 POST /logistics/exceptions/{exceptionId}/handle
 POST /logistics/fees/generate/{orderNo}
@@ -81,6 +86,8 @@ files
   - 操作日志
 - 资源中心
 
+管理页面的时间字段统一按 `yyyy-MM-dd HH:mm:ss` 展示。
+
 ## 当前边界
 
-本次已完成需求书 v2.0 的基础能力框架：异常处理、费用收款、统计趋势、文件上传、Excel 导入导出和操作日志。后续可以继续深化为完整 CRUD、细粒度角色权限、Excel 模板下载、上传文件预览、操作日志详情和审计检索。
+本次已完成需求书 v2.0 的基础能力框架：异常处理、费用收款、统计趋势、文件上传、Excel 导入导出、操作日志、管理页基础 CRUD 和组合查询。后续可以继续深化为细粒度角色权限、Excel 模板下载、上传文件预览、操作日志详情和审计检索。

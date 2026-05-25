@@ -8,8 +8,20 @@ export function fetchDashboardSummary() {
   return http.get('/logistics/dashboard')
 }
 
-export function fetchModuleRecords(module, limit = 20) {
-  return http.get(`/logistics/modules/${module}`, { params: { limit } })
+export function fetchModuleRecords(module, params = {}) {
+  return http.get(`/logistics/modules/${module}`, { params })
+}
+
+export function createModuleRecord(module, payload) {
+  return http.post(`/logistics/modules/${module}`, payload)
+}
+
+export function updateModuleRecord(module, id, payload) {
+  return http.post(`/logistics/modules/${module}/${id}`, payload)
+}
+
+export function deleteModuleRecord(module, id) {
+  return http.post(`/logistics/modules/${module}/${id}/delete`)
 }
 
 export function reportException(payload) {

@@ -1,6 +1,7 @@
 package jimmy.logistics.controller;
 
 import jimmy.logistics.annotation.OperationLog;
+import jimmy.logistics.service.LogisticsCrudService;
 import jimmy.logistics.service.LogisticsV2Service;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.ContentDisposition;
@@ -27,9 +28,34 @@ import java.util.Map;
 public class LogisticsV2Controller {
 
     private final LogisticsV2Service logisticsV2Service;
+    private final LogisticsCrudService logisticsCrudService;
 
-    public LogisticsV2Controller(LogisticsV2Service logisticsV2Service) {
+    public LogisticsV2Controller(LogisticsV2Service logisticsV2Service,
+                                 LogisticsCrudService logisticsCrudService) {
         this.logisticsV2Service = logisticsV2Service;
+        this.logisticsCrudService = logisticsCrudService;
+    }
+
+    @OperationLog("新增管理模块记录")
+    @PostMapping("/modules/{module}")
+    public Map<String, Object> createModuleRecord(@PathVariable String module,
+                                                  @RequestBody Map<String, Object> payload) {
+        return logisticsCrudService.create(module, payload);
+    }
+
+    @OperationLog("修改管理模块记录")
+    @PostMapping("/modules/{module}/{id}")
+    public Map<String, Object> updateModuleRecord(@PathVariable String module,
+                                                  @PathVariable long id,
+                                                  @RequestBody Map<String, Object> payload) {
+        return logisticsCrudService.update(module, id, payload);
+    }
+
+    @OperationLog("删除管理模块记录")
+    @PostMapping("/modules/{module}/{id}/delete")
+    public Map<String, Object> deleteModuleRecord(@PathVariable String module,
+                                                  @PathVariable long id) {
+        return logisticsCrudService.delete(module, id);
     }
 
     @OperationLog("上报运输异常")
