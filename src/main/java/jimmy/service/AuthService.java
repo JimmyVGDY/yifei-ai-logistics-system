@@ -215,11 +215,34 @@ public class AuthService {
     }
 
     private List<String> collectPermissions(List<MenuVO> menus) {
-        return flattenMenus(menus).stream()
+        List<String> permissions = flattenMenus(menus).stream()
                 .map(MenuVO::getPermissionCode)
                 .filter(StringUtils::hasText)
                 .distinct()
                 .collect(Collectors.toList());
+        List<String> expanded = new ArrayList<>(permissions);
+        for (String permission : permissions) {
+            expandActionPermissions(permission, expanded);
+        }
+        return expanded.stream().distinct().collect(Collectors.toList());
+    }
+
+    private void expandActionPermissions(String permission, List<String> expanded) {
+        if (permission.endsWith(":manage")) {
+            String prefix = permission.substring(0, permission.length() - ":manage".length());
+            expanded.add(prefix + ":query");
+            expanded.add(prefix + ":create");
+            expanded.add(prefix + ":update");
+            expanded.add(prefix + ":delete");
+            expanded.add(prefix + ":export");
+            expanded.add(prefix + ":import");
+            return;
+        }
+        if (permission.endsWith(":view")) {
+            String prefix = permission.substring(0, permission.length() - ":view".length());
+            expanded.add(prefix + ":query");
+            expanded.add(prefix + ":export");
+        }
     }
 
     private List<MenuVO> flattenMenus(List<MenuVO> menus) {

@@ -5,11 +5,19 @@ import cn.dev33.satoken.router.SaRouter;
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.logistics.config.OperationLogInterceptor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import javax.servlet.http.HttpServletRequest;
+import java.util.HashMap;
+import java.util.Map;
+
 @Configuration
 public class SaTokenConfig implements WebMvcConfigurer {
+
+    private static final Map<String, String> MODULE_PERMISSION_PREFIXES = buildModulePermissionPrefixes();
 
     private final OperationLogInterceptor operationLogInterceptor;
 
@@ -36,44 +44,99 @@ public class SaTokenConfig implements WebMvcConfigurer {
     }
 
     private void checkRoutePermission() {
+        if (checkDynamicLogisticsPermission()) {
+            return;
+        }
         SaRouter.match("/logistics/dashboard", r -> StpUtil.checkPermission("dashboard:view"));
-        SaRouter.match("/logistics/modules/orders", r -> StpUtil.checkPermission("order:manage"));
-        SaRouter.match("/logistics/modules/orders/**", r -> StpUtil.checkPermission("order:manage"));
-        SaRouter.match("/logistics/orders", r -> StpUtil.checkPermission("order:manage"));
-        SaRouter.match("/logistics/orders/**", r -> StpUtil.checkPermission("order:manage"));
-        SaRouter.match("/logistics/modules/customers", r -> StpUtil.checkPermission("customer:manage"));
-        SaRouter.match("/logistics/modules/customers/**", r -> StpUtil.checkPermission("customer:manage"));
-        SaRouter.match("/logistics/modules/waybills", r -> StpUtil.checkPermission("waybill:manage"));
-        SaRouter.match("/logistics/modules/waybills/**", r -> StpUtil.checkPermission("waybill:manage"));
-        SaRouter.match("/logistics/modules/dispatches", r -> StpUtil.checkPermission("dispatch:manage"));
-        SaRouter.match("/logistics/modules/dispatches/**", r -> StpUtil.checkPermission("dispatch:manage"));
-        SaRouter.match("/logistics/modules/tasks", r -> StpUtil.checkPermission("task:manage"));
-        SaRouter.match("/logistics/modules/tasks/**", r -> StpUtil.checkPermission("task:manage"));
-        SaRouter.match("/logistics/modules/tracks", r -> StpUtil.checkPermission("track:view"));
-        SaRouter.match("/logistics/modules/tracks/**", r -> StpUtil.checkPermission("track:view"));
-        SaRouter.match("/logistics/modules/drivers", r -> StpUtil.checkPermission("driver:manage"));
-        SaRouter.match("/logistics/modules/drivers/**", r -> StpUtil.checkPermission("driver:manage"));
-        SaRouter.match("/logistics/modules/vehicles", r -> StpUtil.checkPermission("vehicle:manage"));
-        SaRouter.match("/logistics/modules/vehicles/**", r -> StpUtil.checkPermission("vehicle:manage"));
-        SaRouter.match("/logistics/modules/exceptions", r -> StpUtil.checkPermission("exception:manage"));
-        SaRouter.match("/logistics/modules/exceptions/**", r -> StpUtil.checkPermission("exception:manage"));
-        SaRouter.match("/logistics/exceptions", r -> StpUtil.checkPermission("exception:manage"));
-        SaRouter.match("/logistics/exceptions/**", r -> StpUtil.checkPermission("exception:manage"));
-        SaRouter.match("/logistics/modules/fees", r -> StpUtil.checkPermission("fee:manage"));
-        SaRouter.match("/logistics/modules/fees/**", r -> StpUtil.checkPermission("fee:manage"));
-        SaRouter.match("/logistics/fees", r -> StpUtil.checkPermission("fee:manage"));
-        SaRouter.match("/logistics/fees/**", r -> StpUtil.checkPermission("fee:manage"));
-        SaRouter.match("/logistics/modules/users", r -> StpUtil.checkPermission("system:user:manage"));
-        SaRouter.match("/logistics/modules/users/**", r -> StpUtil.checkPermission("system:user:manage"));
-        SaRouter.match("/logistics/modules/roles", r -> StpUtil.checkPermission("system:role:manage"));
-        SaRouter.match("/logistics/modules/roles/**", r -> StpUtil.checkPermission("system:role:manage"));
-        SaRouter.match("/logistics/modules/operationLogs", r -> StpUtil.checkPermission("system:log:view"));
-        SaRouter.match("/logistics/modules/operationLogs/**", r -> StpUtil.checkPermission("system:log:view"));
-        SaRouter.match("/logistics/modules/files", r -> StpUtil.checkPermission("file:manage"));
-        SaRouter.match("/logistics/modules/files/**", r -> StpUtil.checkPermission("file:manage"));
-        SaRouter.match("/logistics/files", r -> StpUtil.checkPermission("file:manage"));
-        SaRouter.match("/logistics/files/**", r -> StpUtil.checkPermission("file:manage"));
+        SaRouter.match("/logistics/statistics/**", r -> StpUtil.checkPermission("dashboard:view"));
         SaRouter.match("/infra", r -> StpUtil.checkPermission("resource:view"));
         SaRouter.match("/infra/**", r -> StpUtil.checkPermission("resource:view"));
+    }
+
+    private boolean checkDynamicLogisticsPermission() {
+        HttpServletRequest request = currentRequest();
+        if (request == null) {
+            return false;
+        }
+        String uri = request.getRequestURI();
+        String method = request.getMethod();
+        if (uri.startsWith("/logistics/modules/")) {
+            String[] parts = uri.substring("/logistics/modules/".length()).split("/");
+            String module = parts.length == 0 ? "" : parts[0];
+            String prefix = MODULE_PERMISSION_PREFIXES.get(module);
+            if (prefix == null) {
+                return false;
+            }
+            StpUtil.checkPermission(prefix + ":" + resolveModuleAction(method, parts));
+            return true;
+        }
+        if (uri.startsWith("/logistics/excel/export/")) {
+            String module = uri.substring("/logistics/excel/export/".length()).split("/")[0];
+            String prefix = MODULE_PERMISSION_PREFIXES.get(module);
+            if (prefix != null) {
+                StpUtil.checkPermission(prefix + ":export");
+                return true;
+            }
+        }
+        if (uri.equals("/logistics/excel/import/customers")) {
+            StpUtil.checkPermission("customer:import");
+            return true;
+        }
+        if (uri.equals("/logistics/files/upload")) {
+            StpUtil.checkPermission("file:create");
+            return true;
+        }
+        if (uri.startsWith("/logistics/orders")) {
+            StpUtil.checkPermission("GET".equalsIgnoreCase(method) ? "order:query" : "order:create");
+            return true;
+        }
+        if (uri.startsWith("/logistics/exceptions")) {
+            StpUtil.checkPermission(uri.endsWith("/handle") ? "exception:update" : "exception:create");
+            return true;
+        }
+        if (uri.startsWith("/logistics/fees")) {
+            StpUtil.checkPermission(uri.startsWith("/logistics/fees/generate/") ? "fee:create" : "fee:update");
+            return true;
+        }
+        return false;
+    }
+
+    private String resolveModuleAction(String method, String[] parts) {
+        if ("GET".equalsIgnoreCase(method)) {
+            return "query";
+        }
+        if (parts.length >= 3 && "delete".equals(parts[2])) {
+            return "delete";
+        }
+        if ("POST".equalsIgnoreCase(method) && parts.length == 1) {
+            return "create";
+        }
+        return "update";
+    }
+
+    private HttpServletRequest currentRequest() {
+        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes)) {
+            return null;
+        }
+        return ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+    }
+
+    private static Map<String, String> buildModulePermissionPrefixes() {
+        Map<String, String> map = new HashMap<>();
+        map.put("orders", "order");
+        map.put("customers", "customer");
+        map.put("waybills", "waybill");
+        map.put("dispatches", "dispatch");
+        map.put("tasks", "task");
+        map.put("tracks", "track");
+        map.put("drivers", "driver");
+        map.put("vehicles", "vehicle");
+        map.put("exceptions", "exception");
+        map.put("fees", "fee");
+        map.put("users", "system:user");
+        map.put("roles", "system:role");
+        map.put("operationLogs", "system:log");
+        map.put("files", "file");
+        return map;
     }
 }

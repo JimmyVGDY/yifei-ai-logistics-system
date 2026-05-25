@@ -4,6 +4,7 @@ import jimmy.logistics.annotation.OperationLog;
 import jimmy.logistics.entity.LogisticsOrder;
 import jimmy.logistics.model.CreateLogisticsOrderRequest;
 import jimmy.logistics.service.LogisticsOrderService;
+import jimmy.model.ApiResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,17 +27,17 @@ public class LogisticsOrderController {
 
     @OperationLog("创建物流订单")
     @PostMapping
-    public LogisticsOrder create(@RequestBody CreateLogisticsOrderRequest request) {
-        return logisticsOrderService.create(request);
+    public ApiResponse<LogisticsOrder> create(@RequestBody CreateLogisticsOrderRequest request) {
+        return ApiResponse.success(logisticsOrderService.create(request));
     }
 
     @GetMapping("/{orderNo}")
-    public LogisticsOrder findByOrderNo(@PathVariable String orderNo) {
-        return logisticsOrderService.findByOrderNo(orderNo);
+    public ApiResponse<LogisticsOrder> findByOrderNo(@PathVariable String orderNo) {
+        return ApiResponse.success(logisticsOrderService.findByOrderNo(orderNo));
     }
 
     @GetMapping
-    public List<LogisticsOrder> findRecent(@RequestParam(defaultValue = "20") int limit) {
-        return logisticsOrderService.findRecent(limit);
+    public ApiResponse<List<LogisticsOrder>> findRecent(@RequestParam(defaultValue = "20") int limit) {
+        return ApiResponse.success(logisticsOrderService.findRecent(limit));
     }
 }

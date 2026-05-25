@@ -128,6 +128,9 @@ public class LogisticsCrudService {
             if (update && (column.equals(config.createTimeColumn) || column.equals(config.updateTimeColumn))) {
                 continue;
             }
+            if (update && payload.get(column) == null) {
+                continue;
+            }
             if (hasColumn(config.tableName, column) && payload.containsKey(column)) {
                 values.put(column, payload.get(column));
             }

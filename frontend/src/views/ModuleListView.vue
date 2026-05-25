@@ -179,15 +179,15 @@ const moduleMetas = {
 const meta = computed(() => moduleMetas[route.meta.module] || moduleMetas.customers)
 const activeEditFields = computed(() => meta.value.editFields || [])
 const modulePermission = computed(() => route.meta.permission || meta.value.permission)
-const canCreate = computed(() => meta.value.editable && hasPermission(modulePermission.value))
-const canUpdate = computed(() => meta.value.editable && hasPermission(modulePermission.value))
-const canDelete = computed(() => meta.value.editable && hasPermission(modulePermission.value))
-const canExport = computed(() => hasPermission(modulePermission.value))
-const canImportCustomer = computed(() => route.meta.module === 'customers' && hasPermission('customer:manage'))
-const canReportException = computed(() => route.meta.module === 'exceptions' && hasPermission('exception:manage'))
-const canHandleException = computed(() => route.meta.module === 'exceptions' && hasPermission('exception:manage'))
-const canGenerateFee = computed(() => route.meta.module === 'fees' && hasPermission('fee:manage'))
-const canPayFee = computed(() => route.meta.module === 'fees' && hasPermission('fee:manage'))
+const canCreate = computed(() => meta.value.editable && canAction('create'))
+const canUpdate = computed(() => meta.value.editable && canAction('update'))
+const canDelete = computed(() => meta.value.editable && canAction('delete'))
+const canExport = computed(() => canAction('export'))
+const canImportCustomer = computed(() => route.meta.module === 'customers' && canAction('import'))
+const canReportException = computed(() => route.meta.module === 'exceptions' && canAction('create'))
+const canHandleException = computed(() => route.meta.module === 'exceptions' && canAction('update'))
+const canGenerateFee = computed(() => route.meta.module === 'fees' && canAction('create'))
+const canPayFee = computed(() => route.meta.module === 'fees' && canAction('update'))
 const showCrudColumn = computed(() => canUpdate.value || canDelete.value)
 
 function columns(definition) {
@@ -241,6 +241,24 @@ function fieldOptions(prop, module) {
     return statusOptions.fee
   }
   return undefined
+}
+
+function canAction(action) {
+  const permission = actionPermission(action)
+  return hasPermission(permission) || hasPermission(modulePermission.value)
+}
+
+function actionPermission(action) {
+  if (!modulePermission.value) {
+    return ''
+  }
+  if (modulePermission.value.endsWith(':manage')) {
+    return `${modulePermission.value.slice(0, -':manage'.length)}:${action}`
+  }
+  if (modulePermission.value.endsWith(':view')) {
+    return `${modulePermission.value.slice(0, -':view'.length)}:${action}`
+  }
+  return modulePermission.value
 }
 
 function formatCell(prop, value) {
