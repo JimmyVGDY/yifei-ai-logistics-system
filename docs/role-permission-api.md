@@ -12,6 +12,8 @@
 
 `POST /logistics/modules/roles/{id}/delete`
 
+新增角色时无需传 `role_code`。后端会自动生成 `R` 开头的短位随机编码，并在入库前检查唯一性；编辑角色时默认只维护角色名称和状态。
+
 ## 权限模型
 
 系统使用 Sa-Token 做登录和权限校验。菜单权限来自 `sys_menu` 和 `sys_role_menu`，登录后返回给前端渲染侧边栏。

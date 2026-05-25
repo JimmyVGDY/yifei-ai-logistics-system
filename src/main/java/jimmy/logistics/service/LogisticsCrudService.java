@@ -11,6 +11,7 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -22,6 +23,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 @Service
 public class LogisticsCrudService {
+
+    private static final String BUSINESS_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final JdbcTemplate jdbcTemplate;
     private final CompactSnowflakeIdGenerator idGenerator;
@@ -39,6 +43,7 @@ public class LogisticsCrudService {
         Map<String, Object> values = filteredPayload(config, payload, false);
         Long id = idGenerator.nextId();
         values.put("id", id);
+        fillBusinessCodeDefaults(config, values);
         fillCreateDefaults(config, values);
         fillAuditDefaults(config, values, true);
 
@@ -148,6 +153,40 @@ public class LogisticsCrudService {
         }
     }
 
+    private void fillBusinessCodeDefaults(CrudConfig config, Map<String, Object> values) {
+        if (config.generatedCodeColumn == null || !hasColumn(config.tableName, config.generatedCodeColumn)) {
+            return;
+        }
+        Object current = values.get(config.generatedCodeColumn);
+        if (current != null && String.valueOf(current).trim().length() > 0) {
+            return;
+        }
+        values.put(config.generatedCodeColumn, nextBusinessCode(config.tableName, config.generatedCodeColumn, config.generatedCodePrefix));
+    }
+
+    private String nextBusinessCode(String tableName, String columnName, String prefix) {
+        for (int i = 0; i < 20; i++) {
+            String code = prefix + randomCode(6);
+            Integer exists = jdbcTemplate.queryForObject(
+                    "select count(1) from " + tableName + " where " + columnName + " = ?",
+                    Integer.class,
+                    code
+            );
+            if (exists == null || exists == 0) {
+                return code;
+            }
+        }
+        return prefix + String.valueOf(idGenerator.nextId()).substring(7);
+    }
+
+    private String randomCode(int length) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            builder.append(BUSINESS_CODE_CHARS.charAt(RANDOM.nextInt(BUSINESS_CODE_CHARS.length())));
+        }
+        return builder.toString();
+    }
+
     private void fillUpdateDefaults(CrudConfig config, Map<String, Object> values) {
         if (config.updateTimeColumn != null && hasColumn(config.tableName, config.updateTimeColumn)) {
             values.put(config.updateTimeColumn, new Timestamp(System.currentTimeMillis()));
@@ -206,7 +245,7 @@ public class LogisticsCrudService {
     private Map<String, CrudConfig> buildConfigs() {
         Map<String, CrudConfig> map = new HashMap<>();
         map.put("customers", new CrudConfig("logistics_customer", "created_at", "updated_at", "customer_code", "customer_name", "contact_name", "contact_phone", "province", "city", "address", "status"));
-        map.put("orders", new CrudConfig("logistics_order", "created_at", "updated_at",
+        map.put("orders", CrudConfig.withNullable("logistics_order", "created_at", "updated_at",
                 Arrays.asList("cargo_name", "cargo_weight", "cargo_volume", "planned_pickup_time", "planned_delivery_time", "route_id", "warehouse_id", "vehicle_id", "driver_id"),
                 "order_no", "customer_id", "route_id", "warehouse_id", "vehicle_id", "driver_id", "customer_name", "sender_address", "receiver_address", "cargo_name", "cargo_weight", "cargo_volume", "status", "planned_pickup_time", "planned_delivery_time"));
         map.put("waybills", new CrudConfig("logistics_waybill", "create_time", "update_time", "waybill_no", "order_id", "start_site", "target_site", "current_location", "transport_status"));
@@ -218,7 +257,7 @@ public class LogisticsCrudService {
         map.put("exceptions", new CrudConfig("logistics_exception", "report_time", "handle_time", "order_id", "task_id", "exception_type", "exception_desc", "exception_status", "report_user", "handle_user"));
         map.put("fees", new CrudConfig("logistics_fee", "create_time", "update_time", "order_id", "base_fee", "weight_fee", "distance_fee", "additional_fee", "discount_fee", "payable_fee", "actual_fee", "payment_status"));
         map.put("users", new CrudConfig("sys_user", "create_time", "update_time", "user_code", "username", "real_name", "mobile", "email", "password", "role_id", "status"));
-        map.put("roles", new CrudConfig("sys_role", "create_time", "update_time", "role_code", "role_name", "status"));
+        map.put("roles", CrudConfig.withGeneratedCode("sys_role", "create_time", "update_time", "role_code", "R", "role_code", "role_name", "status"));
         return map;
     }
 
@@ -228,17 +267,32 @@ public class LogisticsCrudService {
         private final String updateTimeColumn;
         private final List<String> columns;
         private final List<String> nullableColumns;
+        private final String generatedCodeColumn;
+        private final String generatedCodePrefix;
 
         private CrudConfig(String tableName, String createTimeColumn, String updateTimeColumn, String... columns) {
-            this(tableName, createTimeColumn, updateTimeColumn, new ArrayList<>(), columns);
+            this(tableName, createTimeColumn, updateTimeColumn, new ArrayList<>(), null, null, columns);
         }
 
-        private CrudConfig(String tableName, String createTimeColumn, String updateTimeColumn, List<String> nullableColumns, String... columns) {
+        private static CrudConfig withGeneratedCode(String tableName, String createTimeColumn, String updateTimeColumn,
+                                                    String generatedCodeColumn, String generatedCodePrefix, String... columns) {
+            return new CrudConfig(tableName, createTimeColumn, updateTimeColumn, new ArrayList<>(), generatedCodeColumn, generatedCodePrefix, columns);
+        }
+
+        private static CrudConfig withNullable(String tableName, String createTimeColumn, String updateTimeColumn,
+                                               List<String> nullableColumns, String... columns) {
+            return new CrudConfig(tableName, createTimeColumn, updateTimeColumn, nullableColumns, null, null, columns);
+        }
+
+        private CrudConfig(String tableName, String createTimeColumn, String updateTimeColumn, List<String> nullableColumns,
+                           String generatedCodeColumn, String generatedCodePrefix, String... columns) {
             this.tableName = tableName;
             this.createTimeColumn = createTimeColumn;
             this.updateTimeColumn = updateTimeColumn;
             this.columns = Arrays.asList(columns);
             this.nullableColumns = nullableColumns;
+            this.generatedCodeColumn = generatedCodeColumn;
+            this.generatedCodePrefix = generatedCodePrefix;
         }
     }
 }

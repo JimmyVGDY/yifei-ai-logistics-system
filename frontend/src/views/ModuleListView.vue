@@ -128,6 +128,7 @@ const total = ref(0)
 const keyword = ref('')
 const timeRange = ref([])
 const records = ref([])
+const roleOptions = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const exceptionDialogVisible = ref(false)
@@ -163,7 +164,7 @@ const moduleMetas = {
   exceptions: moduleMeta('exceptions', '异常管理', '运输异常上报、处理和查询', 'order_id:订单ID,order_no:订单号,task_id:任务ID,exception_type:异常类型,exception_desc:异常描述,exception_status:异常状态,report_user:上报人,report_time:上报时间,handle_user:处理人,handle_time:处理时间', 'order_id:订单ID,task_id:任务ID,exception_type:异常类型,exception_desc:异常描述,exception_status:异常状态,report_user:上报人,handle_user:处理人'),
   fees: moduleMeta('fees', '费用结算', '订单费用计算、账单和付款状态', 'order_id:订单ID,order_no:订单号,base_fee:基础运费,weight_fee:重量费用,distance_fee:距离费用,additional_fee:附加费,discount_fee:优惠金额,payable_fee:应收金额,actual_fee:实收金额,payment_status:付款状态,create_time:创建时间,update_time:更新时间', 'order_id:订单ID,base_fee:基础运费:number:2,weight_fee:重量费用:number:2,distance_fee:距离费用:number:2,additional_fee:附加费:number:2,discount_fee:优惠金额:number:2,payable_fee:应收金额:number:2,actual_fee:实收金额:number:2,payment_status:付款状态'),
   users: moduleMeta('users', '用户管理', '后台用户、状态和角色分配', 'user_code:用户编号,username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,role_id:角色ID,role_name:角色,status:状态,create_time:创建时间,update_time:更新时间', 'user_code:用户编号,username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,password:密码,role_id:角色ID,status:状态'),
-  roles: moduleMeta('roles', '角色管理', '系统管理员、客服、调度、司机、财务和客户角色', 'role_code:角色编码,role_name:角色名称,status:状态,create_time:创建时间,update_time:更新时间', 'role_code:角色编码,role_name:角色名称,status:状态'),
+  roles: moduleMeta('roles', '角色管理', '系统管理员、客服、调度、司机、财务和客户角色', 'role_code:角色编码,role_name:角色名称,status:状态,create_time:创建时间,update_time:更新时间', 'role_name:角色名称,status:状态'),
   operationLogs: { title: '操作日志', description: '记录关键接口和业务写操作', editable: false, columns: columns('username:操作人,operation:操作内容,request_uri:请求地址,request_method:方法,operation_status:状态,operation_time:操作时间') },
   files: { title: '上传文件', description: '查看上传到本地的业务附件记录', editable: false, columns: columns('original_name:原文件名,relative_path:保存路径,file_size:大小,content_type:类型,upload_user:上传人,upload_time:上传时间') }
 }
@@ -208,6 +209,9 @@ function options(definition) {
 }
 
 function fieldOptions(prop, module) {
+  if (module === 'users' && prop === 'role_id') {
+    return roleOptions.value
+  }
   if (prop === 'status') {
     if (['orders'].includes(module)) {
       return statusOptions.order
@@ -288,6 +292,15 @@ async function loadData() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadRoleOptions() {
+  const result = await fetchModuleRecords('roles', { page: 1, pageSize: 100 })
+  const rows = Array.isArray(result) ? result : (result.records || [])
+  roleOptions.value = rows.map((role) => ({
+    value: role.id,
+    label: `${role.role_name || role.roleName || '未命名角色'}（${role.role_code || role.roleCode || role.id}）`
+  }))
 }
 
 function handlePageChange(nextPage) {
@@ -416,4 +429,5 @@ watch(() => route.meta.module, () => {
   loadData()
 })
 onMounted(loadData)
+onMounted(loadRoleOptions)
 </script>
