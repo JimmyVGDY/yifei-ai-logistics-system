@@ -1,9 +1,12 @@
 package jimmy.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +14,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @EnableConfigurationProperties(RabbitMqProperties.class)
 public class RabbitMqConfig {
+
+    @Bean
+    public MessageConverter rabbitMessageConverter(ObjectMapper objectMapper) {
+        // 统一使用 JSON 消息转换器，支持包含 LocalDateTime 的物流事件对象。
+        return new Jackson2JsonMessageConverter(objectMapper);
+    }
 
     @Bean
     public DirectExchange demoExchange(RabbitMqProperties properties) {
