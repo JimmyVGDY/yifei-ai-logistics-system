@@ -106,6 +106,21 @@ mvn spring-boot:run
 http://127.0.0.1:8080/infra/status
 ```
 
+## 查看应用日志
+
+应用默认同时输出控制台日志和文件日志，文件位置如下：
+
+```text
+logs/logistics-management.log
+```
+
+如需临时调整日志文件或应用包日志级别，可以在启动前设置：
+
+```text
+LOG_FILE=logs/logistics-management.log
+APP_LOG_LEVEL=info
+```
+
 ## 启动前端
 
 ```bash

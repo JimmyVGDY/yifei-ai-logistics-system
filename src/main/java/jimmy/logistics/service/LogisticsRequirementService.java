@@ -1,6 +1,7 @@
 package jimmy.logistics.service;
 
 import jimmy.logistics.model.LogisticsDashboardSummary;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class LogisticsRequirementService {
 
@@ -22,6 +24,7 @@ public class LogisticsRequirementService {
     }
 
     public LogisticsDashboardSummary dashboardSummary() {
+        log.info("开始查询物流运营看板统计数据");
         LogisticsDashboardSummary summary = new LogisticsDashboardSummary();
         summary.setTodayOrders(count("select count(1) from logistics_order where date(created_at) = current_date"));
         summary.setCompletedOrders(count("select count(1) from logistics_order where status in ('COMPLETED', 'SIGNED', 'DELIVERED')"));
@@ -37,16 +40,21 @@ public class LogisticsRequirementService {
                         "from logistics_exception e join logistics_order o on o.id = e.order_id " +
                         "order by e.report_time desc limit 5"
         ));
+        log.info("物流运营看板统计完成，todayOrders={}, waitDispatch={}, inTransit={}, exceptionOrders={}",
+                summary.getTodayOrders(), summary.getWaitDispatchOrders(), summary.getInTransitOrders(), summary.getExceptionOrders());
         return summary;
     }
 
     public List<Map<String, Object>> moduleRecords(String module, int limit) {
         String sql = moduleSql.get(module);
         if (sql == null) {
+            log.warn("查询物流模块列表失败：不支持的模块，module={}", module);
             return Collections.emptyList();
         }
         int safeLimit = Math.max(1, Math.min(limit, 100));
-        return jdbcTemplate.queryForList(sql, safeLimit);
+        List<Map<String, Object>> records = jdbcTemplate.queryForList(sql, safeLimit);
+        log.info("查询物流模块列表完成，module={}, limit={}, safeLimit={}, resultSize={}", module, limit, safeLimit, records.size());
+        return records;
     }
 
     private long count(String sql) {

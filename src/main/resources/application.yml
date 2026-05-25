@@ -74,7 +74,13 @@ sa-token:
   is-log: ${SA_TOKEN_IS_LOG:true}
 
 logging:
+  file:
+    name: ${LOG_FILE:logs/logistics-management.log}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
   level:
+    jimmy: ${APP_LOG_LEVEL:info}
     com.alibaba.nacos: info
     com.alibaba.csp.sentinel: info
     jimmy.mapper: debug

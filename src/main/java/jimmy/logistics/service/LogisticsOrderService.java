@@ -7,6 +7,7 @@ import jimmy.logistics.mapper.LogisticsOrderMapper;
 import jimmy.logistics.model.CreateLogisticsOrderRequest;
 import jimmy.logistics.model.LogisticsOrderEvent;
 import jimmy.logistics.repository.LogisticsOrderSearchDocument;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 public class LogisticsOrderService {
 
@@ -44,6 +46,7 @@ public class LogisticsOrderService {
 
     @SentinelResource(value = "logisticsOrderCreate", fallback = "createFallback")
     public LogisticsOrder create(CreateLogisticsOrderRequest request) {
+        log.info("开始创建物流订单，customerName={}, cargoName={}", request == null ? null : request.getCustomerName(), request == null ? null : request.getCargoName());
         validate(request);
 
         // 运单号在服务端生成，避免前端传入重复单号导致业务数据冲突。
@@ -64,21 +67,27 @@ public class LogisticsOrderService {
         cacheOrder(logisticsOrder);
         saveSearchDocument(logisticsOrder);
         publishOrderCreated(logisticsOrder);
+        log.info("物流订单创建完成，orderNo={}, customerName={}, status={}", logisticsOrder.getOrderNo(), logisticsOrder.getCustomerName(), logisticsOrder.getStatus());
         return logisticsOrder;
     }
 
     @SentinelResource(value = "logisticsOrderQuery", fallback = "findByOrderNoFallback")
     public LogisticsOrder findByOrderNo(String orderNo) {
+        log.info("查询物流订单详情，orderNo={}", orderNo);
         // 查询优先走 Redis，未命中再查数据库，并把数据库结果回填缓存。
         String cacheKey = orderCacheKey(orderNo);
         Object cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached instanceof LogisticsOrder) {
+            log.info("物流订单命中缓存，orderNo={}", orderNo);
             return (LogisticsOrder) cached;
         }
 
         LogisticsOrder logisticsOrder = logisticsOrderMapper.findByOrderNo(orderNo);
         if (logisticsOrder != null) {
             cacheOrder(logisticsOrder);
+            log.info("物流订单查询数据库成功并回填缓存，orderNo={}", orderNo);
+        } else {
+            log.warn("物流订单不存在，orderNo={}", orderNo);
         }
         return logisticsOrder;
     }
@@ -86,10 +95,13 @@ public class LogisticsOrderService {
     public List<LogisticsOrder> findRecent(int limit) {
         // 限制单次查询数量，避免前端误传过大 limit 压垮数据库。
         int safeLimit = Math.max(1, Math.min(limit, 100));
-        return logisticsOrderMapper.findRecent(safeLimit);
+        List<LogisticsOrder> orders = logisticsOrderMapper.findRecent(safeLimit);
+        log.info("查询近期物流订单，limit={}, safeLimit={}, resultSize={}", limit, safeLimit, orders.size());
+        return orders;
     }
 
     public LogisticsOrder createFallback(CreateLogisticsOrderRequest request, Throwable throwable) {
+        log.warn("创建物流订单触发 Sentinel 兜底，customerName={}, reason={}", request == null ? null : request.getCustomerName(), throwable == null ? null : throwable.getMessage());
         // Sentinel 触发限流或熔断时返回可识别状态，调用方可以据此提示稍后重试。
         LogisticsOrder logisticsOrder = new LogisticsOrder();
         logisticsOrder.setOrderNo("SENTINEL-FALLBACK");
@@ -99,6 +111,7 @@ public class LogisticsOrderService {
     }
 
     public LogisticsOrder findByOrderNoFallback(String orderNo, Throwable throwable) {
+        log.warn("查询物流订单触发 Sentinel 兜底，orderNo={}, reason={}", orderNo, throwable == null ? null : throwable.getMessage());
         LogisticsOrder logisticsOrder = new LogisticsOrder();
         logisticsOrder.setOrderNo(orderNo);
         logisticsOrder.setStatus("QUERY_FALLBACK");
@@ -131,6 +144,7 @@ public class LogisticsOrderService {
                 logisticsProperties.getOrderCacheTtlSeconds(),
                 TimeUnit.SECONDS
         );
+        log.info("物流订单写入 Redis 缓存，orderNo={}, ttlSeconds={}", logisticsOrder.getOrderNo(), logisticsProperties.getOrderCacheTtlSeconds());
     }
 
     private void saveSearchDocument(LogisticsOrder logisticsOrder) {
@@ -144,8 +158,10 @@ public class LogisticsOrderService {
         document.setCargoWeight(logisticsOrder.getCargoWeight());
         try {
             elasticsearchOperations.save(document);
+            log.info("物流订单写入 Elasticsearch 索引，orderNo={}", logisticsOrder.getOrderNo());
         } catch (RuntimeException ignored) {
             // Elasticsearch 用于检索增强，但离线时不能影响运单创建主流程。
+            log.warn("物流订单写入 Elasticsearch 失败，已忽略，orderNo={}, reason={}", logisticsOrder.getOrderNo(), ignored.getMessage());
         }
     }
 
@@ -162,6 +178,10 @@ public class LogisticsOrderService {
                 logisticsProperties.getMq().getOrderCreatedRoutingKey(),
                 event
         );
+        log.info("物流订单创建事件已发送，orderNo={}, exchange={}, routingKey={}",
+                logisticsOrder.getOrderNo(),
+                logisticsProperties.getMq().getOrderExchange(),
+                logisticsProperties.getMq().getOrderCreatedRoutingKey());
     }
 
     private String orderCacheKey(String orderNo) {
