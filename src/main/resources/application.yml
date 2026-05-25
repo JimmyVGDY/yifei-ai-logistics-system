@@ -17,7 +17,7 @@ spring:
       connection-timeout: ${SPRING_DATASOURCE_CONNECTION_TIMEOUT:30000}
   sql:
     init:
-      mode: ${SPRING_SQL_INIT_MODE:always}
+      mode: ${SPRING_SQL_INIT_MODE:never}
   redis:
     host: ${REDIS_HOST:127.0.0.1}
     port: ${REDIS_PORT:6379}
