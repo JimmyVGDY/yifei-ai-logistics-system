@@ -1,5 +1,6 @@
 <template>
-  <el-container class="app-shell">
+  <router-view v-if="$route.meta.public" />
+  <el-container v-else class="app-shell">
     <el-aside width="248px" class="sidebar">
       <div class="brand">
         <div class="brand-mark">L</div>
@@ -34,7 +35,10 @@
           <span class="eyebrow">物流业务后台</span>
           <h2>{{ $route.meta.title }}</h2>
         </div>
-        <el-tag type="success" effect="light">后端 API /api 已代理</el-tag>
+        <div class="topbar-actions">
+          <el-tag type="success" effect="light">{{ username }}</el-tag>
+          <el-button :icon="SwitchButton" @click="handleLogout">退出</el-button>
+        </div>
       </el-header>
       <el-main class="main">
         <router-view />
@@ -42,3 +46,25 @@
     </el-container>
   </el-container>
 </template>
+
+<script setup>
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { SwitchButton } from '@element-plus/icons-vue'
+import { logout } from './api/auth'
+import { clearAuthToken, getAuthToken } from './stores/auth-store'
+
+const router = useRouter()
+const username = computed(() => getAuthToken().username || 'admin')
+
+async function handleLogout() {
+  try {
+    await logout()
+  } finally {
+    clearAuthToken()
+    ElMessage.success('已退出登录')
+    router.replace('/login')
+  }
+}
+</script>

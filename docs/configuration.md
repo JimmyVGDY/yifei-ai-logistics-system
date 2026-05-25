@@ -30,6 +30,11 @@
 | `RABBITMQ_PASSWORD` | `guest` | RabbitMQ 密码 |
 | `BLOOM_FILTER_EXPECTED_INSERTIONS` | `100000` | 布隆过滤器预计写入数量 |
 | `BLOOM_FILTER_FALSE_POSITIVE_PROBABILITY` | `0.01` | 布隆过滤器误判率 |
+| `APP_ADMIN_USERNAME` | `admin` | 后台管理员账号 |
+| `APP_ADMIN_PASSWORD` | `xlh963311213` | 后台管理员密码 |
+| `SA_TOKEN_NAME` | `satoken` | Sa-Token 请求头名称 |
+| `SA_TOKEN_TIMEOUT` | `86400` | 登录有效期，单位秒 |
+| `SA_TOKEN_ACTIVE_TIMEOUT` | `1800` | 无操作有效期，单位秒 |
 
 ## MySQL
 
@@ -105,6 +110,27 @@ mybatis:
 ```
 
 更多内容见 [MyBatis 使用说明](mybatis.md)。
+
+## Sa-Token 鉴权
+
+项目已接入 Sa-Token，默认保护后端业务接口。前端登录成功后会保存后端返回的 token，并在后续请求头中自动携带。
+
+默认管理员账号：
+
+```text
+username: admin
+password: xlh963311213
+```
+
+常用接口：
+
+```text
+POST /auth/login
+GET  /auth/session
+POST /auth/logout
+```
+
+`/auth/login` 和 `/actuator/health` 会放行，其余接口默认要求登录。
 
 ## Bloom Filter
 
