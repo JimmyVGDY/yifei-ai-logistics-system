@@ -12,6 +12,9 @@
 | `SPRING_DATASOURCE_URL` | `jdbc:mysql://127.0.0.1:3306/logistics_management...` | JDBC 地址 |
 | `SPRING_DATASOURCE_USERNAME` | `root` | 数据库用户名 |
 | `SPRING_DATASOURCE_PASSWORD` | 空 | 数据库密码 |
+| `SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE` | `20MB` | 单个上传文件大小上限 |
+| `SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE` | `30MB` | 单次上传请求大小上限 |
+| `APP_UPLOAD_ROOT` | `uploads` | 业务附件本地保存目录 |
 | `SPRING_SQL_INIT_MODE` | `always` | SQL 初始化模式 |
 | `NACOS_SERVER_ADDR` | `127.0.0.1:8848` | Nacos 服务地址 |
 | `NACOS_USERNAME` | `nacos` | Nacos 用户名 |
