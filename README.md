@@ -1,6 +1,6 @@
 # practice-project-about-develop
 
-这是一个用于练习 Spring Boot 后端开发的项目。当前项目已经接入 Nacos、Sentinel、Elasticsearch、Redis、RabbitMQ、MyBatis 和布隆过滤器，适合作为后端基础设施学习与二次开发骨架。
+这是一个以物流管理系统为业务场景的 Spring Boot + Vue3 前后端分离练习项目。项目已经接入 Nacos、Sentinel、Elasticsearch、Redis、RabbitMQ、MyBatis、Sa-Token 和布隆过滤器，重点用于练习“业务流程闭环 + 中间件落地 + 权限控制 + 前端管理台”。
 
 ## 技术栈
 
@@ -16,7 +16,23 @@
 - MyBatis
 - MySQL 8.4 / H2
 - Guava Bloom Filter
+- Sa-Token
+- Vue 3
+- Element Plus
 - Maven
+
+## 已完成功能
+
+- Sa-Token 登录认证、会话校验、RBAC 菜单权限和按钮权限。
+- 物流订单创建、查询、管理页分页、模糊查询和时间范围查询。
+- 客户、运单、调度、任务、轨迹、司机、车辆、异常、费用、用户、角色等管理页基础 CRUD。
+- Redis 订单详情缓存，订单查询时回填缓存。
+- BloomFilter 参与订单号查询预检，降低不存在单号反复查询的风险。
+- RabbitMQ 订单创建事件，消费后自动初始化物流轨迹。
+- Elasticsearch 订单搜索索引写入，便于后续扩展组合搜索。
+- Sentinel 保护订单创建和订单查询等高频接口。
+- 结构化 JSON 文件日志、操作日志表、敏感用户名/姓名脱敏。
+- Excel 导出和客户资料导入。
 
 ## 快速开始
 
@@ -30,6 +46,19 @@ mvn spring-boot:run
 
 ```text
 http://127.0.0.1:8080
+```
+
+前端默认地址：
+
+```text
+http://127.0.0.1:5173
+```
+
+默认管理员：
+
+```text
+账号：admin
+密码：xlh963311213
 ```
 
 基础设施状态接口：
@@ -52,6 +81,12 @@ MySQL 服务: MySQL84
 默认密码: 空
 ```
 
+应用默认不会自动执行 MySQL 的 `schema.sql` 或 `data.sql`，避免覆盖本地已有数据。现有库升级请手动执行：
+
+```bash
+F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_management < scripts/sql/20260525_incremental_base_fields_and_indexes.sql
+```
+
 如果不想依赖 MySQL，可以使用 H2 内存库：
 
 ```bash
@@ -64,9 +99,11 @@ mvn spring-boot:run
 ```text
 src/main/java/jimmy
 ├── DemoApplication.java
+├── common
 ├── config
 ├── controller
 ├── entity
+├── logistics
 ├── mapper
 ├── model
 └── service
@@ -91,22 +128,26 @@ src/main/resources/data.sql
 - [MyBatis 使用说明](docs/mybatis.md)
 - [前端工程说明](docs/frontend.md)
 - [需求匹配说明](docs/requirements-mapping.md)
+- [物流接口文档](docs/logistics-api.md)
+- [数据库增量迁移说明](docs/incremental-migration.md)
+- [权限和结构化日志说明](docs/logistics-rbac-structured-log.md)
 
 ## 常用接口
 
 ```text
+POST /auth/login
+GET  /auth/session
+POST /auth/logout
+GET  /logistics/dashboard
+GET  /logistics/modules/{module}?page=1&pageSize=20&keyword=上海
+POST /logistics/modules/{module}
+POST /logistics/modules/{module}/{id}
+POST /logistics/modules/{module}/{id}/delete
+POST /logistics/orders
+GET  /logistics/orders/{orderNo}
+GET  /logistics/excel/export/{module}
+POST /logistics/excel/import/customers
 GET  /infra/status
-GET  /infra/nacos/services
-GET  /infra/sentinel/ping
-GET  /infra/elasticsearch/client
-GET  /infra/redis/client
-GET  /infra/rabbitmq/client
-GET  /demo-users
-GET  /demo-users/detail?id=1
-POST /demo-users?username=test&displayName=Test
-POST /bloom-filter/items?value=demo
-GET  /bloom-filter/items?value=demo
-POST /rabbitmq/messages?message=hello
 GET  /actuator/health
 ```
 

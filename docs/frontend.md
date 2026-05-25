@@ -52,17 +52,21 @@ LOCAL_FRONTEND_AUTO_OPEN=false
 例如：
 
 ```text
-GET /api/logistics/orders?limit=20
+POST /api/auth/login
+GET /api/logistics/modules/orders?page=1&pageSize=20
 POST /api/logistics/orders
 GET /api/infra/status
 ```
 
 ## 页面
 
-- `运营看板`: 展示运单统计和近期运单。
-- `运单管理`: 查看物流订单列表。
-- `新建运单`: 调用后端创建物流订单。
+- `运营看板`: 展示运单统计、订单状态占比、异常提醒和趋势。
+- `运单管理`: 查看物流订单列表，并在页面顶部新增运单。
+- `客户管理 / 运单中心 / 调度管理 / 运输任务 / 物流轨迹 / 司机管理 / 车辆管理 / 异常管理 / 费用结算`: 统一管理页，支持分页、关键词、时间范围、增删改查和状态中文展示。
+- `系统管理`: 用户、角色和操作日志。
 - `资源中心`: 查看后端基础设施配置状态。
+
+前端菜单由后端登录响应返回，按钮显示也会根据 `permissions` 控制，例如 `order:create`、`order:update`、`order:delete`、`order:export`。
 
 ## VS Code
 
