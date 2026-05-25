@@ -138,7 +138,7 @@ public class LogisticsOrderService {
         try {
             elasticsearchOperations.save(document);
         } catch (RuntimeException ignored) {
-            // Elasticsearch is useful for search, but order creation should not fail when it is offline.
+            // Elasticsearch 用于检索增强，但离线时不能影响运单创建主流程。
         }
     }
 

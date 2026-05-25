@@ -45,25 +45,25 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Web project: Spring MVC, embedded Tomcat and JSON support. -->
+        <!-- Web 工程基础依赖：提供 Spring MVC、内嵌 Tomcat 和 JSON 支持。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- Health and metrics endpoints for service governance. -->
+        <!-- 健康检查和指标端点，用于服务治理与运行状态观测。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!-- Enables bootstrap.yml for Nacos config with Spring Boot 2.7 / Spring Cloud 2021. -->
+        <!-- 启用 bootstrap.yml，适配 Spring Boot 2.7 与 Spring Cloud 2021 的 Nacos 配置加载。 -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-bootstrap</artifactId>
         </dependency>
 
-        <!-- Nacos service discovery and externalized configuration. -->
+        <!-- Nacos 服务注册发现和外部化配置。 -->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
@@ -73,66 +73,66 @@
             <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
         </dependency>
 
-        <!-- Sentinel traffic control and dashboard integration. -->
+        <!-- Sentinel 流量控制、熔断降级和控制台接入。 -->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
         </dependency>
 
-        <!-- Elasticsearch integration managed by Spring Boot 2.7.x. -->
+        <!-- Elasticsearch 集成，版本由 Spring Boot 2.7.x 统一管理。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
         </dependency>
 
-        <!-- Redis cache and key-value operations. -->
+        <!-- Redis 缓存和键值操作支持。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
-        <!-- RabbitMQ messaging support. -->
+        <!-- RabbitMQ 消息队列支持。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
 
-        <!-- Sa-Token authentication and session management. -->
+        <!-- Sa-Token 鉴权和会话管理。 -->
         <dependency>
             <groupId>cn.dev33</groupId>
             <artifactId>sa-token-spring-boot-starter</artifactId>
             <version>${sa-token.version}</version>
         </dependency>
 
-        <!-- MyBatis persistence support, compatible with Spring Boot 2.7.x and Java 8. -->
+        <!-- MyBatis 持久层支持，兼容 Spring Boot 2.7.x 和 Java 8。 -->
         <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
             <version>2.3.2</version>
         </dependency>
 
-        <!-- MySQL driver for real database environments. -->
+        <!-- MySQL 驱动，用于连接真实数据库环境。 -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Embedded database for local MyBatis verification without installing MySQL. -->
+        <!-- H2 内嵌数据库，用于无 MySQL 环境下的本地 MyBatis 验证。 -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Bloom filter implementation based on Guava, compatible with Java 8. -->
+        <!-- 基于 Guava 的布隆过滤器实现，兼容 Java 8。 -->
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>32.1.3-jre</version>
         </dependency>
 
-        <!-- Unit tests. -->
+        <!-- 单元测试依赖。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -142,7 +142,7 @@
 
     <build>
         <plugins>
-            <!-- Build an executable jar. -->
+            <!-- 构建可执行 Jar 包。 -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
