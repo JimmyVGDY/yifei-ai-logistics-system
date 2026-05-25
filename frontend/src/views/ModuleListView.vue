@@ -128,7 +128,6 @@ const total = ref(0)
 const keyword = ref('')
 const timeRange = ref([])
 const records = ref([])
-const roleOptions = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const exceptionDialogVisible = ref(false)
@@ -139,17 +138,45 @@ const editingId = ref(null)
 const crudForm = reactive({})
 const exceptionForm = reactive({ orderNo: '', exceptionType: '', exceptionDesc: '' })
 const feeForm = reactive({ orderNo: '' })
+const relationOptions = reactive({
+  roles: [],
+  orders: [],
+  waybills: [],
+  dispatches: [],
+  drivers: [],
+  vehicles: [],
+  tasks: []
+})
 
 const statusOptions = {
   numeric: options('1:启用,0:停用'),
   common: options('ACTIVE:启用,DISABLED:停用,PAUSED:暂停'),
   order: options('CREATED:已创建,WAIT_DISPATCH:待调度,DISPATCHED:已调度,PICKED_UP:已揽收,IN_TRANSIT:运输中,DELIVERING:派送中,DELIVERED:已送达,SIGNED:已签收,COMPLETED:已完成,CANCELLED:已取消,EXCEPTION:异常'),
   transport: options('WAIT_DISPATCH:待调度,DISPATCHED:已调度,IN_TRANSIT:运输中,ARRIVED:已到达,DELIVERED:已送达,SIGNED:已签收,EXCEPTION:异常'),
-  dispatch: options('WAIT_DISPATCH:待调度,DISPATCHED:已调度,PROCESSING:处理中,COMPLETED:已完成,CANCELLED:已取消'),
-  task: options('ASSIGNED:已分配,PICKED_UP:已揽收,IN_TRANSIT:运输中,DELIVERING:派送中,SIGNED:已签收,COMPLETED:已完成,EXCEPTION:异常'),
-  driverVehicle: options('AVAILABLE:空闲,IDLE:空闲,ON_ROUTE:运输中,RESTING:休息中,MAINTENANCE:维修中,DISABLED:停用'),
-  exception: options('PROCESSING:处理中,HANDLING:处理中,CLOSED:已关闭'),
+  dispatch: options('ASSIGNED:已分配,WAIT_DISPATCH:待调度,DISPATCHED:已调度,PROCESSING:处理中,FINISHED:已完成,CANCELLED:已取消'),
+  task: options('ASSIGNED:已分配,PICKED_UP:已揽收,TRANSPORTING:运输中,DELIVERING:派送中,SIGNED:已签收,FINISHED:已完成,EXCEPTION:异常'),
+  driver: options('AVAILABLE:空闲,ON_ROUTE:运输中,RESTING:休息中,DISABLED:停用'),
+  vehicle: options('AVAILABLE:空闲,ON_ROUTE:运输中,MAINTENANCE:维修中,DISABLED:停用'),
+  exception: options('WAIT_HANDLE:待处理,PROCESSING:处理中,CLOSED:已关闭'),
   fee: options('UNPAID:未付款,PART_PAID:部分付款,PAID:已付款,REFUNDED:已退款')
+}
+
+const fieldOptionGroups = {
+  licenseType: options('A1:A1,A2:A2,B1:B1,B2:B2,C1:C1,C2:C2'),
+  vehicleType: options('冷链厢式货车:冷链厢式货车,重型半挂货车:重型半挂货车,城市配送面包车:城市配送面包车,9.6米厢式货车:9.6米厢式货车'),
+  exceptionType: options('地址错误:地址错误,货损:货损,延误:延误,客户拒收:客户拒收,车辆故障:车辆故障,其他:其他'),
+  province: options('北京市:北京市,上海市:上海市,广东省:广东省,浙江省:浙江省,江苏省:江苏省,四川省:四川省,湖北省:湖北省'),
+  city: options('北京:北京,上海:上海,广州:广州,深圳:深圳,杭州:杭州,南京:南京,成都:成都,武汉:武汉')
+}
+
+const relationFieldSources = {
+  users: { role_id: 'roles' },
+  waybills: { order_id: 'orders' },
+  dispatches: { order_id: 'orders', waybill_id: 'waybills', driver_id: 'drivers', vehicle_id: 'vehicles' },
+  tasks: { order_id: 'orders', waybill_id: 'waybills', dispatch_id: 'dispatches', driver_id: 'drivers', vehicle_id: 'vehicles' },
+  tracks: { order_id: 'orders', waybill_id: 'waybills' },
+  exceptions: { order_id: 'orders', task_id: 'tasks' },
+  fees: { order_id: 'orders' }
 }
 
 const moduleMetas = {
@@ -171,8 +198,9 @@ const moduleMetas = {
 
 const meta = computed(() => moduleMetas[route.meta.module] || moduleMetas.customers)
 const activeEditFields = computed(() => (meta.value.editFields || []).map((field) => {
-  if (route.meta.module === 'users' && field.prop === 'role_id') {
-    return { ...field, options: roleOptions.value }
+  const dynamicOptions = dynamicFieldOptions(field.prop, route.meta.module)
+  if (dynamicOptions) {
+    return { ...field, options: dynamicOptions }
   }
   return field
 }))
@@ -214,15 +242,30 @@ function options(definition) {
 }
 
 function fieldOptions(prop, module) {
-  if (module === 'users' && prop === 'role_id') {
-    return roleOptions.value
+  if (prop === 'license_type') {
+    return fieldOptionGroups.licenseType
+  }
+  if (prop === 'vehicle_type') {
+    return fieldOptionGroups.vehicleType
+  }
+  if (prop === 'exception_type') {
+    return fieldOptionGroups.exceptionType
+  }
+  if (prop === 'province') {
+    return fieldOptionGroups.province
+  }
+  if (prop === 'city' || prop === 'current_city') {
+    return fieldOptionGroups.city
   }
   if (prop === 'status') {
     if (['orders'].includes(module)) {
       return statusOptions.order
     }
-    if (['drivers', 'vehicles'].includes(module)) {
-      return statusOptions.driverVehicle
+    if (module === 'drivers') {
+      return statusOptions.driver
+    }
+    if (module === 'vehicles') {
+      return statusOptions.vehicle
     }
     if (['users', 'roles'].includes(module)) {
       return statusOptions.numeric
@@ -245,6 +288,11 @@ function fieldOptions(prop, module) {
     return statusOptions.fee
   }
   return undefined
+}
+
+function dynamicFieldOptions(prop, module) {
+  const source = relationFieldSources[module]?.[prop]
+  return source ? relationOptions[source] : undefined
 }
 
 function canAction(action) {
@@ -299,13 +347,40 @@ async function loadData() {
   }
 }
 
-async function loadRoleOptions() {
-  const result = await fetchModuleRecords('roles', { page: 1, pageSize: 100 })
+async function loadCurrentRelationOptions() {
+  const sources = [...new Set(Object.values(relationFieldSources[route.meta.module] || {}))]
+  await Promise.allSettled(sources.map((source) => loadRelationOptions(source)))
+}
+
+async function loadRelationOptions(source) {
+  const result = await fetchModuleRecords(source, { page: 1, pageSize: 100 })
   const rows = Array.isArray(result) ? result : (result.records || [])
-  roleOptions.value = rows.map((role) => ({
-    value: role.id,
-    label: `${role.role_name || role.roleName || '未命名角色'}（${role.role_code || role.roleCode || role.id}）`
-  }))
+  relationOptions[source] = rows.map((row) => ({ value: row.id, label: relationLabel(source, row) }))
+}
+
+function relationLabel(source, row) {
+  if (source === 'roles') {
+    return `${row.role_name || '未命名角色'}（${row.role_code || row.id}）`
+  }
+  if (source === 'orders') {
+    return `${row.order_no || row.id}${row.customer_name ? ` - ${row.customer_name}` : ''}`
+  }
+  if (source === 'waybills') {
+    return `${row.waybill_no || row.id}${row.order_no ? ` - ${row.order_no}` : ''}`
+  }
+  if (source === 'dispatches') {
+    return `${row.order_no || '调度'} / ${row.driver_name || row.id}`
+  }
+  if (source === 'drivers') {
+    return `${row.driver_name || '未命名司机'}（${row.driver_code || row.id}）`
+  }
+  if (source === 'vehicles') {
+    return `${row.vehicle_no || row.id}${row.vehicle_type ? ` - ${row.vehicle_type}` : ''}`
+  }
+  if (source === 'tasks') {
+    return `${row.task_no || row.id}${row.order_no ? ` - ${row.order_no}` : ''}`
+  }
+  return String(row.id)
 }
 
 function handlePageChange(nextPage) {
@@ -432,7 +507,10 @@ async function deleteRow(row) {
 watch(() => route.meta.module, () => {
   page.value = 1
   loadData()
+  loadCurrentRelationOptions()
 })
-onMounted(loadData)
-onMounted(loadRoleOptions)
+onMounted(() => {
+  loadData()
+  loadCurrentRelationOptions()
+})
 </script>
