@@ -5,6 +5,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import jimmy.config.AdminAccountProperties;
 import jimmy.model.LoginRequest;
 import jimmy.model.LoginResponse;
+import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -31,14 +32,14 @@ public class AuthService {
         }
         if (!adminAccountProperties.getUsername().equals(username)
                 || !adminAccountProperties.getPassword().equals(password)) {
-            log.warn("管理员登录失败：账号或密码错误，username={}", username);
+            log.warn("管理员登录失败：账号或密码错误，username={}", LogMaskUtils.maskAccount(username));
             throw new IllegalArgumentException("管理员账号或密码错误");
         }
 
         // 登录成功后由 Sa-Token 生成会话凭证，前端拿到 token 后放入后续请求头。
         StpUtil.login(ADMIN_LOGIN_ID);
         SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
-        log.info("管理员登录成功，username={}, loginId={}", username, StpUtil.getLoginId());
+        log.info("管理员登录成功，username={}, loginId={}", LogMaskUtils.maskAccount(username), LogMaskUtils.maskAccount(String.valueOf(StpUtil.getLoginId())));
         return new LoginResponse(username, StpUtil.getLoginId(), tokenInfo.getTokenName(), tokenInfo.getTokenValue());
     }
 
@@ -48,7 +49,8 @@ public class AuthService {
     }
 
     public void logout() {
-        log.info("管理员退出登录，loginId={}", StpUtil.getLoginIdDefaultNull());
+        Object loginId = StpUtil.getLoginIdDefaultNull();
+        log.info("管理员退出登录，loginId={}", loginId == null ? null : LogMaskUtils.maskAccount(String.valueOf(loginId)));
         StpUtil.logout();
     }
 }

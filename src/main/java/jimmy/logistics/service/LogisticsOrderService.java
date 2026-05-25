@@ -7,6 +7,7 @@ import jimmy.logistics.mapper.LogisticsOrderMapper;
 import jimmy.logistics.model.CreateLogisticsOrderRequest;
 import jimmy.logistics.model.LogisticsOrderEvent;
 import jimmy.logistics.repository.LogisticsOrderSearchDocument;
+import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
@@ -46,7 +47,9 @@ public class LogisticsOrderService {
 
     @SentinelResource(value = "logisticsOrderCreate", fallback = "createFallback")
     public LogisticsOrder create(CreateLogisticsOrderRequest request) {
-        log.info("开始创建物流订单，customerName={}, cargoName={}", request == null ? null : request.getCustomerName(), request == null ? null : request.getCargoName());
+        log.info("开始创建物流订单，customerName={}, cargoName={}",
+                request == null ? null : LogMaskUtils.maskName(request.getCustomerName()),
+                request == null ? null : LogMaskUtils.maskText(request.getCargoName()));
         validate(request);
 
         // 运单号在服务端生成，避免前端传入重复单号导致业务数据冲突。
@@ -67,7 +70,10 @@ public class LogisticsOrderService {
         cacheOrder(logisticsOrder);
         saveSearchDocument(logisticsOrder);
         publishOrderCreated(logisticsOrder);
-        log.info("物流订单创建完成，orderNo={}, customerName={}, status={}", logisticsOrder.getOrderNo(), logisticsOrder.getCustomerName(), logisticsOrder.getStatus());
+        log.info("物流订单创建完成，orderNo={}, customerName={}, status={}",
+                logisticsOrder.getOrderNo(),
+                LogMaskUtils.maskName(logisticsOrder.getCustomerName()),
+                logisticsOrder.getStatus());
         return logisticsOrder;
     }
 
@@ -101,7 +107,9 @@ public class LogisticsOrderService {
     }
 
     public LogisticsOrder createFallback(CreateLogisticsOrderRequest request, Throwable throwable) {
-        log.warn("创建物流订单触发 Sentinel 兜底，customerName={}, reason={}", request == null ? null : request.getCustomerName(), throwable == null ? null : throwable.getMessage());
+        log.warn("创建物流订单触发 Sentinel 兜底，customerName={}, reason={}",
+                request == null ? null : LogMaskUtils.maskName(request.getCustomerName()),
+                throwable == null ? null : throwable.getMessage());
         // Sentinel 触发限流或熔断时返回可识别状态，调用方可以据此提示稍后重试。
         LogisticsOrder logisticsOrder = new LogisticsOrder();
         logisticsOrder.setOrderNo("SENTINEL-FALLBACK");
