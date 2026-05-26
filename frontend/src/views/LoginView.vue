@@ -43,7 +43,7 @@ import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { login } from '../api/auth'
-import { saveAuthToken } from '../stores/auth-store'
+import { firstMenuPath, saveAuthToken } from '../stores/auth-store'
 
 const route = useRoute()
 const router = useRouter()
@@ -62,7 +62,7 @@ async function handleLogin() {
     const response = await login(form)
     saveAuthToken(response)
     ElMessage.success('登录成功')
-    router.replace(route.query.redirect || '/dashboard')
+    router.replace(route.query.redirect || firstMenuPath())
   } finally {
     loading.value = false
   }

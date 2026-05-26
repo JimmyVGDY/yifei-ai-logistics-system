@@ -51,7 +51,7 @@ public class AuthService {
         upgradePasswordIfNecessary(loginUser, password);
 
         List<MenuVO> menus = mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
-        List<String> permissions = collectPermissions(menus);
+        List<String> permissions = collectPermissions(loginUser.roleCode, menus);
 
         StpUtil.login(loginUser.id);
         StpUtil.getSession().set("userCode", loginUser.userCode);
@@ -74,7 +74,7 @@ public class AuthService {
         Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
         LoginUser loginUser = findLoginUserById(userId);
         List<MenuVO> menus = loginUser == null ? new ArrayList<>() : mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
-        List<String> permissions = collectPermissions(menus);
+        List<String> permissions = loginUser == null ? new ArrayList<>() : collectPermissions(loginUser.roleCode, menus);
         StpUtil.getSession().set("permissions", permissions);
         StpUtil.getSession().set("menus", menus);
         return buildResponse(loginUser, StpUtil.getTokenInfo(), permissions, menus);
@@ -212,7 +212,7 @@ public class AuthService {
         return new ArrayList<>(merged.values());
     }
 
-    private List<String> collectPermissions(List<MenuVO> menus) {
+    private List<String> collectPermissions(String roleCode, List<MenuVO> menus) {
         List<String> permissions = flattenMenus(menus).stream()
                 .map(MenuVO::getPermissionCode)
                 .filter(StringUtils::hasText)
@@ -222,7 +222,28 @@ public class AuthService {
         for (String permission : permissions) {
             expandActionPermissions(permission, expanded);
         }
+        addRelationQueryPermissions(roleCode, expanded);
         return expanded.stream().distinct().collect(Collectors.toList());
+    }
+
+    private void addRelationQueryPermissions(String roleCode, List<String> expanded) {
+        if ("DISPATCHER".equals(roleCode)) {
+            addQueryPermissions(expanded, "order", "waybill");
+            return;
+        }
+        if ("DRIVER".equals(roleCode)) {
+            addQueryPermissions(expanded, "order", "waybill", "dispatch", "driver", "vehicle");
+            return;
+        }
+        if ("FINANCE".equals(roleCode)) {
+            addQueryPermissions(expanded, "order");
+        }
+    }
+
+    private void addQueryPermissions(List<String> expanded, String... prefixes) {
+        for (String prefix : prefixes) {
+            expanded.add(prefix + ":query");
+        }
     }
 
     private void expandActionPermissions(String permission, List<String> expanded) {

@@ -1,6 +1,7 @@
 package jimmy.controller;
 
 import cn.dev33.satoken.exception.NotLoginException;
+import cn.dev33.satoken.exception.NotPermissionException;
 import cn.dev33.satoken.exception.SaTokenException;
 import jimmy.model.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,13 @@ public class GlobalExceptionHandler {
     }
 
     // Sa-Token 的其它鉴权异常也按认证失败处理，避免接口返回 HTML 错误页。
+    @ExceptionHandler(NotPermissionException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleNotPermission(NotPermissionException exception) {
+        log.warn("Sa-Token 鉴权异常，reason={}", exception.getMessage());
+        return ApiResponse.failure(403, exception.getMessage());
+    }
+
     @ExceptionHandler(SaTokenException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ApiResponse<Void> handleSaToken(SaTokenException exception) {
