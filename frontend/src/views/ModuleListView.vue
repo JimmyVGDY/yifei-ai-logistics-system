@@ -79,8 +79,16 @@
 
     <el-dialog v-model="exceptionDialogVisible" title="上报运输异常" width="520px">
       <el-form label-position="top" :model="exceptionForm">
-        <el-form-item label="订单号"><el-input v-model="exceptionForm.orderNo" /></el-form-item>
-        <el-form-item label="异常类型"><el-input v-model="exceptionForm.exceptionType" /></el-form-item>
+        <el-form-item label="订单号">
+          <el-select v-model="exceptionForm.orderNo" clearable filterable style="width: 100%">
+            <el-option v-for="option in exceptionOrderOptions" :key="option.value" :label="option.label" :value="option.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="异常类型">
+          <el-select v-model="exceptionForm.exceptionType" clearable filterable style="width: 100%">
+            <el-option v-for="option in fieldOptionGroups.exceptionType" :key="option.value" :label="option.label" :value="option.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="异常描述"><el-input v-model="exceptionForm.exceptionDesc" type="textarea" :rows="3" /></el-form-item>
       </el-form>
       <template #footer>
@@ -149,6 +157,9 @@ const relationOptions = reactive({
   vehicles: [],
   tasks: []
 })
+const relationRows = reactive({
+  orders: []
+})
 
 const statusOptions = {
   numeric: options('1:启用,0:停用'),
@@ -199,6 +210,10 @@ const moduleMetas = {
 }
 
 const meta = computed(() => moduleMetas[route.meta.module] || moduleMetas.customers)
+const exceptionOrderOptions = computed(() => relationRows.orders.map((row) => ({
+  value: row.order_no,
+  label: relationLabel('orders', row)
+})))
 const activeEditFields = computed(() => (meta.value.editFields || []).map((field) => {
   const dynamicOptions = dynamicFieldOptions(field.prop, route.meta.module)
   if (dynamicOptions) {
@@ -357,7 +372,10 @@ async function loadCurrentRelationOptions() {
 async function loadRelationOptions(source) {
   const result = await fetchModuleRecords(source, { page: 1, pageSize: 100 })
   const rows = Array.isArray(result) ? result : (result.records || [])
-  relationOptions[source] = rows.map((row) => ({ value: row.id, label: relationLabel(source, row) }))
+  if (source === 'orders') {
+    relationRows.orders = rows
+  }
+  relationOptions[source] = rows.map((row) => ({ value: String(row.id), label: relationLabel(source, row) }))
 }
 
 function relationLabel(source, row) {
@@ -480,8 +498,27 @@ function openEditDialog(row) {
 function resetCrudForm(row = {}) {
   Object.keys(crudForm).forEach((key) => delete crudForm[key])
   activeEditFields.value.forEach((field) => {
-    crudForm[field.prop] = row[field.prop] ?? ''
+    crudForm[field.prop] = normalizeFormValue(field, pickRowValue(row, field.prop))
   })
+}
+
+function pickRowValue(row, prop) {
+  return row[prop] ?? row[toSnakeCase(prop)] ?? row[toCamelCase(prop)] ?? ''
+}
+
+function normalizeFormValue(field, value) {
+  if (field.options && value !== '' && value !== null && value !== undefined) {
+    return String(value)
+  }
+  return value ?? ''
+}
+
+function toSnakeCase(value) {
+  return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+}
+
+function toCamelCase(value) {
+  return value.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
 }
 
 async function submitCrud() {
@@ -491,11 +528,11 @@ async function submitCrud() {
       if (route.meta.businessCreate) {
         await createOrder({ ...crudForm })
       } else {
-        await createModuleRecord(route.meta.module, { ...crudForm })
+        await createModuleRecord(route.meta.module, buildCrudPayload())
       }
       ElMessage.success('新增成功')
     } else {
-      await updateModuleRecord(route.meta.module, editingId.value, { ...crudForm })
+      await updateModuleRecord(route.meta.module, editingId.value, buildCrudPayload())
       ElMessage.success('修改成功')
     }
     crudDialogVisible.value = false
@@ -503,6 +540,10 @@ async function submitCrud() {
   } finally {
     saving.value = false
   }
+}
+
+function buildCrudPayload() {
+  return Object.fromEntries(Object.entries(crudForm).map(([key, value]) => [toSnakeCase(key), value]))
 }
 
 async function deleteRow(row) {
