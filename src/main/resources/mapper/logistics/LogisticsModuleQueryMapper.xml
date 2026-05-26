@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.logistics.mapper.LogisticsModuleQueryMapper">
+
+    <sql id="baseModuleSelect">
+        <choose>
+            <when test="module == 'customers'">
+                select id, customer_code, customer_name, contact_name, contact_phone, province, city, address,
+                       status, created_at, updated_at,
+                       <choose><when test="deletedExists">deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from logistics_customer
+            </when>
+            <when test="module == 'orders'">
+                select id, order_no, customer_id, route_id, warehouse_id, vehicle_id, driver_id, customer_name,
+                       sender_address, receiver_address, cargo_name, cargo_weight, cargo_volume, status,
+                       planned_pickup_time, planned_delivery_time, created_at, updated_at,
+                       <choose><when test="deletedExists">deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from logistics_order
+            </when>
+            <when test="module == 'waybills'">
+                select w.id, w.waybill_no, w.order_id, o.order_no, w.start_site, w.target_site,
+                       w.current_location, w.transport_status, w.create_time, w.update_time,
+                       <choose><when test="deletedExists">w.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from logistics_waybill w join logistics_order o on o.id = w.order_id
+            </when>
+            <when test="module == 'dispatches'">
+                select d.id, d.order_id, o.order_no, d.waybill_id, w.waybill_no, d.driver_id,
+                       dr.driver_name, d.vehicle_id, v.vehicle_no, d.start_site, d.target_site,
+                       d.planned_departure_time, d.planned_arrival_time, d.dispatch_status,
+                       d.create_time, d.update_time,
+                       <choose><when test="deletedExists">d.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from logistics_dispatch d
+                join logistics_order o on o.id = d.order_id
+                join logistics_waybill w on w.id = d.waybill_id
+                join logistics_driver dr on dr.id = d.driver_id
+                join logistics_vehicle v on v.id = d.vehicle_id
+            </when>
+            <when test="module == 'tasks'">
+                select t.id, t.task_no, t.order_id, o.order_no, t.waybill_id, t.dispatch_id,
+                       t.driver_id, dr.driver_name, t.vehicle_id, v.vehicle_no, t.task_status,
+                       t.proof_url, t.create_time, t.update_time,
+                       <choose><when test="deletedExists">t.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from logistics_task t
+                join logistics_order o on o.id = t.order_id
+                join logistics_driver dr on dr.id = t.driver_id
+                join logistics_vehicle v on v.id = t.vehicle_id
+            </when>
+            <when test="module == 'tracks'">
+                select tr.id, tr.order_id, o.order_no, tr.waybill_id, w.waybill_no,
+                       tr.current_status, tr.current_location, tr.operator_name,
+                       tr.operation_desc, tr.operation_time,
+                       <choose><when test="deletedExists">tr.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from logistics_track tr
+                join logistics_order o on o.id = tr.order_id
+                join logistics_waybill w on w.id = tr.waybill_id
+            </when>
+            <when test="module == 'drivers'">
+                select id, driver_code, driver_name, phone, license_no, license_type, status,
+                       created_at, updated_at,
+                       <choose><when test="deletedExists">deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from logistics_driver
+            </when>
+            <when test="module == 'vehicles'">
+                select id, vehicle_no, vehicle_type, load_capacity_kg, volume_capacity_cubic,
+                       current_city, status, created_at, updated_at,
+                       <choose><when test="deletedExists">deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from logistics_vehicle
+            </when>
+            <when test="module == 'exceptions'">
+                select e.id, e.order_id, o.order_no, e.task_id, e.exception_type, e.exception_desc,
+                       e.exception_status, e.report_user, e.report_time, e.handle_user, e.handle_time,
+                       <choose><when test="deletedExists">e.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from logistics_exception e join logistics_order o on o.id = e.order_id
+            </when>
+            <when test="module == 'fees'">
+                select f.id, f.order_id, o.order_no, f.base_fee, f.weight_fee, f.distance_fee,
+                       f.additional_fee, f.discount_fee, f.payable_fee, f.actual_fee,
+                       f.payment_status, f.create_time, f.update_time,
+                       <choose><when test="deletedExists">f.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from logistics_fee f join logistics_order o on o.id = f.order_id
+            </when>
+            <when test="module == 'users'">
+                select u.id,
+                       <choose><when test="userCodeExists">u.user_code</when><otherwise>concat('U-', u.id)</otherwise></choose> as user_code,
+                       u.username, u.real_name, u.mobile, u.email, u.password, u.role_id,
+                       r.role_name, u.status, u.create_time, u.update_time,
+                       <choose><when test="deletedExists">u.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from sys_user u left join sys_role r on r.id = u.role_id
+            </when>
+            <when test="module == 'roles'">
+                select id, role_code, role_name, status, create_time, update_time,
+                       <choose><when test="deletedExists">deleted</when><otherwise>0</otherwise></choose> as deleted_marker
+                from sys_role
+            </when>
+            <when test="module == 'operationLogs'">
+                select id, username, operation, request_uri, request_method, operation_status, operation_time,
+                       0 as deleted_marker
+                from sys_operation_log
+            </when>
+            <when test="module == 'files'">
+                select id, original_name, relative_path, file_size, content_type, upload_user, upload_time,
+                       0 as deleted_marker
+                from sys_uploaded_file
+            </when>
+        </choose>
+    </sql>
+
+    <sql id="moduleFilters">
+        where deleted_marker = 0
+        <if test="keyword != null and keyword != '' and keywordColumns != null and keywordColumns.size() > 0">
+            and (
+            <foreach collection="keywordColumns" item="column" separator=" or ">
+                ${column} like concat('%', #{keyword}, '%')
+            </foreach>
+            )
+        </if>
+        <if test="timeColumn != null and timeColumn != '' and startTime != null and startTime != ''">
+            and ${timeColumn} &gt;= #{startTime}
+        </if>
+        <if test="timeColumn != null and timeColumn != '' and endTime != null and endTime != ''">
+            and ${timeColumn} &lt;= #{endTime}
+        </if>
+    </sql>
+
+    <select id="countModule" resultType="long">
+        select count(1)
+        from (
+            <include refid="baseModuleSelect"/>
+        ) module_query
+        <include refid="moduleFilters"/>
+    </select>
+
+    <select id="selectModulePage" resultType="map">
+        select *
+        from (
+            <include refid="baseModuleSelect"/>
+        ) module_query
+        <include refid="moduleFilters"/>
+        order by ${orderColumn} desc
+        limit #{pageSize} offset #{offset}
+    </select>
+</mapper>
