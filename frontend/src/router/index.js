@@ -3,6 +3,7 @@ import DashboardView from '../views/DashboardView.vue'
 import ResourcesView from '../views/ResourcesView.vue'
 import LoginView from '../views/LoginView.vue'
 import ModuleListView from '../views/ModuleListView.vue'
+import PermissionConfigView from '../views/PermissionConfigView.vue'
 import { canVisit, firstMenuPath, isAuthenticated } from '../stores/auth-store'
 
 const routes = [
@@ -21,6 +22,7 @@ const routes = [
   { path: '/fees', component: ModuleListView, meta: { title: '费用结算', module: 'fees', permission: 'fee:manage' } },
   { path: '/system/users', component: ModuleListView, meta: { title: '用户管理', module: 'users', permission: 'system:user:manage' } },
   { path: '/system/roles', component: ModuleListView, meta: { title: '角色管理', module: 'roles', permission: 'system:role:manage' } },
+  { path: '/system/permissions', component: PermissionConfigView, meta: { title: '权限配置', permission: 'system:permission:manage' } },
   { path: '/system/operation-logs', component: ModuleListView, meta: { title: '操作日志', module: 'operationLogs', permission: 'system:log:view' } },
   { path: '/files', component: ModuleListView, meta: { title: '上传文件', module: 'files', permission: 'file:manage' } },
   { path: '/resources', component: ResourcesView, meta: { title: '资源中心', permission: 'resource:view' } }

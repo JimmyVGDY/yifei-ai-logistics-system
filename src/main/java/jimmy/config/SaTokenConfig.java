@@ -49,6 +49,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
         }
         SaRouter.match("/logistics/dashboard", r -> StpUtil.checkPermission("dashboard:view"));
         SaRouter.match("/logistics/statistics/**", r -> StpUtil.checkPermission("dashboard:view"));
+        SaRouter.match("/system/permissions/**", r -> StpUtil.checkPermission("system:permission:manage"));
         SaRouter.match("/infra", r -> StpUtil.checkPermission("resource:view"));
         SaRouter.match("/infra/**", r -> StpUtil.checkPermission("resource:view"));
     }

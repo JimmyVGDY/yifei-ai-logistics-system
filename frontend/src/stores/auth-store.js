@@ -44,7 +44,12 @@ export function canVisit(path) {
   if (!authState.menus.length) {
     return true
   }
-  return flattenMenus(authState.menus).some((menu) => path === menu.path || path.startsWith(`${menu.path}/`))
+  return flattenMenus(authState.menus).some((menu) => {
+    if (path === menu.path) {
+      return true
+    }
+    return !menu.children?.length && path.startsWith(`${menu.path}/`)
+  })
 }
 
 export function hasPermission(permission) {

@@ -71,14 +71,10 @@ public class AuthService {
         StpUtil.checkLogin();
         Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
         LoginUser loginUser = findLoginUserById(userId);
-        List<MenuVO> menus = getSessionList("menus");
-        List<String> permissions = getSessionList("permissions");
-        if (menus.isEmpty() && loginUser != null) {
-            menus = mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
-        }
-        if (permissions.isEmpty()) {
-            permissions = collectPermissions(menus);
-        }
+        List<MenuVO> menus = loginUser == null ? new ArrayList<>() : mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
+        List<String> permissions = collectPermissions(menus);
+        StpUtil.getSession().set("permissions", permissions);
+        StpUtil.getSession().set("menus", menus);
         return buildResponse(loginUser, StpUtil.getTokenInfo(), permissions, menus);
     }
 
@@ -273,7 +269,7 @@ public class AuthService {
             return menus("orders", "tracks");
         }
         return menus("dashboard", "orders", "customers", "waybills", "dispatches", "tasks", "tracks",
-                "drivers", "vehicles", "exceptions", "fees", "system", "users", "roles", "logs", "files", "resources");
+                "drivers", "vehicles", "exceptions", "fees", "system", "users", "roles", "permissions", "logs", "files", "resources");
     }
 
     private List<MenuVO> menus(String... keys) {
@@ -305,12 +301,14 @@ public class AuthService {
         system.setChildren(Arrays.asList(
                 menu(-13L, -12L, "用户管理", "/system/users", "system:user:manage", 910),
                 menu(-14L, -12L, "角色管理", "/system/roles", "system:role:manage", 920),
+                menu(-18L, -12L, "权限配置", "/system/permissions", "system:permission:manage", 925),
                 menu(-15L, -12L, "操作日志", "/system/operation-logs", "system:log:view", 930)
         ));
         menus.put("system", system);
         menus.put("users", system.getChildren().get(0));
         menus.put("roles", system.getChildren().get(1));
-        menus.put("logs", system.getChildren().get(2));
+        menus.put("permissions", system.getChildren().get(2));
+        menus.put("logs", system.getChildren().get(3));
         menus.put("files", menu(-16L, 0L, "上传文件", "/files", "file:manage", 940));
         menus.put("resources", menu(-17L, 0L, "资源中心", "/resources", "resource:view", 950));
         return menus;
@@ -325,12 +323,6 @@ public class AuthService {
         menu.setPermissionCode(permissionCode);
         menu.setSortNo(sortNo);
         return menu;
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> List<T> getSessionList(String key) {
-        Object value = StpUtil.getSession().get(key);
-        return value instanceof List ? (List<T>) value : new ArrayList<>();
     }
 
     private static class LoginUser {

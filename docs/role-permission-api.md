@@ -18,6 +18,24 @@
 
 系统使用 Sa-Token 做登录和权限校验。菜单权限来自 `sys_menu` 和 `sys_role_menu`，登录后返回给前端渲染侧边栏。
 
+## 权限配置接口
+
+| 方法 | 地址 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/system/permissions/menus` | `system:permission:manage` | 查询可分配菜单树 |
+| GET | `/system/permissions/roles/{roleId}/menus` | `system:permission:manage` | 查询角色已分配菜单 ID |
+| POST | `/system/permissions/roles/{roleId}/menus` | `system:permission:manage` | 保存角色菜单权限 |
+
+保存请求：
+
+```json
+{
+  "menuIds": [260525120000019, 260525120000020]
+}
+```
+
+保存后，用户重新获取会话或重新登录时，会按 `sys_role_menu` 返回最新菜单和权限码。前端“权限配置”页面保存当前登录角色时，会自动刷新当前会话。
+
 模块级权限会派生按钮级权限：
 
 | 模块权限 | 派生操作 |

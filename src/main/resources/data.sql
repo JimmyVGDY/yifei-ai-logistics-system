@@ -34,6 +34,7 @@ insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort
 insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) values (260525120000033, 260525120000030, '操作日志', '/system/operation-logs', 'system:log:view', 930, 1, current_timestamp, current_timestamp);
 insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) values (260525120000034, 0, '上传文件', '/files', 'file:manage', 940, 1, current_timestamp, current_timestamp);
 insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) values (260525120000035, 0, '资源中心', '/resources', 'resource:view', 950, 1, current_timestamp, current_timestamp);
+insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) values (260526090000001, 260525120000030, '权限配置', '/system/permissions', 'system:permission:manage', 925, 1, current_timestamp, current_timestamp);
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000036, 260525120000001, 260525120000019);
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000037, 260525120000001, 260525120000020);
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000038, 260525120000001, 260525120000021);
@@ -68,6 +69,7 @@ insert into sys_role_menu (id, role_id, menu_id) values (260525120000066, 260525
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000067, 260525120000005, 260525120000019);
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000068, 260525120000006, 260525120000020);
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000069, 260525120000006, 260525120000025);
+insert into sys_role_menu (id, role_id, menu_id) values (260526090000002, 260525120000001, 260526090000001);
 insert into sys_operation_log (id, username, operation, request_uri, request_method, operation_status, operation_time) values (260525120000070, 'admin', '系统初始化', '/system/init', 'SYSTEM', 'SUCCESS', current_timestamp);
 insert into logistics_customer (id, customer_code, customer_name, contact_name, contact_phone, province, city, address, status, created_at, updated_at) values (260525120000071, 'CUST-0001', '北京远航供应链有限公司', '李明强', '1380000001', '北京市', '北京', '朝阳区光华路 11 号', 'ACTIVE', current_timestamp, current_timestamp);
 insert into logistics_customer (id, customer_code, customer_name, contact_name, contact_phone, province, city, address, status, created_at, updated_at) values (260525120000072, 'CUST-0002', '广州优品供应链有限公司', '王伟婷', '1380000002', '广东省', '广州', '天河区软件路 12 号', 'ACTIVE', current_timestamp, current_timestamp);

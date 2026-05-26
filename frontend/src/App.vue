@@ -74,6 +74,7 @@ function iconName(path) {
     '/vehicles': 'Ship',
     '/exceptions': 'Warning',
     '/fees': 'Money',
+    '/system/permissions': 'Lock',
     '/files': 'Upload',
     '/resources': 'SetUp'
   }
