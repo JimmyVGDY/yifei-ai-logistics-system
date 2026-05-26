@@ -121,6 +121,7 @@ public class StructuredLogQueryService {
             put(record, "message", text(root, "message"));
             put(record, "traceId", text(root, "traceId"));
             put(record, "userId", text(root, "userId"));
+            put(record, "userCode", text(root, "userCode"));
             put(record, "usernameMasked", text(root, "usernameMasked"));
             put(record, "roleCode", text(root, "roleCode"));
             put(record, "module", text(root, "module"));
@@ -143,6 +144,7 @@ public class StructuredLogQueryService {
                 && contains(record, "logger", query.getLogger())
                 && contains(record, "traceId", query.getTraceId())
                 && contains(record, "userId", query.getUserId())
+                && contains(record, "userCode", query.getUserCode())
                 && contains(record, "usernameMasked", query.getUsernameMasked())
                 && contains(record, "roleCode", query.getRoleCode())
                 && contains(record, "module", query.getModule())

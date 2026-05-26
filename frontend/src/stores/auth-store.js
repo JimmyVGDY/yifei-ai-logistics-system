@@ -9,6 +9,7 @@ export function saveAuthToken(payload) {
     tokenValue: session.tokenValue || '',
     username: session.usernameMasked || session.username || '',
     userId: String(session.userId || session.loginId || ''),
+    userCode: session.userCode || '',
     roleCode: session.roleCode || '',
     roleName: session.roleName || '',
     permissions: session.permissions || [],
@@ -25,6 +26,7 @@ export function clearAuthToken() {
     'auth.tokenValue',
     'auth.username',
     'auth.userId',
+    'auth.userCode',
     'auth.roleCode',
     'auth.roleName',
     'auth.permissions',
@@ -79,6 +81,7 @@ function readAuthFromStorage() {
     tokenValue: localStorage.getItem('auth.tokenValue') || '',
     username: localStorage.getItem('auth.username') || '',
     userId: localStorage.getItem('auth.userId') || '',
+    userCode: localStorage.getItem('auth.userCode') || '',
     roleCode: localStorage.getItem('auth.roleCode') || '',
     roleName: localStorage.getItem('auth.roleName') || '',
     permissions: readJson('auth.permissions', []),
@@ -91,6 +94,7 @@ function writeAuthToStorage(state) {
   localStorage.setItem('auth.tokenValue', state.tokenValue)
   localStorage.setItem('auth.username', state.username)
   localStorage.setItem('auth.userId', state.userId)
+  localStorage.setItem('auth.userCode', state.userCode)
   localStorage.setItem('auth.roleCode', state.roleCode)
   localStorage.setItem('auth.roleName', state.roleName)
   localStorage.setItem('auth.permissions', JSON.stringify(state.permissions))
@@ -103,6 +107,7 @@ function emptyAuth() {
     tokenValue: '',
     username: '',
     userId: '',
+    userCode: '',
     roleCode: '',
     roleName: '',
     permissions: [],

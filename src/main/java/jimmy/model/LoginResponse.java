@@ -10,6 +10,7 @@ public class LoginResponse {
     private String tokenName;
     private String tokenValue;
     private Long userId;
+    private String userCode;
     private String usernameMasked;
     private String realNameMasked;
     private String roleCode;
@@ -25,10 +26,11 @@ public class LoginResponse {
     }
 
     public LoginResponse(String username, Object loginId, String tokenName, String tokenValue,
-                         Long userId, String usernameMasked, String realNameMasked,
+                         Long userId, String userCode, String usernameMasked, String realNameMasked,
                          String roleCode, String roleName, List<String> permissions, List<MenuVO> menus) {
         this(username, loginId, tokenName, tokenValue);
         this.userId = userId;
+        this.userCode = userCode;
         this.usernameMasked = usernameMasked;
         this.realNameMasked = realNameMasked;
         this.roleCode = roleCode;
@@ -55,6 +57,10 @@ public class LoginResponse {
 
     public Long getUserId() {
         return userId;
+    }
+
+    public String getUserCode() {
+        return userCode;
     }
 
     public String getUsernameMasked() {

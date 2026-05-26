@@ -106,6 +106,7 @@
                        <choose><when test="operationLogExtendedExists">operation_id</when><otherwise>null</otherwise></choose> as operation_id,
                        <choose><when test="operationLogExtendedExists">trace_id</when><otherwise>null</otherwise></choose> as trace_id,
                        <choose><when test="operationLogExtendedExists">user_id</when><otherwise>null</otherwise></choose> as user_id,
+                       <choose><when test="operationLogExtendedExists">user_code</when><otherwise>null</otherwise></choose> as user_code,
                        username,
                        <choose><when test="operationLogExtendedExists">role_code</when><otherwise>null</otherwise></choose> as role_code,
                        operation, request_uri, request_method, operation_status,

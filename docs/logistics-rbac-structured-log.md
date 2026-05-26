@@ -44,7 +44,7 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 
 ## 结构化日志
 
-项目引入 `logstash-logback-encoder`，控制台保留文本日志，文件日志输出 JSON。日志字段包括 `timestamp`、`level`、`logger`、`traceId`、`userId`、`usernameMasked`、`roleCode`、`module`、`operation`、`costMs`、`result`。
+项目引入 `logstash-logback-encoder`，控制台保留文本日志，文件日志输出 JSON。日志字段包括 `timestamp`、`level`、`logger`、`traceId`、`operationId`、`userId`、`userCode`、`usernameMasked`、`roleCode`、`module`、`operation`、`costMs`、`result`。
 
 ### 日志查询中心
 
@@ -62,7 +62,7 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 - `traceId`：请求链路 ID，也会写入响应头 `X-Trace-Id`
 - `operationId`：单次操作唯一 ID，也会写入响应头 `X-Operation-Id`
 
-业务写操作会同步写入 `sys_operation_log`，字段包括 `operation_id`、`trace_id`、`user_id`、`username`、`role_code`、`request_uri`、`request_method`、`operation_status`、`cost_ms`、`operation_time`。如果本地数据库还没有新增字段，代码会回退写入旧版基础操作日志；建议执行增量 SQL 补齐字段和索引。
+业务写操作会同步写入 `sys_operation_log`，字段包括 `operation_id`、`trace_id`、`user_id`、`user_code`、`username`、`role_code`、`request_uri`、`request_method`、`operation_status`、`cost_ms`、`operation_time`。页面列表优先展示用户编号和角色编号，用户主键 ID 保留在详情中便于排查。若本地数据库还没有新增字段，代码会回退写入旧版基础操作日志；建议执行增量 SQL 补齐字段和索引。
 
 ### 后续标准化方向
 

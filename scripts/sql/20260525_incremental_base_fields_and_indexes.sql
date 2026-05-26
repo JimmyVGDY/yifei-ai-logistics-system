@@ -108,6 +108,7 @@ update sys_user set user_code = concat('U-', id) where user_code is null or user
 call add_column_if_missing('sys_operation_log', 'operation_id', 'varchar(32) null comment ''单次操作唯一ID''');
 call add_column_if_missing('sys_operation_log', 'trace_id', 'varchar(64) null comment ''请求链路ID''');
 call add_column_if_missing('sys_operation_log', 'user_id', 'varchar(32) null comment ''登录用户ID''');
+call add_column_if_missing('sys_operation_log', 'user_code', 'varchar(32) null comment ''登录用户业务编号''');
 call add_column_if_missing('sys_operation_log', 'role_code', 'varchar(64) null comment ''角色编码''');
 call add_column_if_missing('sys_operation_log', 'cost_ms', 'bigint null comment ''接口耗时毫秒''');
 
@@ -157,6 +158,7 @@ call add_index_if_missing('logistics_fee', 'idx_fee_status_time', '(payment_stat
 call add_index_if_missing('sys_operation_log', 'idx_operation_status_time', '(operation_status, operation_time)');
 call add_index_if_missing('sys_operation_log', 'idx_operation_trace_id', '(trace_id)');
 call add_index_if_missing('sys_operation_log', 'idx_operation_operation_id', '(operation_id)');
+call add_index_if_missing('sys_operation_log', 'idx_operation_user_code', '(user_code)');
 
 -- 运单允许先录入草稿性质的基础信息，非核心字段可暂缺；客户和收发地址仍由代码层保持必填。
 call modify_column_if_exists('logistics_order', 'cargo_name', 'varchar(128) null comment ''货物名称，可后补''');

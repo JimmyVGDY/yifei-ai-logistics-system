@@ -14,7 +14,8 @@
           <el-option label="DEBUG" value="DEBUG" />
         </el-select>
         <el-input v-model="query.traceId" placeholder="Trace ID" clearable style="width: 160px" />
-        <el-input v-model="query.userId" placeholder="用户ID" clearable style="width: 120px" />
+        <el-input v-model="query.userCode" placeholder="用户编号" clearable style="width: 130px" />
+        <el-input v-model="query.roleCode" placeholder="角色编号" clearable style="width: 130px" />
         <el-input v-model="query.module" placeholder="模块" clearable style="width: 120px" />
         <el-input v-model="query.operation" placeholder="操作" clearable style="width: 140px" />
         <el-date-picker
@@ -40,7 +41,8 @@
       <el-table-column prop="module" label="模块" width="120" />
       <el-table-column prop="operation" label="操作" width="150" />
       <el-table-column prop="result" label="结果" width="100" />
-      <el-table-column prop="userId" label="用户ID" width="100" />
+      <el-table-column prop="userCode" label="用户编号" width="130" />
+      <el-table-column prop="roleCode" label="角色编号" width="120" />
       <el-table-column prop="usernameMasked" label="用户" width="120" />
       <el-table-column prop="traceId" label="Trace ID" width="170" show-overflow-tooltip />
       <el-table-column prop="logger" label="Logger" min-width="220" show-overflow-tooltip />
@@ -85,7 +87,8 @@ const query = reactive({
   keyword: '',
   level: '',
   traceId: '',
-  userId: '',
+  userCode: '',
+  roleCode: '',
   module: '',
   operation: ''
 })
@@ -101,7 +104,8 @@ async function loadData() {
       keyword: query.keyword || undefined,
       level: query.level || undefined,
       traceId: query.traceId || undefined,
-      userId: query.userId || undefined,
+      userCode: query.userCode || undefined,
+      roleCode: query.roleCode || undefined,
       module: query.module || undefined,
       operation: query.operation || undefined,
       startTime: timeRange.value?.[0],

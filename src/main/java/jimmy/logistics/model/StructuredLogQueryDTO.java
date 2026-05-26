@@ -9,6 +9,7 @@ public class StructuredLogQueryDTO {
     private String logger;
     private String traceId;
     private String userId;
+    private String userCode;
     private String usernameMasked;
     private String roleCode;
     private String module;
@@ -71,6 +72,14 @@ public class StructuredLogQueryDTO {
 
     public void setUserId(String userId) {
         this.userId = userId;
+    }
+
+    public String getUserCode() {
+        return userCode;
+    }
+
+    public void setUserCode(String userCode) {
+        this.userCode = userCode;
     }
 
     public String getUsernameMasked() {

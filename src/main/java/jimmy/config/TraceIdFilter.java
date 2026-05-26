@@ -28,6 +28,7 @@ public class TraceIdFilter extends OncePerRequestFilter {
         Object loginId = StpUtil.getLoginIdDefaultNull();
         if (loginId != null) {
             MDC.put("userId", String.valueOf(loginId));
+            MDC.put("userCode", String.valueOf(StpUtil.getSession().get("userCode", "")));
             MDC.put("usernameMasked", String.valueOf(StpUtil.getSession().get("usernameMasked", "")));
             MDC.put("roleCode", String.valueOf(StpUtil.getSession().get("roleCode", "")));
         }

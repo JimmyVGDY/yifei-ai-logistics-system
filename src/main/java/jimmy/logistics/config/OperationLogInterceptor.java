@@ -47,6 +47,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         MDC.put("traceId", traceId);
         MDC.put("operationId", operationId);
         MDC.put("userId", currentUserId());
+        MDC.put("userCode", currentUserCode());
         MDC.put("usernameMasked", LogMaskUtils.maskAccount(username));
         MDC.put("roleCode", currentRoleCode());
         MDC.put("requestUri", request.getRequestURI());
@@ -92,6 +93,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                         operationId,
                         traceId,
                         currentUserId(),
+                        currentUserCode(),
                         username,
                         currentRoleCode(),
                         operation,
@@ -159,6 +161,14 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         return loginId == null ? "" : String.valueOf(loginId);
     }
 
+    private String currentUserCode() {
+        Object loginId = StpUtil.getLoginIdDefaultNull();
+        if (loginId == null) {
+            return "";
+        }
+        return String.valueOf(StpUtil.getSession().get("userCode", ""));
+    }
+
     private String currentRoleCode() {
         Object loginId = StpUtil.getLoginIdDefaultNull();
         if (loginId == null) {
@@ -180,6 +190,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         MDC.remove("traceId");
         MDC.remove("operationId");
         MDC.remove("userId");
+        MDC.remove("userCode");
         MDC.remove("usernameMasked");
         MDC.remove("roleCode");
         MDC.remove("requestUri");

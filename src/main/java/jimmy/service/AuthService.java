@@ -54,6 +54,7 @@ public class AuthService {
         List<String> permissions = collectPermissions(menus);
 
         StpUtil.login(loginUser.id);
+        StpUtil.getSession().set("userCode", loginUser.userCode);
         StpUtil.getSession().set("username", loginUser.username);
         StpUtil.getSession().set("usernameMasked", LogMaskUtils.maskAccount(loginUser.username));
         StpUtil.getSession().set("realNameMasked", LogMaskUtils.maskName(loginUser.realName));
@@ -97,6 +98,7 @@ public class AuthService {
                 tokenInfo.getTokenName(),
                 tokenInfo.getTokenValue(),
                 loginUser.id,
+                loginUser.userCode,
                 LogMaskUtils.maskAccount(loginUser.username),
                 LogMaskUtils.maskName(loginUser.realName),
                 loginUser.roleCode,
@@ -144,6 +146,7 @@ public class AuthService {
         }
         LoginUser user = new LoginUser();
         user.id = toLong(row.get("id"));
+        user.userCode = toString(row.get("userCode"));
         user.username = toString(row.get("username"));
         user.realName = toString(row.get("realName"));
         user.password = toString(row.get("password"));
@@ -328,6 +331,7 @@ public class AuthService {
 
     private static class LoginUser {
         private Long id;
+        private String userCode;
         private String username;
         private String realName;
         private String password;

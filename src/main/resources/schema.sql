@@ -61,6 +61,7 @@ create table if not exists sys_operation_log (
     operation_id varchar(32) null,
     trace_id varchar(64) null,
     user_id varchar(32) null,
+    user_code varchar(32) null,
     username varchar(64) not null,
     role_code varchar(64) null,
     operation varchar(128) not null,
@@ -71,6 +72,7 @@ create table if not exists sys_operation_log (
     operation_time timestamp not null,
     index idx_operation_log_operation_id (operation_id),
     index idx_operation_log_trace_id (trace_id),
+    index idx_operation_log_user_code (user_code),
     index idx_operation_log_user (username),
     index idx_operation_log_time (operation_time)
 );

@@ -10,6 +10,7 @@ public interface OperationLogMapper {
                            @Param("operationId") String operationId,
                            @Param("traceId") String traceId,
                            @Param("userId") String userId,
+                           @Param("userCode") String userCode,
                            @Param("username") String username,
                            @Param("roleCode") String roleCode,
                            @Param("operation") String operation,
