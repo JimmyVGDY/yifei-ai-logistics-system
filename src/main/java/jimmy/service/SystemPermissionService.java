@@ -2,10 +2,10 @@ package jimmy.service;
 
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
+import jimmy.mapper.SystemPermissionMapper;
 import jimmy.model.MenuVO;
 import jimmy.model.RoleMenuUpdateRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,60 +19,44 @@ import java.util.Map;
 @Service
 public class SystemPermissionService {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final SystemPermissionMapper systemPermissionMapper;
     private final CompactSnowflakeIdGenerator idGenerator;
 
-    public SystemPermissionService(JdbcTemplate jdbcTemplate, CompactSnowflakeIdGenerator idGenerator) {
-        this.jdbcTemplate = jdbcTemplate;
+    public SystemPermissionService(SystemPermissionMapper systemPermissionMapper,
+                                   CompactSnowflakeIdGenerator idGenerator) {
+        this.systemPermissionMapper = systemPermissionMapper;
         this.idGenerator = idGenerator;
     }
 
     public List<MenuVO> menuTree() {
         ensurePermissionMenu();
-        List<MenuVO> rows = jdbcTemplate.query(
-                "select id, parent_id, menu_name, menu_path, permission_code, sort_no from sys_menu " +
-                        "where status = 1 order by sort_no, id",
-                (rs, rowNum) -> {
-                    MenuVO menu = new MenuVO();
-                    menu.setId(rs.getLong("id"));
-                    menu.setParentId(rs.getLong("parent_id"));
-                    menu.setName(rs.getString("menu_name"));
-                    menu.setPath(rs.getString("menu_path"));
-                    menu.setPermissionCode(rs.getString("permission_code"));
-                    menu.setSortNo(rs.getInt("sort_no"));
-                    return menu;
-                }
-        );
-        return buildTree(rows);
+        return buildTree(systemPermissionMapper.selectAllActiveMenus());
     }
 
     public List<Long> roleMenuIds(long roleId) {
         ensurePermissionMenu();
-        return jdbcTemplate.queryForList("select menu_id from sys_role_menu where role_id = ? order by menu_id", Long.class, roleId);
+        return systemPermissionMapper.selectRoleMenuIds(roleId);
     }
 
     @Transactional
     public List<Long> updateRoleMenus(long roleId, RoleMenuUpdateRequest request) {
         List<Long> menuIds = request == null || request.getMenuIds() == null ? new ArrayList<>() : request.getMenuIds();
-        Integer roleCount = jdbcTemplate.queryForObject("select count(1) from sys_role where id = ?", Integer.class, roleId);
-        if (roleCount == null || roleCount == 0) {
+        if (systemPermissionMapper.countRoleById(roleId) == 0) {
             throw new IllegalArgumentException("角色不存在");
         }
-        jdbcTemplate.update("delete from sys_role_menu where role_id = ?", roleId);
+        systemPermissionMapper.deleteRoleMenus(roleId);
         for (Long menuId : menuIds) {
             if (menuId == null || !menuExists(menuId)) {
                 continue;
             }
-            jdbcTemplate.update("insert into sys_role_menu (id, role_id, menu_id) values (?, ?, ?)",
-                    idGenerator.nextId(), roleId, menuId);
+            systemPermissionMapper.insertRoleMenu(idGenerator.nextId(), roleId, menuId);
         }
         log.info("角色权限配置已更新，roleId={}, menuCount={}, operator={}", roleId, menuIds.size(), StpUtil.getLoginIdDefaultNull());
         return roleMenuIds(roleId);
     }
 
     private boolean menuExists(Long menuId) {
-        Integer count = jdbcTemplate.queryForObject("select count(1) from sys_menu where id = ? and status = 1", Integer.class, menuId);
-        return count != null && count > 0;
+        return systemPermissionMapper.countMenuById(menuId) > 0;
     }
 
     private List<MenuVO> buildTree(List<MenuVO> rows) {
@@ -90,20 +74,11 @@ public class SystemPermissionService {
     }
 
     private void ensurePermissionMenu() {
-        Integer exists = jdbcTemplate.queryForObject(
-                "select count(1) from sys_menu where menu_path = '/system/permissions'",
-                Integer.class
-        );
-        if (exists != null && exists > 0) {
+        if (systemPermissionMapper.countPermissionMenu() > 0) {
             return;
         }
-        List<Long> parentIds = jdbcTemplate.queryForList("select id from sys_menu where menu_path = '/system' order by id limit 1", Long.class);
-        Long parentId = parentIds.isEmpty() ? 0L : parentIds.get(0);
+        Long parentId = systemPermissionMapper.selectSystemMenuId();
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        jdbcTemplate.update(
-                "insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) " +
-                        "values (?, ?, '权限配置', '/system/permissions', 'system:permission:manage', 925, 1, ?, ?)",
-                idGenerator.nextId(), parentId, now, now
-        );
+        systemPermissionMapper.insertPermissionMenu(idGenerator.nextId(), parentId == null ? 0L : parentId, now, now);
     }
 }

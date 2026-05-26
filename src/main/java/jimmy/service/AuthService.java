@@ -2,16 +2,17 @@ package jimmy.service;
 
 import cn.dev33.satoken.stp.SaTokenInfo;
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.mapper.AuthMapper;
 import jimmy.model.LoginRequest;
 import jimmy.model.LoginResponse;
 import jimmy.model.MenuVO;
 import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -25,10 +26,10 @@ public class AuthService {
 
     private static final BCryptPasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
-    private final JdbcTemplate jdbcTemplate;
+    private final AuthMapper authMapper;
 
-    public AuthService(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public AuthService(AuthMapper authMapper) {
+        this.authMapper = authMapper;
     }
 
     public LoginResponse login(LoginRequest request) {
@@ -106,27 +107,11 @@ public class AuthService {
     }
 
     private LoginUser findLoginUser(String username) {
-        List<LoginUser> users = jdbcTemplate.query(
-                "select u.id, u.username, u.real_name, u.password, u.status, r.id role_id, r.role_code, r.role_name " +
-                        "from sys_user u left join sys_role r on r.id = u.role_id where u.username = ?",
-                (rs, rowNum) -> mapUser(rs.getLong("id"), rs.getString("username"), rs.getString("real_name"),
-                        rs.getString("password"), rs.getInt("status"), rs.getLong("role_id"),
-                        rs.getString("role_code"), rs.getString("role_name")),
-                username
-        );
-        return users.isEmpty() ? null : users.get(0);
+        return mapUser(authMapper.findLoginUserByUsername(username));
     }
 
     private LoginUser findLoginUserById(Long userId) {
-        List<LoginUser> users = jdbcTemplate.query(
-                "select u.id, u.username, u.real_name, u.password, u.status, r.id role_id, r.role_code, r.role_name " +
-                        "from sys_user u left join sys_role r on r.id = u.role_id where u.id = ?",
-                (rs, rowNum) -> mapUser(rs.getLong("id"), rs.getString("username"), rs.getString("real_name"),
-                        rs.getString("password"), rs.getInt("status"), rs.getLong("role_id"),
-                        rs.getString("role_code"), rs.getString("role_name")),
-                userId
-        );
-        return users.isEmpty() ? null : users.get(0);
+        return mapUser(authMapper.findLoginUserById(userId));
     }
 
     private boolean matchesPassword(String rawPassword, String storedPassword) {
@@ -144,7 +129,7 @@ public class AuthService {
             return;
         }
         String encoded = PASSWORD_ENCODER.encode(rawPassword);
-        jdbcTemplate.update("update sys_user set password = ? where id = ?", encoded, loginUser.id);
+        authMapper.updatePassword(loginUser.id, encoded);
         loginUser.password = encoded;
         log.info("账号密码已升级为 BCrypt，userId={}, username={}", loginUser.id, LogMaskUtils.maskAccount(loginUser.username));
     }
@@ -153,37 +138,24 @@ public class AuthService {
         return password != null && (password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$"));
     }
 
-    private LoginUser mapUser(Long id, String username, String realName, String password, Integer status,
-                              Long roleId, String roleCode, String roleName) {
+    private LoginUser mapUser(Map<String, Object> row) {
+        if (row == null || row.isEmpty()) {
+            return null;
+        }
         LoginUser user = new LoginUser();
-        user.id = id;
-        user.username = username;
-        user.realName = realName;
-        user.password = password;
-        user.status = status;
-        user.roleId = roleId;
-        user.roleCode = roleCode;
-        user.roleName = roleName;
+        user.id = toLong(row.get("id"));
+        user.username = toString(row.get("username"));
+        user.realName = toString(row.get("realName"));
+        user.password = toString(row.get("password"));
+        user.status = toInteger(row.get("status"));
+        user.roleId = toLong(row.get("roleId"));
+        user.roleCode = toString(row.get("roleCode"));
+        user.roleName = toString(row.get("roleName"));
         return user;
     }
 
     private List<MenuVO> queryMenus(Long roleId) {
-        List<MenuVO> rows = jdbcTemplate.query(
-                "select m.id, m.parent_id, m.menu_name, m.menu_path, m.permission_code, m.sort_no " +
-                        "from sys_menu m join sys_role_menu rm on rm.menu_id = m.id " +
-                        "where rm.role_id = ? and m.status = 1 order by m.sort_no, m.id",
-                (rs, rowNum) -> {
-                    MenuVO menu = new MenuVO();
-                    menu.setId(rs.getLong("id"));
-                    menu.setParentId(rs.getLong("parent_id"));
-                    menu.setName(rs.getString("menu_name"));
-                    menu.setPath(rs.getString("menu_path"));
-                    menu.setPermissionCode(rs.getString("permission_code"));
-                    menu.setSortNo(rs.getInt("sort_no"));
-                    return menu;
-                },
-                roleId
-        );
+        List<MenuVO> rows = authMapper.selectMenusByRoleId(roleId);
         Map<Long, MenuVO> byId = new LinkedHashMap<>();
         rows.forEach(menu -> byId.put(menu.getId(), menu));
         List<MenuVO> roots = new ArrayList<>();
@@ -195,6 +167,33 @@ public class AuthService {
             }
         }
         return roots;
+    }
+
+    private Long toLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof BigInteger) {
+            return ((BigInteger) value).longValue();
+        }
+        return Long.valueOf(String.valueOf(value));
+    }
+
+    private Integer toInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        return Integer.valueOf(String.valueOf(value));
+    }
+
+    private String toString(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private List<MenuVO> mergeDefaultMenus(String roleCode, List<MenuVO> dbMenus) {

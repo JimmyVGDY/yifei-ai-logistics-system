@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.mapper.SystemPermissionMapper">
+
+    <resultMap id="MenuResultMap" type="jimmy.model.MenuVO">
+        <id property="id" column="id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="name" column="menu_name"/>
+        <result property="path" column="menu_path"/>
+        <result property="permissionCode" column="permission_code"/>
+        <result property="sortNo" column="sort_no"/>
+    </resultMap>
+
+    <select id="selectAllActiveMenus" resultMap="MenuResultMap">
+        select id,
+               parent_id,
+               menu_name,
+               menu_path,
+               permission_code,
+               sort_no
+        from sys_menu
+        where status = 1
+        order by sort_no, id
+    </select>
+
+    <select id="selectRoleMenuIds" resultType="long">
+        select menu_id
+        from sys_role_menu
+        where role_id = #{roleId}
+        order by menu_id
+    </select>
+
+    <select id="countRoleById" resultType="int">
+        select count(1)
+        from sys_role
+        where id = #{roleId}
+    </select>
+
+    <select id="countMenuById" resultType="int">
+        select count(1)
+        from sys_menu
+        where id = #{menuId}
+          and status = 1
+    </select>
+
+    <select id="countPermissionMenu" resultType="int">
+        select count(1)
+        from sys_menu
+        where menu_path = '/system/permissions'
+    </select>
+
+    <select id="selectSystemMenuId" resultType="long">
+        select id
+        from sys_menu
+        where menu_path = '/system'
+        order by id
+        limit 1
+    </select>
+
+    <delete id="deleteRoleMenus">
+        delete from sys_role_menu
+        where role_id = #{roleId}
+    </delete>
+
+    <insert id="insertRoleMenu">
+        insert into sys_role_menu (id, role_id, menu_id)
+        values (#{id}, #{roleId}, #{menuId})
+    </insert>
+
+    <insert id="insertPermissionMenu">
+        insert into sys_menu (
+            id, parent_id, menu_name, menu_path, permission_code,
+            sort_no, status, create_time, update_time
+        )
+        values (
+            #{id}, #{parentId}, '权限配置', '/system/permissions', 'system:permission:manage',
+            925, 1, #{createTime}, #{updateTime}
+        )
+    </insert>
+</mapper>
