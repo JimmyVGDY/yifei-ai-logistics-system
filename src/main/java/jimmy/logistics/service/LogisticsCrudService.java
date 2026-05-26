@@ -130,6 +130,9 @@ public class LogisticsCrudService {
             return values;
         }
         for (String column : config.columns) {
+            if (!update && column.equals(config.generatedCodeColumn)) {
+                continue;
+            }
             if (update && (column.equals(config.createTimeColumn) || column.equals(config.updateTimeColumn))) {
                 continue;
             }
@@ -244,11 +247,11 @@ public class LogisticsCrudService {
 
     private Map<String, CrudConfig> buildConfigs() {
         Map<String, CrudConfig> map = new HashMap<>();
-        map.put("customers", new CrudConfig("logistics_customer", "created_at", "updated_at", "customer_code", "customer_name", "contact_name", "contact_phone", "province", "city", "address", "status"));
+        map.put("customers", CrudConfig.withGeneratedCode("logistics_customer", "created_at", "updated_at", "customer_code", "CUST", "customer_code", "customer_name", "contact_name", "contact_phone", "province", "city", "address", "status"));
         map.put("orders", CrudConfig.withNullable("logistics_order", "created_at", "updated_at",
                 Arrays.asList("cargo_name", "cargo_weight", "cargo_volume", "planned_pickup_time", "planned_delivery_time", "route_id", "warehouse_id", "vehicle_id", "driver_id"),
                 "order_no", "customer_id", "route_id", "warehouse_id", "vehicle_id", "driver_id", "customer_name", "sender_address", "receiver_address", "cargo_name", "cargo_weight", "cargo_volume", "status", "planned_pickup_time", "planned_delivery_time"));
-        map.put("waybills", new CrudConfig("logistics_waybill", "create_time", "update_time", "waybill_no", "order_id", "start_site", "target_site", "current_location", "transport_status"));
+        map.put("waybills", CrudConfig.withGeneratedCode("logistics_waybill", "create_time", "update_time", "waybill_no", "WB", "waybill_no", "order_id", "start_site", "target_site", "current_location", "transport_status"));
         map.put("dispatches", new CrudConfig("logistics_dispatch", "create_time", "update_time", "order_id", "waybill_id", "driver_id", "vehicle_id", "start_site", "target_site", "planned_departure_time", "planned_arrival_time", "dispatch_status"));
         map.put("tasks", new CrudConfig("logistics_task", "create_time", "update_time", "task_no", "order_id", "waybill_id", "dispatch_id", "driver_id", "vehicle_id", "task_status", "proof_url"));
         map.put("tracks", new CrudConfig("logistics_track", "operation_time", null, "order_id", "waybill_id", "current_status", "current_location", "operator_name", "operation_desc"));
