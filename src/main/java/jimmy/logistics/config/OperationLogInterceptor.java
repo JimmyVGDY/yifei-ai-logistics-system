@@ -13,6 +13,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -20,6 +21,8 @@ public class OperationLogInterceptor implements HandlerInterceptor {
 
     private static final String OPERATION_USERNAME_ATTRIBUTE = "operationLogUsername";
     private static final String START_TIME_ATTRIBUTE = "operationLogStartTime";
+    private static final String OPERATION_ID_ATTRIBUTE = "operationLogOperationId";
+    private static final String TRACE_ID_ATTRIBUTE = "operationLogTraceId";
 
     private final OperationLogMapper operationLogMapper;
     private final CompactSnowflakeIdGenerator idGenerator;
@@ -31,8 +34,23 @@ public class OperationLogInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        request.setAttribute(OPERATION_USERNAME_ATTRIBUTE, currentUsername());
+        String traceId = resolveTraceId(request);
+        String operationId = String.valueOf(idGenerator.nextId());
+        String username = currentUsername();
+        request.setAttribute(TRACE_ID_ATTRIBUTE, traceId);
+        request.setAttribute(OPERATION_ID_ATTRIBUTE, operationId);
+        request.setAttribute(OPERATION_USERNAME_ATTRIBUTE, username);
         request.setAttribute(START_TIME_ATTRIBUTE, System.currentTimeMillis());
+        response.setHeader("X-Trace-Id", traceId);
+        response.setHeader("X-Operation-Id", operationId);
+
+        MDC.put("traceId", traceId);
+        MDC.put("operationId", operationId);
+        MDC.put("userId", currentUserId());
+        MDC.put("usernameMasked", LogMaskUtils.maskAccount(username));
+        MDC.put("roleCode", currentRoleCode());
+        MDC.put("requestUri", request.getRequestURI());
+        MDC.put("requestMethod", request.getMethod());
         return true;
     }
 
@@ -41,31 +59,62 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                                 HttpServletResponse response,
                                 Object handler,
                                 Exception exception) {
-        if (!(handler instanceof HandlerMethod)) {
-            return;
-        }
-
-        HandlerMethod handlerMethod = (HandlerMethod) handler;
-        String operation = resolveOperation(handlerMethod);
-        if (operation == null && !isBusinessWrite(request)) {
-            return;
-        }
-        if (operation == null) {
-            operation = "业务接口调用";
-        }
-
-        String username = String.valueOf(request.getAttribute(OPERATION_USERNAME_ATTRIBUTE));
-        if ("anonymous".equals(username)) {
-            username = currentUsername();
-        }
-        String status = exception == null && response.getStatus() < 400 ? "SUCCESS" : "FAILED";
-        long costMs = System.currentTimeMillis() - (Long) request.getAttribute(START_TIME_ATTRIBUTE);
-        MDC.put("module", firstPath(request.getRequestURI()));
-        MDC.put("operation", operation);
-        MDC.put("costMs", String.valueOf(costMs));
-        MDC.put("result", status);
         try {
-            operationLogMapper.insertOperationLog(
+            if (!(handler instanceof HandlerMethod)) {
+                return;
+            }
+
+            HandlerMethod handlerMethod = (HandlerMethod) handler;
+            String operation = resolveOperation(handlerMethod);
+            if (operation == null && !isBusinessWrite(request)) {
+                return;
+            }
+            if (operation == null) {
+                operation = "业务接口调用";
+            }
+
+            String username = String.valueOf(request.getAttribute(OPERATION_USERNAME_ATTRIBUTE));
+            if ("anonymous".equals(username)) {
+                username = currentUsername();
+            }
+            String traceId = String.valueOf(request.getAttribute(TRACE_ID_ATTRIBUTE));
+            String operationId = String.valueOf(request.getAttribute(OPERATION_ID_ATTRIBUTE));
+            String status = exception == null && response.getStatus() < 400 ? "SUCCESS" : "FAILED";
+            long costMs = System.currentTimeMillis() - (Long) request.getAttribute(START_TIME_ATTRIBUTE);
+            MDC.put("module", firstPath(request.getRequestURI()));
+            MDC.put("operation", operation);
+            MDC.put("costMs", String.valueOf(costMs));
+            MDC.put("result", status);
+
+            try {
+                operationLogMapper.insertOperationLog(
+                        idGenerator.nextId(),
+                        operationId,
+                        traceId,
+                        currentUserId(),
+                        username,
+                        currentRoleCode(),
+                        operation,
+                        request.getRequestURI(),
+                        request.getMethod(),
+                        status,
+                        costMs
+                );
+                log.info("操作日志已记录，operationId={}, traceId={}, userId={}, username={}, operation={}, uri={}, method={}, status={}, costMs={}",
+                        operationId, traceId, currentUserId(), LogMaskUtils.maskAccount(username), operation,
+                        request.getRequestURI(), request.getMethod(), status, costMs);
+            } catch (RuntimeException logException) {
+                insertLegacyLog(username, operation, request, status);
+                log.warn("操作日志扩展字段写入失败，已回退基础日志，operation={}, reason={}", operation, logException.getMessage());
+            }
+        } finally {
+            clearRequestMdc();
+        }
+    }
+
+    private void insertLegacyLog(String username, String operation, HttpServletRequest request, String status) {
+        try {
+            operationLogMapper.insertLegacyOperationLog(
                     idGenerator.nextId(),
                     username,
                     operation,
@@ -73,15 +122,8 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                     request.getMethod(),
                     status
             );
-            log.info("操作日志已记录，userId={}, username={}, operation={}, status={}, costMs={}",
-                    StpUtil.getLoginIdDefaultNull(), LogMaskUtils.maskAccount(username), operation, status, costMs);
-        } catch (RuntimeException logException) {
-            log.warn("操作日志写入失败，operation={}, reason={}", operation, logException.getMessage());
-        } finally {
-            MDC.remove("module");
-            MDC.remove("operation");
-            MDC.remove("costMs");
-            MDC.remove("result");
+        } catch (RuntimeException ignored) {
+            log.warn("基础操作日志写入失败，operation={}", operation);
         }
     }
 
@@ -110,6 +152,42 @@ public class OperationLogInterceptor implements HandlerInterceptor {
             return "anonymous";
         }
         return String.valueOf(StpUtil.getSession().get("username", loginId));
+    }
+
+    private String currentUserId() {
+        Object loginId = StpUtil.getLoginIdDefaultNull();
+        return loginId == null ? "" : String.valueOf(loginId);
+    }
+
+    private String currentRoleCode() {
+        Object loginId = StpUtil.getLoginIdDefaultNull();
+        if (loginId == null) {
+            return "";
+        }
+        return String.valueOf(StpUtil.getSession().get("roleCode", ""));
+    }
+
+    private String resolveTraceId(HttpServletRequest request) {
+        String traceId = request.getHeader("X-Trace-Id");
+        if (traceId != null && !traceId.trim().isEmpty()) {
+            return traceId.trim();
+        }
+        String currentTraceId = MDC.get("traceId");
+        return currentTraceId == null || currentTraceId.trim().isEmpty() ? UUID.randomUUID().toString().replace("-", "") : currentTraceId;
+    }
+
+    private void clearRequestMdc() {
+        MDC.remove("traceId");
+        MDC.remove("operationId");
+        MDC.remove("userId");
+        MDC.remove("usernameMasked");
+        MDC.remove("roleCode");
+        MDC.remove("requestUri");
+        MDC.remove("requestMethod");
+        MDC.remove("module");
+        MDC.remove("operation");
+        MDC.remove("costMs");
+        MDC.remove("result");
     }
 
     private String firstPath(String uri) {

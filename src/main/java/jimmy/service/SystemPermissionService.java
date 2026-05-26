@@ -74,11 +74,14 @@ public class SystemPermissionService {
     }
 
     private void ensurePermissionMenu() {
-        if (systemPermissionMapper.countPermissionMenu() > 0) {
-            return;
-        }
         Long parentId = systemPermissionMapper.selectSystemMenuId();
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        systemPermissionMapper.insertPermissionMenu(idGenerator.nextId(), parentId == null ? 0L : parentId, now, now);
+        Long resolvedParentId = parentId == null ? 0L : parentId;
+        if (systemPermissionMapper.countPermissionMenu() == 0) {
+            systemPermissionMapper.insertPermissionMenu(idGenerator.nextId(), resolvedParentId, now, now);
+        }
+        if (systemPermissionMapper.countStructuredLogMenu() == 0) {
+            systemPermissionMapper.insertStructuredLogMenu(idGenerator.nextId(), resolvedParentId, now, now);
+        }
     }
 }

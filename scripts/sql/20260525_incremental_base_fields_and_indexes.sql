@@ -105,6 +105,38 @@ call migrate_common_fields('logistics_freight_bill');
 call add_column_if_missing('sys_user', 'user_code', 'varchar(32) null comment ''用户业务编号''');
 update sys_user set user_code = concat('U-', id) where user_code is null or user_code = '';
 
+call add_column_if_missing('sys_operation_log', 'operation_id', 'varchar(32) null comment ''单次操作唯一ID''');
+call add_column_if_missing('sys_operation_log', 'trace_id', 'varchar(64) null comment ''请求链路ID''');
+call add_column_if_missing('sys_operation_log', 'user_id', 'varchar(32) null comment ''登录用户ID''');
+call add_column_if_missing('sys_operation_log', 'role_code', 'varchar(64) null comment ''角色编码''');
+call add_column_if_missing('sys_operation_log', 'cost_ms', 'bigint null comment ''接口耗时毫秒''');
+
+insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time)
+select 260526100000001,
+       coalesce((select id from sys_menu where menu_path = '/system' order by id limit 1), 0),
+       '结构化日志',
+       '/system/structured-logs',
+       'system:log:view',
+       935,
+       1,
+       current_timestamp,
+       current_timestamp
+where not exists (select 1 from sys_menu where menu_path = '/system/structured-logs');
+
+insert into sys_role_menu (id, role_id, menu_id)
+select 260526100000002,
+       r.id,
+       m.id
+from sys_role r
+join sys_menu m on m.menu_path = '/system/structured-logs'
+where r.role_code = 'ADMIN'
+  and not exists (
+      select 1
+      from sys_role_menu rm
+      where rm.role_id = r.id
+        and rm.menu_id = m.id
+  );
+
 call add_index_if_missing('sys_role', 'idx_sys_role_status_time', '(status, update_time)');
 call add_index_if_missing('sys_user', 'idx_sys_user_status_time', '(status, update_time)');
 call add_index_if_missing('sys_user', 'idx_sys_user_mobile', '(mobile)');
@@ -123,6 +155,8 @@ call add_index_if_missing('logistics_vehicle', 'idx_vehicle_status_time', '(stat
 call add_index_if_missing('logistics_exception', 'idx_exception_status_time', '(exception_status, report_time)');
 call add_index_if_missing('logistics_fee', 'idx_fee_status_time', '(payment_status, create_time)');
 call add_index_if_missing('sys_operation_log', 'idx_operation_status_time', '(operation_status, operation_time)');
+call add_index_if_missing('sys_operation_log', 'idx_operation_trace_id', '(trace_id)');
+call add_index_if_missing('sys_operation_log', 'idx_operation_operation_id', '(operation_id)');
 
 -- 运单允许先录入草稿性质的基础信息，非核心字段可暂缺；客户和收发地址仍由代码层保持必填。
 call modify_column_if_exists('logistics_order', 'cargo_name', 'varchar(128) null comment ''货物名称，可后补''');

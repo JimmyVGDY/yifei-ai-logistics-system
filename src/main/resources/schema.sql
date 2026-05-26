@@ -58,12 +58,19 @@ create table if not exists sys_role_menu (
 
 create table if not exists sys_operation_log (
     id bigint primary key,
+    operation_id varchar(32) null,
+    trace_id varchar(64) null,
+    user_id varchar(32) null,
     username varchar(64) not null,
+    role_code varchar(64) null,
     operation varchar(128) not null,
     request_uri varchar(255) not null,
     request_method varchar(16) not null,
     operation_status varchar(32) not null,
+    cost_ms bigint null,
     operation_time timestamp not null,
+    index idx_operation_log_operation_id (operation_id),
+    index idx_operation_log_trace_id (trace_id),
     index idx_operation_log_user (username),
     index idx_operation_log_time (operation_time)
 );

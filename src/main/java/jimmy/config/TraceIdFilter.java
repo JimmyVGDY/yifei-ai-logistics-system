@@ -23,6 +23,7 @@ public class TraceIdFilter extends OncePerRequestFilter {
         if (traceId == null || traceId.trim().isEmpty()) {
             traceId = UUID.randomUUID().toString().replace("-", "");
         }
+        response.setHeader("X-Trace-Id", traceId);
         MDC.put("traceId", traceId);
         Object loginId = StpUtil.getLoginIdDefaultNull();
         if (loginId != null) {

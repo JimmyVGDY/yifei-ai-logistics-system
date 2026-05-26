@@ -6,6 +6,17 @@
 
     <insert id="insertOperationLog">
         insert into sys_operation_log (
+            id, operation_id, trace_id, user_id, username, role_code,
+            operation, request_uri, request_method, operation_status, cost_ms, operation_time
+        )
+        values (
+            #{id}, #{operationId}, #{traceId}, #{userId}, #{username}, #{roleCode},
+            #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs}, current_timestamp
+        )
+    </insert>
+
+    <insert id="insertLegacyOperationLog">
+        insert into sys_operation_log (
             id, username, operation, request_uri, request_method, operation_status, operation_time
         )
         values (
