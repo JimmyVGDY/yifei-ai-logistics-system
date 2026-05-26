@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.logistics.mapper.LogisticsExceptionMapper">
+
+    <select id="findOrderIdByOrderNo" resultType="long">
+        select id
+        from logistics_order
+        where order_no = #{orderNo}
+        limit 1
+    </select>
+
+    <select id="findLatestTaskIdByOrderId" resultType="long">
+        select id
+        from logistics_task
+        where order_id = #{orderId}
+        order by id desc
+        limit 1
+    </select>
+
+    <select id="findExceptionStatus" resultType="string">
+        select exception_status
+        from logistics_exception
+        where id = #{exceptionId}
+        limit 1
+    </select>
+
+    <insert id="insertException">
+        insert into logistics_exception (
+            id, order_id, task_id, exception_type, exception_desc,
+            exception_status, report_user, report_time, handle_user, handle_time
+        )
+        values (
+            #{id}, #{orderId}, #{taskId}, #{exceptionType}, #{exceptionDesc},
+            'WAIT_HANDLE', #{reportUser}, current_timestamp, null, null
+        )
+    </insert>
+
+    <update id="updateOrderStatusException">
+        update logistics_order
+        set status = 'EXCEPTION',
+            updated_at = current_timestamp
+        where id = #{orderId}
+    </update>
+
+    <update id="updateExceptionStatus">
+        update logistics_exception
+        set exception_status = #{exceptionStatus},
+            handle_user = #{handleUser},
+            handle_time = current_timestamp
+        where id = #{exceptionId}
+    </update>
+</mapper>

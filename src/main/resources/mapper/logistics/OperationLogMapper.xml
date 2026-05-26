@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.logistics.mapper.OperationLogMapper">
+
+    <insert id="insertOperationLog">
+        insert into sys_operation_log (
+            id, username, operation, request_uri, request_method, operation_status, operation_time
+        )
+        values (
+            #{id}, #{username}, #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, current_timestamp
+        )
+    </insert>
+</mapper>

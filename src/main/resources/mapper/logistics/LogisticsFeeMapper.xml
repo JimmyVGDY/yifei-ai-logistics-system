@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.logistics.mapper.LogisticsFeeMapper">
+
+    <select id="findOrderFeeBaseByOrderNo" resultType="map">
+        select id,
+               coalesce(cargo_weight, 0) as cargoWeight
+        from logistics_order
+        where order_no = #{orderNo}
+    </select>
+
+    <select id="countByOrderId" resultType="int">
+        select count(1)
+        from logistics_fee
+        where order_id = #{orderId}
+    </select>
+
+    <update id="updateByOrderId">
+        update logistics_fee
+        set base_fee = #{baseFee},
+            weight_fee = #{weightFee},
+            distance_fee = #{distanceFee},
+            additional_fee = #{additionalFee},
+            discount_fee = #{discountFee},
+            payable_fee = #{payableFee},
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
+    <insert id="insertFee">
+        insert into logistics_fee (
+            id, order_id, base_fee, weight_fee, distance_fee, additional_fee,
+            discount_fee, payable_fee, actual_fee, payment_status, create_time, update_time
+        )
+        values (
+            #{id}, #{orderId}, #{baseFee}, #{weightFee}, #{distanceFee}, #{additionalFee},
+            #{discountFee}, #{payableFee}, 0, 'UNPAID', current_timestamp, current_timestamp
+        )
+    </insert>
+
+    <update id="markPaid">
+        update logistics_fee
+        set actual_fee = payable_fee,
+            payment_status = 'PAID',
+            update_time = current_timestamp
+        where id = #{feeId}
+    </update>
+</mapper>

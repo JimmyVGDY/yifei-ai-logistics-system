@@ -2,11 +2,11 @@ package jimmy.logistics.service;
 
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
+import jimmy.logistics.mapper.LogisticsExceptionMapper;
 import jimmy.logistics.model.ExceptionHandleDTO;
 import jimmy.logistics.model.ExceptionReportDTO;
 import jimmy.logistics.model.SimpleResultVO;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -19,12 +19,12 @@ public class LogisticsExceptionService {
 
     private static final List<String> HANDLE_TARGET_STATUSES = Arrays.asList("PROCESSING", "CLOSED");
 
-    private final JdbcTemplate jdbcTemplate;
+    private final LogisticsExceptionMapper logisticsExceptionMapper;
     private final CompactSnowflakeIdGenerator idGenerator;
 
-    public LogisticsExceptionService(JdbcTemplate jdbcTemplate,
+    public LogisticsExceptionService(LogisticsExceptionMapper logisticsExceptionMapper,
                                      CompactSnowflakeIdGenerator idGenerator) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.logisticsExceptionMapper = logisticsExceptionMapper;
         this.idGenerator = idGenerator;
     }
 
@@ -33,12 +33,8 @@ public class LogisticsExceptionService {
         Long taskId = findTaskId(orderId);
         String reportUser = currentUser();
         Long exceptionId = idGenerator.nextId();
-        jdbcTemplate.update(
-                "insert into logistics_exception (id, order_id, task_id, exception_type, exception_desc, exception_status, report_user, report_time, handle_user, handle_time) " +
-                        "values (?, ?, ?, ?, ?, 'WAIT_HANDLE', ?, current_timestamp, null, null)",
-                exceptionId, orderId, taskId, request.getExceptionType(), request.getExceptionDesc(), reportUser
-        );
-        jdbcTemplate.update("update logistics_order set status = 'EXCEPTION', updated_at = current_timestamp where id = ?", orderId);
+        logisticsExceptionMapper.insertException(exceptionId, orderId, taskId, request.getExceptionType(), request.getExceptionDesc(), reportUser);
+        logisticsExceptionMapper.updateOrderStatusException(orderId);
         log.info("运输异常已上报，orderNo={}, exceptionType={}, reportUser={}",
                 request.getOrderNo(), request.getExceptionType(), reportUser);
         return new SimpleResultVO().add("exceptionId", exceptionId).add("status", "WAIT_HANDLE");
@@ -54,10 +50,7 @@ public class LogisticsExceptionService {
         String currentStatus = findExceptionStatus(exceptionId);
         validateStatusFlow(currentStatus, status);
         String handleUser = currentUser();
-        int updated = jdbcTemplate.update(
-                "update logistics_exception set exception_status = ?, handle_user = ?, handle_time = current_timestamp where id = ?",
-                status, handleUser, exceptionId
-        );
+        int updated = logisticsExceptionMapper.updateExceptionStatus(exceptionId, status, handleUser);
         if (updated == 0) {
             throw new IllegalArgumentException("异常记录不存在");
         }
@@ -66,11 +59,11 @@ public class LogisticsExceptionService {
     }
 
     private String findExceptionStatus(long exceptionId) {
-        List<String> statuses = jdbcTemplate.queryForList("select exception_status from logistics_exception where id = ?", String.class, exceptionId);
-        if (statuses.isEmpty()) {
+        String status = logisticsExceptionMapper.findExceptionStatus(exceptionId);
+        if (status == null) {
             throw new IllegalArgumentException("异常记录不存在");
         }
-        return statuses.get(0);
+        return status;
     }
 
     private void validateStatusFlow(String currentStatus, String targetStatus) {
@@ -86,16 +79,15 @@ public class LogisticsExceptionService {
     }
 
     private Long findOrderId(String orderNo) {
-        List<Long> ids = jdbcTemplate.queryForList("select id from logistics_order where order_no = ?", Long.class, orderNo);
-        if (ids.isEmpty()) {
+        Long id = logisticsExceptionMapper.findOrderIdByOrderNo(orderNo);
+        if (id == null) {
             throw new IllegalArgumentException("订单不存在");
         }
-        return ids.get(0);
+        return id;
     }
 
     private Long findTaskId(Long orderId) {
-        List<Long> ids = jdbcTemplate.queryForList("select id from logistics_task where order_id = ? order by id desc limit 1", Long.class, orderId);
-        return ids.isEmpty() ? null : ids.get(0);
+        return logisticsExceptionMapper.findLatestTaskIdByOrderId(orderId);
     }
 
     private String currentUser() {

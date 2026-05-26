@@ -3,10 +3,10 @@ package jimmy.logistics.config;
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.annotation.OperationLog;
+import jimmy.logistics.mapper.OperationLogMapper;
 import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -21,11 +21,11 @@ public class OperationLogInterceptor implements HandlerInterceptor {
     private static final String OPERATION_USERNAME_ATTRIBUTE = "operationLogUsername";
     private static final String START_TIME_ATTRIBUTE = "operationLogStartTime";
 
-    private final JdbcTemplate jdbcTemplate;
+    private final OperationLogMapper operationLogMapper;
     private final CompactSnowflakeIdGenerator idGenerator;
 
-    public OperationLogInterceptor(JdbcTemplate jdbcTemplate, CompactSnowflakeIdGenerator idGenerator) {
-        this.jdbcTemplate = jdbcTemplate;
+    public OperationLogInterceptor(OperationLogMapper operationLogMapper, CompactSnowflakeIdGenerator idGenerator) {
+        this.operationLogMapper = operationLogMapper;
         this.idGenerator = idGenerator;
     }
 
@@ -65,8 +65,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         MDC.put("costMs", String.valueOf(costMs));
         MDC.put("result", status);
         try {
-            jdbcTemplate.update(
-                    "insert into sys_operation_log (id, username, operation, request_uri, request_method, operation_status, operation_time) values (?, ?, ?, ?, ?, ?, current_timestamp)",
+            operationLogMapper.insertOperationLog(
                     idGenerator.nextId(),
                     username,
                     operation,
