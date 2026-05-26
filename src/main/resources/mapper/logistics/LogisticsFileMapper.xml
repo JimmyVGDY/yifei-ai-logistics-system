@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.logistics.mapper.LogisticsFileMapper">
+
+    <insert id="insertUploadedFile">
+        insert into sys_uploaded_file (
+            id, original_name, stored_name, relative_path, file_size,
+            content_type, upload_user, upload_time
+        )
+        values (
+            #{id}, #{originalName}, #{storedName}, #{relativePath}, #{fileSize},
+            #{contentType}, #{uploadUser}, current_timestamp
+        )
+    </insert>
+</mapper>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.logistics.mapper.LogisticsCustomerImportMapper">
+
+    <insert id="insertImportedCustomer">
+        insert into logistics_customer (
+            id, customer_code, customer_name, contact_name, contact_phone,
+            province, city, address, status, created_at, updated_at
+        )
+        values (
+            #{id}, #{customerCode}, #{customerName}, #{contactName}, #{contactPhone},
+            #{province}, #{city}, #{address}, 'ACTIVE', current_timestamp, current_timestamp
+        )
+    </insert>
+</mapper>
