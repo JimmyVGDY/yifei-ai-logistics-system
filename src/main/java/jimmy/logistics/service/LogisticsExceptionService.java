@@ -92,6 +92,12 @@ public class LogisticsExceptionService {
 
     private String currentUser() {
         Object loginId = StpUtil.getLoginIdDefaultNull();
-        return loginId == null ? "admin" : String.valueOf(loginId);
+        if (loginId == null) {
+            return "admin";
+        }
+        Object username = StpUtil.getSession().get("username", null);
+        return username == null || !StringUtils.hasText(String.valueOf(username))
+                ? String.valueOf(loginId)
+                : String.valueOf(username);
     }
 }

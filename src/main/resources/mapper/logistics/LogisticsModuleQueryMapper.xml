@@ -70,9 +70,16 @@
             </when>
             <when test="module == 'exceptions'">
                 select e.id, e.order_id, o.order_no, e.task_id, e.exception_type, e.exception_desc,
-                       e.exception_status, e.report_user, e.report_time, e.handle_user, e.handle_time,
+                       e.exception_status,
+                       coalesce(ru.username, e.report_user) as report_user,
+                       e.report_time,
+                       coalesce(hu.username, e.handle_user) as handle_user,
+                       e.handle_time,
                        <choose><when test="deletedExists">e.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
-                from logistics_exception e join logistics_order o on o.id = e.order_id
+                from logistics_exception e
+                join logistics_order o on o.id = e.order_id
+                left join sys_user ru on concat('', ru.id) = e.report_user
+                left join sys_user hu on concat('', hu.id) = e.handle_user
             </when>
             <when test="module == 'fees'">
                 select f.id, f.order_id, o.order_no, f.base_fee, f.weight_fee, f.distance_fee,
