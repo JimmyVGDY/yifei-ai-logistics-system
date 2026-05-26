@@ -2,6 +2,8 @@ package jimmy.logistics.service;
 
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
+import jimmy.logistics.mapper.LogisticsCrudMapper;
+import jimmy.logistics.model.CrudFieldValue;
 import jimmy.logistics.model.OperationResultVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -27,12 +29,16 @@ public class LogisticsCrudService {
     private static final String BUSINESS_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    private final LogisticsCrudMapper logisticsCrudMapper;
     private final JdbcTemplate jdbcTemplate;
     private final CompactSnowflakeIdGenerator idGenerator;
     private final Map<String, CrudConfig> configs;
     private final Map<String, Boolean> columnExistsCache = new ConcurrentHashMap<>();
 
-    public LogisticsCrudService(JdbcTemplate jdbcTemplate, CompactSnowflakeIdGenerator idGenerator) {
+    public LogisticsCrudService(LogisticsCrudMapper logisticsCrudMapper,
+                                JdbcTemplate jdbcTemplate,
+                                CompactSnowflakeIdGenerator idGenerator) {
+        this.logisticsCrudMapper = logisticsCrudMapper;
         this.jdbcTemplate = jdbcTemplate;
         this.idGenerator = idGenerator;
         this.configs = buildConfigs();
@@ -47,19 +53,7 @@ public class LogisticsCrudService {
         fillCreateDefaults(config, values);
         fillAuditDefaults(config, values, true);
 
-        StringBuilder fields = new StringBuilder();
-        StringBuilder placeholders = new StringBuilder();
-        List<Object> args = new ArrayList<>();
-        for (Map.Entry<String, Object> entry : values.entrySet()) {
-            if (fields.length() > 0) {
-                fields.append(", ");
-                placeholders.append(", ");
-            }
-            fields.append(entry.getKey());
-            placeholders.append("?");
-            args.add(entry.getValue());
-        }
-        jdbcTemplate.update("insert into " + config.tableName + " (" + fields + ") values (" + placeholders + ")", args.toArray());
+        logisticsCrudMapper.insertRecord(config.tableName, toFieldValues(values));
         log.info("管理模块新增完成，module={}, id={}", module, id);
         return new OperationResultVO(id);
     }
@@ -73,20 +67,7 @@ public class LogisticsCrudService {
             throw new IllegalArgumentException("没有可更新字段");
         }
 
-        StringBuilder setClause = new StringBuilder();
-        List<Object> args = new ArrayList<>();
-        for (Map.Entry<String, Object> entry : values.entrySet()) {
-            if (setClause.length() > 0) {
-                setClause.append(", ");
-            }
-            setClause.append(entry.getKey()).append(" = ?");
-            args.add(entry.getValue());
-        }
-        if (hasColumn(config.tableName, "version")) {
-            setClause.append(", version = version + 1");
-        }
-        args.add(id);
-        int updated = jdbcTemplate.update("update " + config.tableName + " set " + setClause + " where id = ?", args.toArray());
+        int updated = logisticsCrudMapper.updateRecord(config.tableName, id, toFieldValues(values), hasColumn(config.tableName, "version"));
         if (updated == 0) {
             throw new IllegalArgumentException("记录不存在");
         }
@@ -98,24 +79,16 @@ public class LogisticsCrudService {
         CrudConfig config = requireConfig(module);
         int updated;
         if (hasColumn(config.tableName, "deleted")) {
-            StringBuilder sql = new StringBuilder("update ").append(config.tableName).append(" set deleted = 1");
-            List<Object> args = new ArrayList<>();
+            Map<String, Object> deleteValues = new LinkedHashMap<>();
             if (config.updateTimeColumn != null && hasColumn(config.tableName, config.updateTimeColumn)) {
-                sql.append(", ").append(config.updateTimeColumn).append(" = ?");
-                args.add(new Timestamp(System.currentTimeMillis()));
+                deleteValues.put(config.updateTimeColumn, new Timestamp(System.currentTimeMillis()));
             }
             if (hasColumn(config.tableName, "update_by")) {
-                sql.append(", update_by = ?");
-                args.add(currentUserId());
+                deleteValues.put("update_by", currentUserId());
             }
-            if (hasColumn(config.tableName, "version")) {
-                sql.append(", version = version + 1");
-            }
-            sql.append(" where id = ? and deleted = 0");
-            args.add(id);
-            updated = jdbcTemplate.update(sql.toString(), args.toArray());
+            updated = logisticsCrudMapper.logicalDelete(config.tableName, id, toFieldValues(deleteValues), hasColumn(config.tableName, "version"));
         } else {
-            updated = jdbcTemplate.update("delete from " + config.tableName + " where id = ?", id);
+            updated = logisticsCrudMapper.physicalDelete(config.tableName, id);
         }
         if (updated == 0) {
             throw new IllegalArgumentException("记录不存在");
@@ -170,12 +143,7 @@ public class LogisticsCrudService {
     private String nextBusinessCode(String tableName, String columnName, String prefix) {
         for (int i = 0; i < 20; i++) {
             String code = prefix + randomCode(6);
-            Integer exists = jdbcTemplate.queryForObject(
-                    "select count(1) from " + tableName + " where " + columnName + " = ?",
-                    Integer.class,
-                    code
-            );
-            if (exists == null || exists == 0) {
+            if (logisticsCrudMapper.countByBusinessCode(tableName, columnName, code) == 0) {
                 return code;
             }
         }
@@ -188,6 +156,14 @@ public class LogisticsCrudService {
             builder.append(BUSINESS_CODE_CHARS.charAt(RANDOM.nextInt(BUSINESS_CODE_CHARS.length())));
         }
         return builder.toString();
+    }
+
+    private List<CrudFieldValue> toFieldValues(Map<String, Object> values) {
+        List<CrudFieldValue> fields = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            fields.add(new CrudFieldValue(entry.getKey(), entry.getValue()));
+        }
+        return fields;
     }
 
     private void fillUpdateDefaults(CrudConfig config, Map<String, Object> values) {
