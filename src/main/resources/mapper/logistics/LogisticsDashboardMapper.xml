@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.logistics.mapper.LogisticsDashboardMapper">
+
+    <select id="countTodayOrders" resultType="long">
+        select count(1)
+        from logistics_order
+        where date(created_at) = current_date
+    </select>
+
+    <select id="countCompletedOrders" resultType="long">
+        select count(1)
+        from logistics_order
+        where status in ('COMPLETED', 'SIGNED', 'DELIVERED')
+    </select>
+
+    <select id="countWaitDispatchOrders" resultType="long">
+        select count(1)
+        from logistics_order
+        where status in ('WAIT_DISPATCH', 'CREATED')
+    </select>
+
+    <select id="countInTransitOrders" resultType="long">
+        select count(1)
+        from logistics_order
+        where status = 'IN_TRANSIT'
+    </select>
+
+    <select id="countOpenExceptionOrders" resultType="long">
+        select count(1)
+        from logistics_exception
+        where exception_status != 'CLOSED'
+    </select>
+
+    <select id="sumPaidMonthIncome" resultType="java.math.BigDecimal">
+        select coalesce(sum(actual_fee), 0)
+        from logistics_fee
+        where payment_status = 'PAID'
+    </select>
+
+    <select id="selectStatusDistribution" resultType="map">
+        select status,
+               count(1) as total
+        from logistics_order
+        group by status
+        order by total desc
+    </select>
+
+    <select id="selectRecentOpenExceptions" resultType="map">
+        select e.id,
+               o.order_no,
+               e.exception_type,
+               e.exception_status,
+               e.report_user,
+               e.report_time
+        from logistics_exception e
+        join logistics_order o on o.id = e.order_id
+        where e.exception_status != 'CLOSED'
+        order by e.report_time desc
+        limit 5
+    </select>
+</mapper>

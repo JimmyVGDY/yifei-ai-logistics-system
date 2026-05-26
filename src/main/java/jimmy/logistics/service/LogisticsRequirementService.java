@@ -1,5 +1,6 @@
 package jimmy.logistics.service;
 
+import jimmy.logistics.mapper.LogisticsDashboardMapper;
 import jimmy.logistics.model.LogisticsDashboardSummary;
 import jimmy.logistics.model.ModuleQueryDTO;
 import jimmy.logistics.model.ModuleRecordVO;
@@ -34,12 +35,14 @@ public class LogisticsRequirementService {
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final SimpleDateFormat LEGACY_DATE_TIME_FORMATTER = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
+    private final LogisticsDashboardMapper logisticsDashboardMapper;
     private final JdbcTemplate jdbcTemplate;
     private final Map<String, String> moduleSql;
     private final Map<String, ModuleQueryConfig> moduleQueryConfigs;
     private final Map<String, Boolean> columnExistsCache = new ConcurrentHashMap<>();
 
-    public LogisticsRequirementService(JdbcTemplate jdbcTemplate) {
+    public LogisticsRequirementService(LogisticsDashboardMapper logisticsDashboardMapper, JdbcTemplate jdbcTemplate) {
+        this.logisticsDashboardMapper = logisticsDashboardMapper;
         this.jdbcTemplate = jdbcTemplate;
         this.moduleSql = buildModuleSql();
         this.moduleQueryConfigs = buildModuleQueryConfigs();
@@ -48,21 +51,14 @@ public class LogisticsRequirementService {
     public LogisticsDashboardSummary dashboardSummary() {
         log.info("开始查询物流运营看板统计数据");
         LogisticsDashboardSummary summary = new LogisticsDashboardSummary();
-        summary.setTodayOrders(count("select count(1) from logistics_order where date(created_at) = current_date"));
-        summary.setCompletedOrders(count("select count(1) from logistics_order where status in ('COMPLETED', 'SIGNED', 'DELIVERED')"));
-        summary.setWaitDispatchOrders(count("select count(1) from logistics_order where status in ('WAIT_DISPATCH', 'CREATED')"));
-        summary.setInTransitOrders(count("select count(1) from logistics_order where status = 'IN_TRANSIT'"));
-        summary.setExceptionOrders(count("select count(1) from logistics_exception where exception_status <> 'CLOSED'"));
-        summary.setMonthIncome(sum("select coalesce(sum(actual_fee), 0) from logistics_fee where payment_status = 'PAID'"));
-        summary.setStatusDistribution(jdbcTemplate.queryForList(
-                "select status, count(1) total from logistics_order group by status order by total desc"
-        ));
-        summary.setRecentExceptions(jdbcTemplate.queryForList(
-                "select e.id, o.order_no, e.exception_type, e.exception_status, e.report_user, e.report_time " +
-                        "from logistics_exception e join logistics_order o on o.id = e.order_id " +
-                        "where e.exception_status <> 'CLOSED' " +
-                        "order by e.report_time desc limit 5"
-        ));
+        summary.setTodayOrders(safeLong(logisticsDashboardMapper.countTodayOrders()));
+        summary.setCompletedOrders(safeLong(logisticsDashboardMapper.countCompletedOrders()));
+        summary.setWaitDispatchOrders(safeLong(logisticsDashboardMapper.countWaitDispatchOrders()));
+        summary.setInTransitOrders(safeLong(logisticsDashboardMapper.countInTransitOrders()));
+        summary.setExceptionOrders(safeLong(logisticsDashboardMapper.countOpenExceptionOrders()));
+        summary.setMonthIncome(safeBigDecimal(logisticsDashboardMapper.sumPaidMonthIncome()));
+        summary.setStatusDistribution(logisticsDashboardMapper.selectStatusDistribution());
+        summary.setRecentExceptions(formatDateTimeValues(logisticsDashboardMapper.selectRecentOpenExceptions()));
         log.info("物流运营看板统计完成，todayOrders={}, waitDispatch={}, inTransit={}, exceptionOrders={}",
                 summary.getTodayOrders(), summary.getWaitDispatchOrders(), summary.getInTransitOrders(), summary.getExceptionOrders());
         return summary;
@@ -160,13 +156,11 @@ public class LogisticsRequirementService {
         return value;
     }
 
-    private long count(String sql) {
-        Long value = jdbcTemplate.queryForObject(sql, Long.class);
+    private long safeLong(Long value) {
         return value == null ? 0 : value;
     }
 
-    private BigDecimal sum(String sql) {
-        BigDecimal value = jdbcTemplate.queryForObject(sql, BigDecimal.class);
+    private BigDecimal safeBigDecimal(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
