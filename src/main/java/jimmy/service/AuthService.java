@@ -50,9 +50,11 @@ public class AuthService {
         }
         upgradePasswordIfNecessary(loginUser, password);
 
+        // 菜单优先使用数据库配置，同时合并一份默认菜单兜底，避免本地开发库权限数据不完整时登录后无菜单。
         List<MenuVO> menus = mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
         List<String> permissions = collectPermissions(loginUser.roleCode, menus);
 
+        // Sa-Token 会话中保存前端渲染菜单、接口鉴权和结构化日志需要的最小身份信息。
         StpUtil.login(loginUser.id);
         StpUtil.getSession().set("userCode", loginUser.userCode);
         StpUtil.getSession().set("username", loginUser.username);
@@ -120,6 +122,7 @@ public class AuthService {
         if (!StringUtils.hasText(storedPassword)) {
             return false;
         }
+        // 兼容旧数据中的明文密码，登录成功后会在 upgradePasswordIfNecessary 中升级为 BCrypt。
         if (isBcrypt(storedPassword)) {
             return PASSWORD_ENCODER.matches(rawPassword, storedPassword);
         }
@@ -162,6 +165,7 @@ public class AuthService {
         Map<Long, MenuVO> byId = new LinkedHashMap<>();
         rows.forEach(menu -> byId.put(menu.getId(), menu));
         List<MenuVO> roots = new ArrayList<>();
+        // 数据库按扁平菜单存储，这里按 parent_id 组装成前端侧边栏需要的树形结构。
         for (MenuVO menu : rows) {
             if (menu.getParentId() != null && menu.getParentId() != 0 && byId.containsKey(menu.getParentId())) {
                 byId.get(menu.getParentId()).getChildren().add(menu);
@@ -201,6 +205,7 @@ public class AuthService {
 
     private List<MenuVO> mergeDefaultMenus(String roleCode, List<MenuVO> dbMenus) {
         Map<String, MenuVO> merged = new LinkedHashMap<>();
+        // 默认菜单只作为兜底；如果数据库里配置了额外菜单，会在后面追加进来。
         for (MenuVO menu : defaultMenus(roleCode)) {
             merged.put(menu.getPath(), menu);
         }
@@ -222,6 +227,7 @@ public class AuthService {
         for (String permission : permissions) {
             expandActionPermissions(permission, expanded);
         }
+        // 部分角色页面需要加载关联下拉数据，只补充只读查询权限，不额外开放对应菜单。
         addRelationQueryPermissions(roleCode, expanded);
         return expanded.stream().distinct().collect(Collectors.toList());
     }
@@ -249,6 +255,7 @@ public class AuthService {
     private void expandActionPermissions(String permission, List<String> expanded) {
         if (permission.endsWith(":manage")) {
             String prefix = permission.substring(0, permission.length() - ":manage".length());
+            // manage 表示该模块完整管理权限，展开成前端按钮和后端接口都会使用的细粒度动作权限。
             expanded.add(prefix + ":query");
             expanded.add(prefix + ":create");
             expanded.add(prefix + ":update");

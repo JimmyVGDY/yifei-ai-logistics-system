@@ -4,6 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="jimmy.logistics.mapper.LogisticsOrderMapper">
+    <!-- 订单实体字段映射，数据库使用下划线命名，Java 侧使用驼峰命名。 -->
     <resultMap id="LogisticsOrderResultMap" type="jimmy.logistics.entity.LogisticsOrder">
         <id column="id" property="id"/>
         <result column="order_no" property="orderNo"/>
@@ -17,6 +18,7 @@
         <result column="updated_at" property="updatedAt"/>
     </resultMap>
 
+    <!-- 查询近期订单用于看板和演示列表，limit 在 Service 层已做最大值限制。 -->
     <select id="findRecent" resultMap="LogisticsOrderResultMap">
         select id, order_no, customer_name, sender_address, receiver_address,
                cargo_name, cargo_weight, status, created_at, updated_at
@@ -25,6 +27,7 @@
         limit #{limit}
     </select>
 
+    <!-- 按业务订单号查询订单详情，供 Redis 缓存未命中后的数据库回源使用。 -->
     <select id="findByOrderNo" resultMap="LogisticsOrderResultMap">
         select id, order_no, customer_name, sender_address, receiver_address,
                cargo_name, cargo_weight, status, created_at, updated_at
@@ -32,6 +35,7 @@
         where order_no = #{orderNo}
     </select>
 
+    <!-- 创建订单只落核心业务字段，调度、运单、轨迹等后续链路由事件服务补齐。 -->
     <insert id="insert" parameterType="jimmy.logistics.entity.LogisticsOrder">
         insert into logistics_order (
             id, order_no, customer_name, sender_address, receiver_address,
@@ -43,6 +47,7 @@
         )
     </insert>
 
+    <!-- 订单状态统一通过订单号更新，便于 MQ 消费和异常处理链路复用。 -->
     <update id="updateStatus">
         update logistics_order
         set status = #{status}, updated_at = current_timestamp

@@ -62,6 +62,7 @@ public class StructuredLogQueryService {
     private List<Map<String, Object>> readStructuredLogs() {
         List<Map<String, Object>> records = new ArrayList<>();
         for (Path file : resolveLogFiles()) {
+            // 限制单次扫描行数，避免前端查询日志时一次性读取过大的历史文件。
             records.addAll(readFile(file, MAX_SCAN_LINES - records.size()));
             if (records.size() >= MAX_SCAN_LINES) {
                 break;
@@ -80,6 +81,7 @@ public class StructuredLogQueryService {
             return files;
         }
         try (Stream<Path> stream = Files.list(parent)) {
+            // 当前日志和滚动 JSON 日志一起查询，按修改时间倒序优先返回最近问题现场。
             stream.filter(Files::isRegularFile)
                     .filter(path -> path.getFileName().toString().startsWith("logistics-management."))
                     .filter(path -> path.getFileName().toString().endsWith(".json"))
@@ -114,6 +116,7 @@ public class StructuredLogQueryService {
         try {
             JsonNode root = objectMapper.readTree(line);
             Map<String, Object> record = new LinkedHashMap<>();
+            // 只抽取前端检索和详情展示需要的字段，缺失字段统一转为空字符串便于页面兜底展示。
             put(record, "timestamp", text(root, "timestamp"));
             put(record, "level", text(root, "level"));
             put(record, "logger", text(root, "logger"));
@@ -168,6 +171,7 @@ public class StructuredLogQueryService {
     private boolean matchesTime(Map<String, Object> record, String startTime, String endTime) {
         LocalDateTime timestamp = parseTime(String.valueOf(record.getOrDefault("timestamp", "")));
         if (timestamp == null) {
+            // 无法解析时间的历史日志不直接丢弃，避免排查问题时误漏非标准格式日志。
             return true;
         }
         LocalDateTime start = parseTime(startTime);
@@ -184,6 +188,7 @@ public class StructuredLogQueryService {
             return LocalDateTime.parse(trimmed, LOG_TIME_FORMATTER);
         } catch (DateTimeParseException ignored) {
             try {
+                // 兼容前端 datetime-local 的 T 分隔格式，以及只有秒级精度的日志时间。
                 String normalized = trimmed.replace('T', ' ');
                 if (normalized.length() >= 23) {
                     return LocalDateTime.parse(normalized.substring(0, 23), LOG_TIME_FORMATTER);

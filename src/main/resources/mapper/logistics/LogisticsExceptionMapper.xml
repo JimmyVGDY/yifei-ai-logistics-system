@@ -4,6 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="jimmy.logistics.mapper.LogisticsExceptionMapper">
 
+    <!-- 前端上报使用订单号，入库前先转换成订单主键，保证异常表保持主键关联。 -->
     <select id="findOrderIdByOrderNo" resultType="long">
         select id
         from logistics_order
@@ -11,6 +12,7 @@
         limit 1
     </select>
 
+    <!-- 异常可关联最近一次运输任务；没有任务时允许 task_id 为空。 -->
     <select id="findLatestTaskIdByOrderId" resultType="long">
         select id
         from logistics_task
@@ -19,6 +21,7 @@
         limit 1
     </select>
 
+    <!-- 处理异常前读取当前状态，用于 Service 层校验状态流转是否合法。 -->
     <select id="findExceptionStatus" resultType="string">
         select exception_status
         from logistics_exception
@@ -26,6 +29,7 @@
         limit 1
     </select>
 
+    <!-- 新上报异常默认进入待处理状态，处理人和处理时间先置空。 -->
     <insert id="insertException">
         insert into logistics_exception (
             id, order_id, task_id, exception_type, exception_desc,
@@ -37,6 +41,7 @@
         )
     </insert>
 
+    <!-- 订单出现异常后同步订单状态，方便看板统计和运单列表提醒。 -->
     <update id="updateOrderStatusException">
         update logistics_order
         set status = 'EXCEPTION',
@@ -44,6 +49,7 @@
         where id = #{orderId}
     </update>
 
+    <!-- 异常处理只更新处理状态、处理人和处理时间，状态是否合法由 Service 层控制。 -->
     <update id="updateExceptionStatus">
         update logistics_exception
         set exception_status = #{exceptionStatus},

@@ -29,11 +29,13 @@ public class LogisticsExceptionService {
     }
 
     public SimpleResultVO reportException(ExceptionReportDTO request) {
+        // 上报时通过订单号反查内部 ID，前端展示业务单号，数据库仍保持稳定的主键关联。
         Long orderId = findOrderId(request.getOrderNo());
         Long taskId = findTaskId(orderId);
         String reportUser = currentUser();
         Long exceptionId = idGenerator.nextId();
         logisticsExceptionMapper.insertException(exceptionId, orderId, taskId, request.getExceptionType(), request.getExceptionDesc(), reportUser);
+        // 异常记录和订单状态必须同步更新，方便看板统计未关闭异常订单。
         logisticsExceptionMapper.updateOrderStatusException(orderId);
         log.info("运输异常已上报，orderNo={}, exceptionType={}, reportUser={}",
                 request.getOrderNo(), request.getExceptionType(), reportUser);
@@ -48,6 +50,7 @@ public class LogisticsExceptionService {
             throw new IllegalArgumentException("异常处理状态不合法");
         }
         String currentStatus = findExceptionStatus(exceptionId);
+        // 状态流转集中校验，防止已关闭异常被重复处理或跳过处理中状态。
         validateStatusFlow(currentStatus, status);
         String handleUser = currentUser();
         int updated = logisticsExceptionMapper.updateExceptionStatus(exceptionId, status, handleUser);
@@ -96,6 +99,7 @@ public class LogisticsExceptionService {
             return "admin";
         }
         Object username = StpUtil.getSession().get("username", null);
+        // 操作人优先存登录账号，账号缺失时回退主键，避免异常表出现空上报人。
         return username == null || !StringUtils.hasText(String.valueOf(username))
                 ? String.valueOf(loginId)
                 : String.valueOf(username);

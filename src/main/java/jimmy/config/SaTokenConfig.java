@@ -47,6 +47,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
         if (checkDynamicLogisticsPermission()) {
             return;
         }
+        // 非通用模块接口在这里集中声明权限，便于和前端路由 meta.permission 对照维护。
         SaRouter.match("/logistics/dashboard", r -> StpUtil.checkPermission("dashboard:view"));
         SaRouter.match("/logistics/statistics/**", r -> StpUtil.checkPermission("dashboard:view"));
         SaRouter.match("/system/permissions/**", r -> StpUtil.checkPermission("system:permission:manage"));
@@ -63,6 +64,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
         String uri = request.getRequestURI();
         String method = request.getMethod();
         if (uri.startsWith("/logistics/modules/")) {
+            // 通用管理页接口按模块名映射权限前缀，再按 HTTP 方法解析查询/新增/修改/删除动作。
             String[] parts = uri.substring("/logistics/modules/".length()).split("/");
             String module = parts.length == 0 ? "" : parts[0];
             String prefix = MODULE_PERMISSION_PREFIXES.get(module);
@@ -113,6 +115,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
         if ("POST".equalsIgnoreCase(method) && parts.length == 1) {
             return "create";
         }
+        // 其余 POST/PUT/PATCH 统一按更新权限处理，例如状态处理、编辑表单保存等。
         return "update";
     }
 
@@ -125,6 +128,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
 
     private static Map<String, String> buildModulePermissionPrefixes() {
         Map<String, String> map = new HashMap<>();
+        // 这里只允许已登记模块进入动态鉴权，避免前端传任意 module 绕过权限控制。
         map.put("orders", "order");
         map.put("customers", "customer");
         map.put("waybills", "waybill");

@@ -49,6 +49,7 @@ public class LogisticsCrudService {
         Map<String, Object> values = filteredPayload(config, payload, false);
         Long id = idGenerator.nextId();
         values.put("id", id);
+        // 业务编号由后端统一生成，前端不需要手填，避免人工输入重复或格式不统一。
         fillBusinessCodeDefaults(config, values);
         fillCreateDefaults(config, values);
         fillAuditDefaults(config, values, true);
@@ -78,6 +79,7 @@ public class LogisticsCrudService {
     public OperationResultVO delete(String module, long id) {
         CrudConfig config = requireConfig(module);
         int updated;
+        // 已执行增量迁移的表优先逻辑删除，未迁移的旧表回退物理删除，保证旧库仍能运行。
         if (hasColumn(config.tableName, "deleted")) {
             Map<String, Object> deleteValues = new LinkedHashMap<>();
             if (config.updateTimeColumn != null && hasColumn(config.tableName, config.updateTimeColumn)) {
@@ -102,6 +104,7 @@ public class LogisticsCrudService {
         if (payload == null) {
             return values;
         }
+        // 只接受后端白名单字段；更新时未传入的字段不覆盖旧值，允许清空的字段由 nullableColumns 单独声明。
         for (String column : config.columns) {
             if (!update && column.equals(config.generatedCodeColumn)) {
                 continue;
@@ -143,6 +146,7 @@ public class LogisticsCrudService {
     private String nextBusinessCode(String tableName, String columnName, String prefix) {
         for (int i = 0; i < 20; i++) {
             String code = prefix + randomCode(6);
+            // 随机业务编号先查重再入库，极低概率连续冲突时再回退到雪花 ID 片段。
             if (logisticsCrudMapper.countByBusinessCode(tableName, columnName, code) == 0) {
                 return code;
             }
@@ -201,6 +205,7 @@ public class LogisticsCrudService {
     private boolean hasColumn(String tableName, String columnName) {
         String cacheKey = tableName + "." + columnName;
         return columnExistsCache.computeIfAbsent(cacheKey, key -> {
+            // 字段存在性检测用于兼容“已执行/未执行增量脚本”的本地数据库状态，结果缓存避免频繁访问元数据。
             try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
                 DatabaseMetaData metaData = connection.getMetaData();
                 String[] tableCandidates = {tableName, tableName.toUpperCase(), tableName.toLowerCase()};
@@ -223,6 +228,7 @@ public class LogisticsCrudService {
 
     private Map<String, CrudConfig> buildConfigs() {
         Map<String, CrudConfig> map = new HashMap<>();
+        // 通用 CRUD 只能操作这里声明的模块和字段，Mapper XML 中的动态表名/列名都来自该白名单。
         map.put("customers", CrudConfig.withGeneratedCode("logistics_customer", "created_at", "updated_at", "customer_code", "CUST", "customer_code", "customer_name", "contact_name", "contact_phone", "province", "city", "address", "status"));
         map.put("orders", CrudConfig.withNullable("logistics_order", "created_at", "updated_at",
                 Arrays.asList("cargo_name", "cargo_weight", "cargo_volume", "planned_pickup_time", "planned_delivery_time", "route_id", "warehouse_id", "vehicle_id", "driver_id"),

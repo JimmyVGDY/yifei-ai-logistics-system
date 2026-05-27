@@ -4,6 +4,10 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="jimmy.logistics.mapper.LogisticsCrudMapper">
 
+    <!--
+        通用 CRUD 需要动态表名和字段名，这里的 ${} 只能接收 Service 层白名单配置生成的值。
+        业务参数仍使用 #{} 预编译绑定，避免把前端输入直接拼进 SQL。
+    -->
     <insert id="insertRecord">
         insert into ${tableName}
         <trim prefix="(" suffix=")" suffixOverrides=",">
@@ -19,6 +23,7 @@
         </trim>
     </insert>
 
+    <!-- 更新只写入请求中明确传入且通过白名单过滤的字段，避免未传字段覆盖原值。 -->
     <update id="updateRecord">
         update ${tableName}
         <set>
@@ -32,6 +37,7 @@
         where id = #{id}
     </update>
 
+    <!-- 已迁移 deleted 字段的表走逻辑删除，同时可更新审计字段和版本号。 -->
     <update id="logicalDelete">
         update ${tableName}
         <set>
@@ -47,11 +53,13 @@
           and deleted = 0
     </update>
 
+    <!-- 兼容未执行增量迁移的旧表：没有 deleted 字段时才回退物理删除。 -->
     <delete id="physicalDelete">
         delete from ${tableName}
         where id = #{id}
     </delete>
 
+    <!-- 生成客户、司机、用户、角色等业务编号前先查重，降低随机编号冲突风险。 -->
     <select id="countByBusinessCode" resultType="int">
         select count(1)
         from ${tableName}

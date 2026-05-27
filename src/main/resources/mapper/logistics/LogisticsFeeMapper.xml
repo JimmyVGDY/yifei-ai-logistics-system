@@ -4,6 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="jimmy.logistics.mapper.LogisticsFeeMapper">
 
+    <!-- 费用生成依赖订单重量；重量为空时按 0 处理，避免历史订单无法生成账单。 -->
     <select id="findOrderFeeBaseByOrderNo" resultType="map">
         select id,
                coalesce(cargo_weight, 0) as cargoWeight
@@ -11,12 +12,14 @@
         where order_no = #{orderNo}
     </select>
 
+    <!-- 同一订单只保留一条费用记录，重复生成时走更新逻辑。 -->
     <select id="countByOrderId" resultType="int">
         select count(1)
         from logistics_fee
         where order_id = #{orderId}
     </select>
 
+    <!-- 重新生成费用时覆盖费用组成，但不直接改付款状态，避免误把已收款账单重置。 -->
     <update id="updateByOrderId">
         update logistics_fee
         set base_fee = #{baseFee},
@@ -29,6 +32,7 @@
         where order_id = #{orderId}
     </update>
 
+    <!-- 新费用默认未付款，实际收款金额为 0，收款动作再同步 actual_fee。 -->
     <insert id="insertFee">
         insert into logistics_fee (
             id, order_id, base_fee, weight_fee, distance_fee, additional_fee,
@@ -40,6 +44,7 @@
         )
     </insert>
 
+    <!-- 标记收款时将实收金额同步为应收金额，适用于当前全额收款模型。 -->
     <update id="markPaid">
         update logistics_fee
         set actual_fee = payable_fee,

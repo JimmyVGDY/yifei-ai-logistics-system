@@ -4,6 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="jimmy.mapper.SystemPermissionMapper">
 
+    <!-- 权限配置页使用同一份菜单映射，前端树形组件按 parent_id 组装层级。 -->
     <resultMap id="MenuResultMap" type="jimmy.model.MenuVO">
         <id property="id" column="id"/>
         <result property="parentId" column="parent_id"/>
@@ -13,6 +14,7 @@
         <result property="sortNo" column="sort_no"/>
     </resultMap>
 
+    <!-- 权限分配页展示所有启用菜单，停用菜单不参与勾选和授权。 -->
     <select id="selectAllActiveMenus" resultMap="MenuResultMap">
         select id,
                parent_id,
@@ -25,6 +27,7 @@
         order by sort_no, id
     </select>
 
+    <!-- 读取角色当前已授权菜单，用于编辑权限时回显勾选状态。 -->
     <select id="selectRoleMenuIds" resultType="long">
         select menu_id
         from sys_role_menu
@@ -70,11 +73,13 @@
         where role_id = #{roleId}
     </delete>
 
+    <!-- 保存权限采用先删后插，确保取消勾选的菜单也会同步移除授权。 -->
     <insert id="insertRoleMenu">
         insert into sys_role_menu (id, role_id, menu_id)
         values (#{id}, #{roleId}, #{menuId})
     </insert>
 
+    <!-- 本地库缺少权限配置菜单时自动补齐，避免系统管理页无法进入权限分配。 -->
     <insert id="insertPermissionMenu">
         insert into sys_menu (
             id, parent_id, menu_name, menu_path, permission_code,
@@ -86,6 +91,7 @@
         )
     </insert>
 
+    <!-- 本地库缺少结构化日志菜单时自动补齐，方便在页面直接检索 JSON 日志。 -->
     <insert id="insertStructuredLogMenu">
         insert into sys_menu (
             id, parent_id, menu_name, menu_path, permission_code,

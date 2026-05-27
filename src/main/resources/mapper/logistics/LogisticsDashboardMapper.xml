@@ -4,18 +4,21 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="jimmy.logistics.mapper.LogisticsDashboardMapper">
 
+    <!-- 今日新增订单数，用于运营看板顶部指标。 -->
     <select id="countTodayOrders" resultType="long">
         select count(1)
         from logistics_order
         where date(created_at) = current_date
     </select>
 
+    <!-- 完成类状态兼容历史状态码和当前物流签收状态。 -->
     <select id="countCompletedOrders" resultType="long">
         select count(1)
         from logistics_order
         where status in ('COMPLETED', 'SIGNED', 'DELIVERED')
     </select>
 
+    <!-- 待调度兼容 CREATED 旧状态，避免旧模拟数据在看板中被漏算。 -->
     <select id="countWaitDispatchOrders" resultType="long">
         select count(1)
         from logistics_order
@@ -40,6 +43,7 @@
         where payment_status = 'PAID'
     </select>
 
+    <!-- 订单状态分布保留英文状态码，中文展示由后端 statusLabel/前端字典统一转换。 -->
     <select id="selectStatusDistribution" resultType="map">
         select status,
                count(1) as total
@@ -48,6 +52,7 @@
         order by total desc
     </select>
 
+    <!-- 只取最近未关闭异常，避免看板提醒展示已经处理完成的异常。 -->
     <select id="selectRecentOpenExceptions" resultType="map">
         select e.id,
                o.order_no,

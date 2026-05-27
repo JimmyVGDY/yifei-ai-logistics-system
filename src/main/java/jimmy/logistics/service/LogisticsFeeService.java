@@ -26,6 +26,7 @@ public class LogisticsFeeService {
         Map<String, Object> order = logisticsFeeMapper.findOrderFeeBaseByOrderNo(orderNo);
         Long orderId = ((Number) order.get("id")).longValue();
         BigDecimal cargoWeight = new BigDecimal(String.valueOf(order.get("cargoWeight")));
+        // 当前是练习版计费模型：基础运费 + 重量费 + 固定里程费，后续可替换为线路/距离/合同价规则。
         BigDecimal baseFee = new BigDecimal("120.00");
         BigDecimal weightFee = cargoWeight.multiply(new BigDecimal("2.50")).setScale(2, BigDecimal.ROUND_HALF_UP);
         BigDecimal distanceFee = new BigDecimal("80.00");
@@ -34,6 +35,7 @@ public class LogisticsFeeService {
         BigDecimal payableFee = baseFee.add(weightFee).add(distanceFee).add(additionalFee).subtract(discountFee);
 
         if (logisticsFeeMapper.countByOrderId(orderId) > 0) {
+            // 同一订单重复生成费用时更新原账单，避免费用结算表出现多条重复账单。
             logisticsFeeMapper.updateByOrderId(orderId, baseFee, weightFee, distanceFee, additionalFee, discountFee, payableFee);
         } else {
             logisticsFeeMapper.insertFee(idGenerator.nextId(), orderId, baseFee, weightFee, distanceFee, additionalFee, discountFee, payableFee);
@@ -43,6 +45,7 @@ public class LogisticsFeeService {
     }
 
     public SimpleResultVO markFeePaid(long feeId) {
+        // 收款操作将实收金额同步为应收金额；后续接入部分收款时可在这里扩展收款流水。
         int updated = logisticsFeeMapper.markPaid(feeId);
         if (updated == 0) {
             throw new IllegalArgumentException("费用记录不存在");

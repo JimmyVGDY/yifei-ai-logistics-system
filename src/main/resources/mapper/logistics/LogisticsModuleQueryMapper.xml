@@ -4,6 +4,10 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="jimmy.logistics.mapper.LogisticsModuleQueryMapper">
 
+    <!--
+        统一列表查询的基础 SQL。module 来自后端白名单，不接收任意前端表名；
+        deleted_marker 用于兼容已迁移和未迁移 deleted 字段的数据库。
+    -->
     <sql id="baseModuleSelect">
         <choose>
             <when test="module == 'customers'">
@@ -69,6 +73,7 @@
                 from logistics_vehicle
             </when>
             <when test="module == 'exceptions'">
+                <!-- 异常表里可能存账号或用户 ID，这里尽量关联 sys_user 展示可读的上报人/处理人。 -->
                 select e.id, e.order_id, o.order_no, e.task_id, e.exception_type, e.exception_desc,
                        e.exception_status,
                        coalesce(ru.username, e.report_user) as report_user,
@@ -89,6 +94,7 @@
                 from logistics_fee f join logistics_order o on o.id = f.order_id
             </when>
             <when test="module == 'users'">
+                <!-- user_code 是后续增量字段；旧库没有该字段时用 U-id 兜底，保证前端仍有用户编号可展示。 -->
                 select u.id,
                        <choose><when test="userCodeExists">u.user_code</when><otherwise>concat('U-', u.id)</otherwise></choose> as user_code,
                        u.username, u.real_name, u.mobile, u.email, u.password, u.role_id,
@@ -102,6 +108,7 @@
                 from sys_role
             </when>
             <when test="module == 'operationLogs'">
+                <!-- 操作日志扩展字段可能尚未迁移，使用开关兼容旧结构，避免列表查询启动失败。 -->
                 select id,
                        <choose><when test="operationLogExtendedExists">operation_id</when><otherwise>null</otherwise></choose> as operation_id,
                        <choose><when test="operationLogExtendedExists">trace_id</when><otherwise>null</otherwise></choose> as trace_id,
@@ -123,6 +130,10 @@
         </choose>
     </sql>
 
+    <!--
+        通用过滤条件：关键词字段、时间字段和排序字段都由 Service 白名单传入；
+        keyword、startTime、endTime 使用 #{} 参数绑定。
+    -->
     <sql id="moduleFilters">
         where deleted_marker = 0
         <if test="keyword != null and keyword != '' and keywordColumns != null and keywordColumns.size() > 0">
@@ -140,6 +151,7 @@
         </if>
     </sql>
 
+    <!-- 分页前先计算总数，前端分页组件依赖 total 展示页码。 -->
     <select id="countModule" resultType="long">
         select count(1)
         from (
@@ -148,6 +160,7 @@
         <include refid="moduleFilters"/>
     </select>
 
+    <!-- 真实分页查询，limit/offset 使用参数绑定，orderColumn 来自后端白名单。 -->
     <select id="selectModulePage" resultType="map">
         select *
         from (

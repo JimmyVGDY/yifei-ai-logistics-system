@@ -93,6 +93,7 @@ public class LogisticsRequirementService {
         boolean userCodeExists = "users".equals(module) && hasColumn("sys_user", "user_code");
         boolean operationLogExtendedExists = "operationLogs".equals(module) && hasColumn("sys_operation_log", "operation_id");
 
+        // 模块、表名和可查询字段都来自后端白名单；关键词和时间范围仍通过 MyBatis 参数绑定。
         Long total = logisticsModuleQueryMapper.countModule(module, deletedExists, userCodeExists, operationLogExtendedExists, keyword,
                 queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime);
         List<Map<String, Object>> records = logisticsModuleQueryMapper.selectModulePage(module, deletedExists,
@@ -119,6 +120,7 @@ public class LogisticsRequirementService {
                 Object value = formatValue(entry.getValue());
                 formatted.put(entry.getKey(), value);
                 if (entry.getKey().contains("status") || "status".equals(entry.getKey())) {
+                    // 后端同时返回 statusLabel，前端未知状态也能兜底展示中文含义。
                     formatted.put(entry.getKey() + "Label", StatusLabel.label(value == null ? null : String.valueOf(value)));
                 }
             }
@@ -171,6 +173,7 @@ public class LogisticsRequirementService {
     private boolean hasColumn(String tableName, String columnName) {
         String cacheKey = tableName + "." + columnName;
         return columnExistsCache.computeIfAbsent(cacheKey, key -> {
+            // 兼容增量迁移前后的库结构，例如 deleted、user_code、operation_id 等字段可能暂时不存在。
             try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
                 DatabaseMetaData metaData = connection.getMetaData();
                 String[] tableCandidates = {tableName, tableName.toUpperCase(), tableName.toLowerCase()};
@@ -193,6 +196,7 @@ public class LogisticsRequirementService {
 
     private Map<String, ModuleQueryConfig> buildModuleQueryConfigs() {
         Map<String, ModuleQueryConfig> configs = new HashMap<>();
+        // 列表查询白名单：每个模块声明自己的主表、时间字段、排序字段和允许模糊查询的字段。
         configs.put("customers", new ModuleQueryConfig("logistics_customer", "created_at", "id", "customer_code", "customer_name", "contact_name", "contact_phone", "city", "address", "status"));
         configs.put("orders", new ModuleQueryConfig("logistics_order", "created_at", "id", "order_no", "customer_name", "sender_address", "receiver_address", "cargo_name", "status"));
         configs.put("waybills", new ModuleQueryConfig("logistics_waybill", "create_time", "id", "waybill_no", "order_no", "start_site", "target_site", "current_location", "transport_status"));

@@ -4,6 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="jimmy.mapper.AuthMapper">
 
+    <!-- 菜单结果映射给 Sa-Token 会话和前端侧边栏共用。 -->
     <resultMap id="MenuResultMap" type="jimmy.model.MenuVO">
         <id property="id" column="id"/>
         <result property="parentId" column="parent_id"/>
@@ -13,6 +14,7 @@
         <result property="sortNo" column="sort_no"/>
     </resultMap>
 
+    <!-- 登录查询只取鉴权和会话需要的字段，角色信息通过 role_id 关联 sys_role。 -->
     <select id="findLoginUserByUsername" resultType="map">
         select u.id,
                u.user_code as userCode,
@@ -28,6 +30,7 @@
         where u.username = #{username}
     </select>
 
+    <!-- 刷新当前会话时按登录 ID 重新读取用户和角色，保证角色调整后能尽快生效。 -->
     <select id="findLoginUserById" resultType="map">
         select u.id,
                u.user_code as userCode,
@@ -43,12 +46,14 @@
         where u.id = #{userId}
     </select>
 
+    <!-- 兼容旧明文密码：首次登录成功后升级为 BCrypt 密文。 -->
     <update id="updatePassword">
         update sys_user
         set password = #{password}
         where id = #{userId}
     </update>
 
+    <!-- 查询角色绑定的启用菜单，Service 层会把扁平结果组装成菜单树。 -->
     <select id="selectMenusByRoleId" resultMap="MenuResultMap">
         select m.id,
                m.parent_id,
