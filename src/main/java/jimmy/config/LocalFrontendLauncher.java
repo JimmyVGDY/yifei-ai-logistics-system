@@ -54,7 +54,14 @@ public class LocalFrontendLauncher implements ApplicationRunner {
             return;
         }
 
-        ProcessBuilder processBuilder = new ProcessBuilder("cmd", "/c", "npm", "run", "dev");
+        // 跨平台启动命令
+        String os = System.getProperty("os.name").toLowerCase();
+        ProcessBuilder processBuilder;
+        if (os.contains("win")) {
+            processBuilder = new ProcessBuilder("cmd", "/c", "npm", "run", "dev");
+        } else {
+            processBuilder = new ProcessBuilder("npm", "run", "dev");
+        }
         processBuilder.directory(workingDirectory);
         processBuilder.redirectErrorStream(true);
         processBuilder.start();
@@ -76,6 +83,15 @@ public class LocalFrontendLauncher implements ApplicationRunner {
             Desktop.getDesktop().browse(uri);
             return;
         }
-        Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start", properties.getUrl()});
+        
+        // 跨平台浏览器打开命令
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("win")) {
+            Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start", properties.getUrl()});
+        } else if (os.contains("mac")) {
+            Runtime.getRuntime().exec(new String[]{"open", properties.getUrl()});
+        } else {
+            Runtime.getRuntime().exec(new String[]{"xdg-open", properties.getUrl()});
+        }
     }
 }
