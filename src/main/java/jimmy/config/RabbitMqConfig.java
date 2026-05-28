@@ -1,5 +1,6 @@
 package jimmy.config;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
@@ -33,8 +34,8 @@ public class RabbitMqConfig {
     }
 
     @Bean
-    public Binding demoBinding(Queue demoQueue,
-                               DirectExchange demoExchange,
+    public Binding demoBinding(@Qualifier("demoQueue") Queue demoQueue,
+                               @Qualifier("demoExchange") DirectExchange demoExchange,
                                RabbitMqProperties properties) {
         // 将队列绑定到交换机后，生产者只需要发送到 exchange + routing key。
         return BindingBuilder.bind(demoQueue)

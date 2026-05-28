@@ -1,5 +1,6 @@
 package jimmy.config;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
@@ -24,8 +25,8 @@ public class LogisticsRabbitMqConfig {
     }
 
     @Bean
-    public Binding logisticsOrderCreatedBinding(Queue logisticsOrderCreatedQueue,
-                                                DirectExchange logisticsOrderExchange,
+    public Binding logisticsOrderCreatedBinding(@Qualifier("logisticsOrderCreatedQueue") Queue logisticsOrderCreatedQueue,
+                                                @Qualifier("logisticsOrderExchange") DirectExchange logisticsOrderExchange,
                                                 LogisticsProperties properties) {
         // 订单创建事件单独绑定队列，后续可扩展更多 routing key 处理不同物流事件。
         return BindingBuilder.bind(logisticsOrderCreatedQueue)
