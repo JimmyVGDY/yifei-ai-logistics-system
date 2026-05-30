@@ -24,6 +24,10 @@ public class LogisticsFeeService {
 
     public SimpleResultVO generateFee(String orderNo) {
         Map<String, Object> order = logisticsFeeMapper.findOrderFeeBaseByOrderNo(orderNo);
+        // 防御性校验：订单不存在或缺少必要字段时提前报错，避免后续 NPE。
+        if (order == null || order.get("id") == null || order.get("cargoWeight") == null) {
+            throw new IllegalArgumentException("订单不存在或缺少货物信息");
+        }
         Long orderId = ((Number) order.get("id")).longValue();
         BigDecimal cargoWeight = new BigDecimal(String.valueOf(order.get("cargoWeight")));
         // 当前是练习版计费模型：基础运费 + 重量费 + 固定里程费，后续可替换为线路/距离/合同价规则。

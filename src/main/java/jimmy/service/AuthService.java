@@ -76,11 +76,15 @@ public class AuthService {
         StpUtil.checkLogin();
         Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
         LoginUser loginUser = findLoginUserById(userId);
-        List<MenuVO> menus = loginUser == null ? new ArrayList<>() : mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
-        List<String> permissions = loginUser == null ? new ArrayList<>() : collectPermissions(loginUser.roleCode, menus);
+        // 用户被删除后 Token 可能依然有效，提前抛业务异常避免后续 NPE。
+        if (loginUser == null) {
+            throw new IllegalArgumentException("登录用户不存在，请重新登录");
+        }
+        List<MenuVO> menus = mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
+        List<String> permissions = collectPermissions(loginUser.roleCode, menus);
         // 与会话初始化保持一致的写入策略，确保 H2 等环境下读写同一会话域。
-        StpUtil.getSessionByLoginId(Long.valueOf(String.valueOf(StpUtil.getLoginId()))).set("permissions", permissions);
-        StpUtil.getSessionByLoginId(Long.valueOf(String.valueOf(StpUtil.getLoginId()))).set("menus", menus);
+        StpUtil.getSessionByLoginId(userId).set("permissions", permissions);
+        StpUtil.getSessionByLoginId(userId).set("menus", menus);
         return buildResponse(loginUser, StpUtil.getTokenInfo(), permissions, menus);
     }
 
