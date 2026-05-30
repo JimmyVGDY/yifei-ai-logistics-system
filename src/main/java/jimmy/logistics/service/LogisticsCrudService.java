@@ -5,13 +5,10 @@ import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.mapper.LogisticsCrudMapper;
 import jimmy.logistics.model.CrudFieldValue;
 import jimmy.logistics.model.OperationResultVO;
+import jimmy.logistics.util.ColumnExistenceChecker;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -20,7 +17,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -30,16 +26,15 @@ public class LogisticsCrudService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final LogisticsCrudMapper logisticsCrudMapper;
-    private final JdbcTemplate jdbcTemplate;
+    private final ColumnExistenceChecker columnChecker;
     private final CompactSnowflakeIdGenerator idGenerator;
     private final Map<String, CrudConfig> configs;
-    private final Map<String, Boolean> columnExistsCache = new ConcurrentHashMap<>();
 
     public LogisticsCrudService(LogisticsCrudMapper logisticsCrudMapper,
-                                JdbcTemplate jdbcTemplate,
+                                ColumnExistenceChecker columnChecker,
                                 CompactSnowflakeIdGenerator idGenerator) {
         this.logisticsCrudMapper = logisticsCrudMapper;
-        this.jdbcTemplate = jdbcTemplate;
+        this.columnChecker = columnChecker;
         this.idGenerator = idGenerator;
         this.configs = buildConfigs();
     }
@@ -49,13 +44,13 @@ public class LogisticsCrudService {
         Map<String, Object> values = filteredPayload(config, payload, false);
         Long id = idGenerator.nextId();
         values.put("id", id);
-        // 业务编号由后端统一生成，前端不需要手填，避免人工输入重复或格式不统一。
+        // 业务编号由后端统一生成,前端不需要手填,避免人工输入重复或格式不统一。
         fillBusinessCodeDefaults(config, values);
         fillCreateDefaults(config, values);
         fillAuditDefaults(config, values, true);
 
         logisticsCrudMapper.insertRecord(config.tableName, toFieldValues(values));
-        log.info("管理模块新增完成，module={}, id={}", module, id);
+        log.info("管理模块新增完成,module={}, id={}", module, id);
         return new OperationResultVO(id);
     }
 
@@ -68,34 +63,34 @@ public class LogisticsCrudService {
             throw new IllegalArgumentException("没有可更新字段");
         }
 
-        int updated = logisticsCrudMapper.updateRecord(config.tableName, id, toFieldValues(values), hasColumn(config.tableName, "version"));
+        int updated = logisticsCrudMapper.updateRecord(config.tableName, id, toFieldValues(values), columnChecker.hasColumn(config.tableName, "version"));
         if (updated == 0) {
             throw new IllegalArgumentException("记录不存在");
         }
-        log.info("管理模块更新完成，module={}, id={}", module, id);
+        log.info("管理模块更新完成,module={}, id={}", module, id);
         return new OperationResultVO(id);
     }
 
     public OperationResultVO delete(String module, long id) {
         CrudConfig config = requireConfig(module);
         int updated;
-        // 已执行增量迁移的表优先逻辑删除，未迁移的旧表回退物理删除，保证旧库仍能运行。
-        if (hasColumn(config.tableName, "deleted")) {
+        // 已执行增量迁移的表优先逻辑删除,未迁移的旧表回退物理删除,保证旧库仍能运行。
+        if (columnChecker.hasColumn(config.tableName, "deleted")) {
             Map<String, Object> deleteValues = new LinkedHashMap<>();
-            if (config.updateTimeColumn != null && hasColumn(config.tableName, config.updateTimeColumn)) {
+            if (config.updateTimeColumn != null && columnChecker.hasColumn(config.tableName, config.updateTimeColumn)) {
                 deleteValues.put(config.updateTimeColumn, new Timestamp(System.currentTimeMillis()));
             }
-            if (hasColumn(config.tableName, "update_by")) {
+            if (columnChecker.hasColumn(config.tableName, "update_by")) {
                 deleteValues.put("update_by", currentUserId());
             }
-            updated = logisticsCrudMapper.logicalDelete(config.tableName, id, toFieldValues(deleteValues), hasColumn(config.tableName, "version"));
+            updated = logisticsCrudMapper.logicalDelete(config.tableName, id, toFieldValues(deleteValues), columnChecker.hasColumn(config.tableName, "version"));
         } else {
             updated = logisticsCrudMapper.physicalDelete(config.tableName, id);
         }
         if (updated == 0) {
             throw new IllegalArgumentException("记录不存在");
         }
-        log.info("管理模块删除完成，module={}, id={}", module, id);
+        log.info("管理模块删除完成,module={}, id={}", module, id);
         return OperationResultVO.deleted(id);
     }
 
@@ -104,7 +99,7 @@ public class LogisticsCrudService {
         if (payload == null) {
             return values;
         }
-        // 只接受后端白名单字段；更新时未传入的字段不覆盖旧值，允许清空的字段由 nullableColumns 单独声明。
+        // 只接受后端白名单字段;更新时未传入的字段不覆盖旧值,允许清空的字段由 nullableColumns 单独声明。
         for (String column : config.columns) {
             if (!update && column.equals(config.generatedCodeColumn)) {
                 continue;
@@ -115,7 +110,7 @@ public class LogisticsCrudService {
             if (update && payload.get(column) == null && !config.nullableColumns.contains(column)) {
                 continue;
             }
-            if (hasColumn(config.tableName, column) && payload.containsKey(column)) {
+            if (columnChecker.hasColumn(config.tableName, column) && payload.containsKey(column)) {
                 values.put(column, payload.get(column));
             }
         }
@@ -124,16 +119,16 @@ public class LogisticsCrudService {
 
     private void fillCreateDefaults(CrudConfig config, Map<String, Object> values) {
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        if (config.createTimeColumn != null && hasColumn(config.tableName, config.createTimeColumn) && !values.containsKey(config.createTimeColumn)) {
+        if (config.createTimeColumn != null && columnChecker.hasColumn(config.tableName, config.createTimeColumn) && !values.containsKey(config.createTimeColumn)) {
             values.put(config.createTimeColumn, now);
         }
-        if (config.updateTimeColumn != null && hasColumn(config.tableName, config.updateTimeColumn) && !values.containsKey(config.updateTimeColumn)) {
+        if (config.updateTimeColumn != null && columnChecker.hasColumn(config.tableName, config.updateTimeColumn) && !values.containsKey(config.updateTimeColumn)) {
             values.put(config.updateTimeColumn, now);
         }
     }
 
     private void fillBusinessCodeDefaults(CrudConfig config, Map<String, Object> values) {
-        if (config.generatedCodeColumn == null || !hasColumn(config.tableName, config.generatedCodeColumn)) {
+        if (config.generatedCodeColumn == null || !columnChecker.hasColumn(config.tableName, config.generatedCodeColumn)) {
             return;
         }
         Object current = values.get(config.generatedCodeColumn);
@@ -146,7 +141,7 @@ public class LogisticsCrudService {
     private String nextBusinessCode(String tableName, String columnName, String prefix) {
         for (int i = 0; i < 20; i++) {
             String code = prefix + randomCode(6);
-            // 随机业务编号先查重再入库，极低概率连续冲突时再回退到雪花 ID 片段。
+            // 随机业务编号先查重再入库,极低概率连续冲突时再回退到雪花 ID 片段。
             if (logisticsCrudMapper.countByBusinessCode(tableName, columnName, code) == 0) {
                 return code;
             }
@@ -171,17 +166,17 @@ public class LogisticsCrudService {
     }
 
     private void fillUpdateDefaults(CrudConfig config, Map<String, Object> values) {
-        if (config.updateTimeColumn != null && hasColumn(config.tableName, config.updateTimeColumn)) {
+        if (config.updateTimeColumn != null && columnChecker.hasColumn(config.tableName, config.updateTimeColumn)) {
             values.put(config.updateTimeColumn, new Timestamp(System.currentTimeMillis()));
         }
     }
 
     private void fillAuditDefaults(CrudConfig config, Map<String, Object> values, boolean create) {
         Long userId = currentUserId();
-        if (create && hasColumn(config.tableName, "create_by")) {
+        if (create && columnChecker.hasColumn(config.tableName, "create_by")) {
             values.put("create_by", userId);
         }
-        if (hasColumn(config.tableName, "update_by")) {
+        if (columnChecker.hasColumn(config.tableName, "update_by")) {
             values.put("update_by", userId);
         }
     }
@@ -202,33 +197,11 @@ public class LogisticsCrudService {
         return Long.valueOf(String.valueOf(loginId));
     }
 
-    private boolean hasColumn(String tableName, String columnName) {
-        String cacheKey = tableName + "." + columnName;
-        return columnExistsCache.computeIfAbsent(cacheKey, key -> {
-            // 字段存在性检测用于兼容“已执行/未执行增量脚本”的本地数据库状态，结果缓存避免频繁访问元数据。
-            try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
-                DatabaseMetaData metaData = connection.getMetaData();
-                String[] tableCandidates = {tableName, tableName.toUpperCase(), tableName.toLowerCase()};
-                String[] columnCandidates = {columnName, columnName.toUpperCase(), columnName.toLowerCase()};
-                for (String table : tableCandidates) {
-                    for (String column : columnCandidates) {
-                        try (ResultSet rs = metaData.getColumns(connection.getCatalog(), null, table, column)) {
-                            if (rs.next()) {
-                                return true;
-                            }
-                        }
-                    }
-                }
-            } catch (Exception exception) {
-                log.warn("检测表字段失败，tableName={}, columnName={}, reason={}", tableName, columnName, exception.getMessage());
-            }
-            return false;
-        });
-    }
+
 
     private Map<String, CrudConfig> buildConfigs() {
         Map<String, CrudConfig> map = new HashMap<>();
-        // 通用 CRUD 只能操作这里声明的模块和字段，Mapper XML 中的动态表名/列名都来自该白名单。
+        // 通用 CRUD 只能操作这里声明的模块和字段,Mapper XML 中的动态表名/列名都来自该白名单。
         map.put("customers", CrudConfig.withGeneratedCode("logistics_customer", "created_at", "updated_at", "customer_code", "CUST", "customer_code", "customer_name", "contact_name", "contact_phone", "province", "city", "address", "status"));
         map.put("orders", CrudConfig.withNullable("logistics_order", "created_at", "updated_at",
                 Arrays.asList("cargo_name", "cargo_weight", "cargo_volume", "planned_pickup_time", "planned_delivery_time", "route_id", "warehouse_id", "vehicle_id", "driver_id"),

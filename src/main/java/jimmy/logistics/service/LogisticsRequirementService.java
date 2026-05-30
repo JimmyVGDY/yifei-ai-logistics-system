@@ -6,16 +6,13 @@ import jimmy.logistics.model.LogisticsDashboardSummary;
 import jimmy.logistics.model.ModuleQueryDTO;
 import jimmy.logistics.model.ModuleRecordVO;
 import jimmy.logistics.model.StatusLabel;
+import jimmy.logistics.util.ColumnExistenceChecker;
 import jimmy.model.PageResult;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
@@ -28,6 +25,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -38,16 +37,15 @@ public class LogisticsRequirementService {
 
     private final LogisticsDashboardMapper logisticsDashboardMapper;
     private final LogisticsModuleQueryMapper logisticsModuleQueryMapper;
-    private final JdbcTemplate jdbcTemplate;
+    private final ColumnExistenceChecker columnChecker;
     private final Map<String, ModuleQueryConfig> moduleQueryConfigs;
-    private final Map<String, Boolean> columnExistsCache = new ConcurrentHashMap<>();
 
     public LogisticsRequirementService(LogisticsDashboardMapper logisticsDashboardMapper,
                                        LogisticsModuleQueryMapper logisticsModuleQueryMapper,
-                                       JdbcTemplate jdbcTemplate) {
+                                       ColumnExistenceChecker columnChecker) {
         this.logisticsDashboardMapper = logisticsDashboardMapper;
         this.logisticsModuleQueryMapper = logisticsModuleQueryMapper;
-        this.jdbcTemplate = jdbcTemplate;
+        this.columnChecker = columnChecker;
         this.moduleQueryConfigs = buildModuleQueryConfigs();
     }
 
@@ -89,9 +87,9 @@ public class LogisticsRequirementService {
         String keyword = trimToNull(query == null ? null : query.getKeyword());
         String startTime = trimToNull(query == null ? null : query.getStartTime());
         String endTime = trimToNull(query == null ? null : query.getEndTime());
-        boolean deletedExists = hasColumn(queryConfig.tableName, "deleted");
-        boolean userCodeExists = "users".equals(module) && hasColumn("sys_user", "user_code");
-        boolean operationLogExtendedExists = "operationLogs".equals(module) && hasColumn("sys_operation_log", "operation_id");
+        boolean deletedExists = columnChecker.hasColumn(queryConfig.tableName, "deleted");
+        boolean userCodeExists = "users".equals(module) && columnChecker.hasColumn("sys_user", "user_code");
+        boolean operationLogExtendedExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "operation_id");
 
         // 模块、表名和可查询字段都来自后端白名单；关键词和时间范围仍通过 MyBatis 参数绑定。
         Long total = logisticsModuleQueryMapper.countModule(module, deletedExists, userCodeExists, operationLogExtendedExists, keyword,
@@ -170,29 +168,7 @@ public class LogisticsRequirementService {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    private boolean hasColumn(String tableName, String columnName) {
-        String cacheKey = tableName + "." + columnName;
-        return columnExistsCache.computeIfAbsent(cacheKey, key -> {
-            // 兼容增量迁移前后的库结构，例如 deleted、user_code、operation_id 等字段可能暂时不存在。
-            try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
-                DatabaseMetaData metaData = connection.getMetaData();
-                String[] tableCandidates = {tableName, tableName.toUpperCase(), tableName.toLowerCase()};
-                String[] columnCandidates = {columnName, columnName.toUpperCase(), columnName.toLowerCase()};
-                for (String table : tableCandidates) {
-                    for (String column : columnCandidates) {
-                        try (ResultSet rs = metaData.getColumns(connection.getCatalog(), null, table, column)) {
-                            if (rs.next()) {
-                                return true;
-                            }
-                        }
-                    }
-                }
-            } catch (Exception exception) {
-                log.warn("检测表字段失败，tableName={}, columnName={}, reason={}", tableName, columnName, exception.getMessage());
-            }
-            return false;
-        });
-    }
+
 
     private Map<String, ModuleQueryConfig> buildModuleQueryConfigs() {
         Map<String, ModuleQueryConfig> configs = new HashMap<>();
