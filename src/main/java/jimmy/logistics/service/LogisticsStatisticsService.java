@@ -5,8 +5,9 @@ import jimmy.logistics.model.TrendPointVO;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @Service
 public class LogisticsStatisticsService {
@@ -19,16 +20,22 @@ public class LogisticsStatisticsService {
 
     public List<TrendPointVO> orderTrend(int days) {
         int safeDays = Math.max(1, Math.min(days, 30));
-        return logisticsStatisticsMapper.selectOrderTrend(-safeDays).stream()
-                .map(row -> new TrendPointVO(String.valueOf(row.get("statDate")), toBigDecimal(row.get("total"))))
-                .collect(Collectors.toList());
+        List<Map<String, Object>> rows = logisticsStatisticsMapper.selectOrderTrend(-safeDays);
+        List<TrendPointVO> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            result.add(new TrendPointVO(String.valueOf(row.get("statDate")), toBigDecimal(row.get("total"))));
+        }
+        return result;
     }
 
     public List<TrendPointVO> incomeTrend(int months) {
         int safeMonths = Math.max(1, Math.min(months, 12));
-        return logisticsStatisticsMapper.selectIncomeTrend(-safeMonths).stream()
-                .map(row -> new TrendPointVO(String.valueOf(row.get("statMonth")), toBigDecimal(row.get("total"))))
-                .collect(Collectors.toList());
+        List<Map<String, Object>> rows = logisticsStatisticsMapper.selectIncomeTrend(-safeMonths);
+        List<TrendPointVO> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            result.add(new TrendPointVO(String.valueOf(row.get("statMonth")), toBigDecimal(row.get("total"))));
+        }
+        return result;
     }
 
     private BigDecimal toBigDecimal(Object value) {
