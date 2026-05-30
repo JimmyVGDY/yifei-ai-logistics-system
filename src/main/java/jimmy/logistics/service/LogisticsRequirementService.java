@@ -14,7 +14,6 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -24,16 +23,12 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
 public class LogisticsRequirementService {
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final SimpleDateFormat LEGACY_DATE_TIME_FORMATTER = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
     private final LogisticsDashboardMapper logisticsDashboardMapper;
     private final LogisticsModuleQueryMapper logisticsModuleQueryMapper;
@@ -132,7 +127,8 @@ public class LogisticsRequirementService {
             return ((LocalDateTime) value).format(DATE_TIME_FORMATTER);
         }
         if (value instanceof Timestamp) {
-            return LEGACY_DATE_TIME_FORMATTER.format((Timestamp) value);
+            // 使用线程安全的 DateTimeFormatter 替代 SimpleDateFormat，避免并发格式化异常。
+            return ((Timestamp) value).toLocalDateTime().format(DATE_TIME_FORMATTER);
         }
         return value;
     }
