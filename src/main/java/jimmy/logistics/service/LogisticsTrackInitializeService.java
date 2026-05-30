@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 public class LogisticsTrackInitializeService {
 
     private static final String ORDER_CREATED_DESC = "订单创建后自动初始化轨迹";
+    /** 订单创建时运单尚未生成，waybillId 暂存为 0，后续调度时补充。 */
+    private static final long INITIAL_WAYBILL_ID = 0L;
 
     private final LogisticsTrackMapper logisticsTrackMapper;
     private final CompactSnowflakeIdGenerator idGenerator;
@@ -28,7 +30,7 @@ public class LogisticsTrackInitializeService {
         logisticsTrackMapper.insertTrack(
                 idGenerator.nextId(),
                 order.getId(),
-                0L,
+                INITIAL_WAYBILL_ID,
                 order.getStatus(),
                 "订单中心",
                 "系统",
