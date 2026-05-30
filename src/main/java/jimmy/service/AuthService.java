@@ -55,15 +55,16 @@ public class AuthService {
         List<String> permissions = collectPermissions(loginUser.roleCode, menus);
 
         // Sa-Token 会话中保存前端渲染菜单、接口鉴权和结构化日志需要的最小身份信息。
+        // 使用 getSessionByLoginId 可确保与 SaPermissionConfig 读取端一致，同时兼容 H2 内存模式。
         StpUtil.login(loginUser.id);
-        StpUtil.getSession().set("userCode", loginUser.userCode);
-        StpUtil.getSession().set("username", loginUser.username);
-        StpUtil.getSession().set("usernameMasked", LogMaskUtils.maskAccount(loginUser.username));
-        StpUtil.getSession().set("realNameMasked", LogMaskUtils.maskName(loginUser.realName));
-        StpUtil.getSession().set("roleCode", loginUser.roleCode);
-        StpUtil.getSession().set("roleName", loginUser.roleName);
-        StpUtil.getSession().set("permissions", permissions);
-        StpUtil.getSession().set("menus", menus);
+        StpUtil.getSessionByLoginId(loginUser.id).set("userCode", loginUser.userCode);
+        StpUtil.getSessionByLoginId(loginUser.id).set("username", loginUser.username);
+        StpUtil.getSessionByLoginId(loginUser.id).set("usernameMasked", LogMaskUtils.maskAccount(loginUser.username));
+        StpUtil.getSessionByLoginId(loginUser.id).set("realNameMasked", LogMaskUtils.maskName(loginUser.realName));
+        StpUtil.getSessionByLoginId(loginUser.id).set("roleCode", loginUser.roleCode);
+        StpUtil.getSessionByLoginId(loginUser.id).set("roleName", loginUser.roleName);
+        StpUtil.getSessionByLoginId(loginUser.id).set("permissions", permissions);
+        StpUtil.getSessionByLoginId(loginUser.id).set("menus", menus);
 
         SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
         log.info("账号登录成功，userId={}, username={}, roleCode={}",
@@ -77,8 +78,9 @@ public class AuthService {
         LoginUser loginUser = findLoginUserById(userId);
         List<MenuVO> menus = loginUser == null ? new ArrayList<>() : mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
         List<String> permissions = loginUser == null ? new ArrayList<>() : collectPermissions(loginUser.roleCode, menus);
-        StpUtil.getSession().set("permissions", permissions);
-        StpUtil.getSession().set("menus", menus);
+        // 与会话初始化保持一致的写入策略，确保 H2 等环境下读写同一会话域。
+        StpUtil.getSessionByLoginId(Long.valueOf(String.valueOf(StpUtil.getLoginId()))).set("permissions", permissions);
+        StpUtil.getSessionByLoginId(Long.valueOf(String.valueOf(StpUtil.getLoginId()))).set("menus", menus);
         return buildResponse(loginUser, StpUtil.getTokenInfo(), permissions, menus);
     }
 
