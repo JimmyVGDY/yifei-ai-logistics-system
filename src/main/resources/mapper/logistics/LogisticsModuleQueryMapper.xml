@@ -97,7 +97,7 @@
                 <!-- user_code 是后续增量字段；旧库没有该字段时用 U-id 兜底，保证前端仍有用户编号可展示。 -->
                 select u.id,
                        <choose><when test="userCodeExists">u.user_code</when><otherwise>concat('U-', u.id)</otherwise></choose> as user_code,
-                       u.username, u.real_name, u.mobile, u.email, u.password, u.role_id,
+                       u.username, u.real_name, u.mobile, u.email, u.role_id,
                        r.role_name, u.status, u.create_time, u.update_time,
                        <choose><when test="deletedExists">u.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
                 from sys_user u left join sys_role r on r.id = u.role_id
