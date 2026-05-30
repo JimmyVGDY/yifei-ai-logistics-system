@@ -1,5 +1,6 @@
 package jimmy.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -14,6 +15,7 @@ import java.net.URI;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Configuration
 @Profile("dev")
 @EnableConfigurationProperties(LocalFrontendProperties.class)
@@ -26,12 +28,18 @@ public class LocalFrontendLauncher implements ApplicationRunner {
     }
 
     @Override
-    public void run(ApplicationArguments args) throws Exception {
-        if (properties.isAutoStart() && !isFrontendAvailable()) {
-            startFrontend();
-        }
-        if (properties.isAutoOpen()) {
-            waitForFrontendAndOpen();
+    public void run(ApplicationArguments args) {
+        try {
+            if (properties.isAutoStart() && !isFrontendAvailable()) {
+                startFrontend();
+            }
+            if (properties.isAutoOpen()) {
+                waitForFrontendAndOpen();
+            }
+        } catch (Exception exception) {
+            // 前端启动/打开失败不阻塞后端服务启动，仅记录日志。
+            // 典型场景：WSL2 下缺少 xdg-open、CI 环境无 GUI 等。
+            log.warn("前端开发服务启动失败，后端服务继续运行，reason={}", exception.getMessage());
         }
     }
 
