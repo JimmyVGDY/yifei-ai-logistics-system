@@ -6,6 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
+/**
+ * RabbitMQ 演示消息服务 —— 发送测试消息验证消息队列连通性。
+ */
 @Slf4j
 @Service
 public class RabbitMessageService {
@@ -18,6 +21,11 @@ public class RabbitMessageService {
         this.properties = properties;
     }
 
+    /**
+     * 发送演示消息到配置的 exchange 和 routing key。
+     *
+     * @param message 消息内容，日志中会脱敏显示
+     */
     public void sendDemoMessage(String message) {
         log.info("发送 RabbitMQ 演示消息，exchange={}, routingKey={}, message={}",
                 properties.getDemoExchange(), properties.getDemoRoutingKey(), LogMaskUtils.maskText(message));
@@ -26,6 +34,7 @@ public class RabbitMessageService {
                 properties.getDemoRoutingKey(),
                 message
         );
-        log.info("RabbitMQ 演示消息发送完成，exchange={}, routingKey={}", properties.getDemoExchange(), properties.getDemoRoutingKey());
+        log.info("RabbitMQ 演示消息发送完成，exchange={}, routingKey={}",
+                properties.getDemoExchange(), properties.getDemoRoutingKey());
     }
 }

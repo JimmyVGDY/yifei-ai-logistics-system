@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 布隆过滤器调试接口 —— 用于验证订单号是否已被记录。
+ */
 @RestController
 @RequestMapping("/bloom-filter")
 public class BloomFilterController {
@@ -23,15 +26,13 @@ public class BloomFilterController {
     public ApiResponse<InfrastructureStatus> put(@RequestParam String value) {
         boolean changed = bloomFilterService.put(value);
         return ApiResponse.success(InfrastructureStatus.of("bloom-filter", "stored")
-                .detail("value", value)
-                .detail("changed", changed));
+                .detail("value", value).detail("changed", changed));
     }
 
     @GetMapping("/items")
     public ApiResponse<InfrastructureStatus> mightContain(@RequestParam String value) {
         boolean mightContain = bloomFilterService.mightContain(value);
         return ApiResponse.success(InfrastructureStatus.of("bloom-filter", "checked")
-                .detail("value", value)
-                .detail("mightContain", mightContain));
+                .detail("value", value).detail("mightContain", mightContain));
     }
 }

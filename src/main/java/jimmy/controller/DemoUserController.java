@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * Demo 用户示例控制器 —— 验证项目基础 CRUD 功能是否正常。
+ */
 @RestController
 @RequestMapping("/demo-users")
 public class DemoUserController {
