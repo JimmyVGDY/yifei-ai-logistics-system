@@ -55,6 +55,12 @@ public class LogisticsRequirementService {
         summary.setMonthIncome(safeBigDecimal(logisticsDashboardMapper.sumPaidMonthIncome()));
         summary.setStatusDistribution(logisticsDashboardMapper.selectStatusDistribution());
         summary.setRecentExceptions(formatDateTimeValues(logisticsDashboardMapper.selectRecentOpenExceptions()));
+        // 合同到期预警：查询 30 天内到期的有效合同
+        summary.setExpiringContracts(logisticsDashboardMapper.selectExpiringContracts(30));
+        // 上月收入/订单/异常汇总
+        summary.setLastMonthIncome(safeBigDecimal(logisticsDashboardMapper.sumPaidMonthIncome()));
+        summary.setLastMonthOrders(safeLong(logisticsDashboardMapper.countLastMonthOrders()));
+        summary.setLastMonthExceptions(logisticsDashboardMapper.countLastMonthExceptions());
         log.info("物流运营看板统计完成，todayOrders={}, waitDispatch={}, inTransit={}, exceptionOrders={}",
                 summary.getTodayOrders(), summary.getWaitDispatchOrders(), summary.getInTransitOrders(), summary.getExceptionOrders());
         return summary;

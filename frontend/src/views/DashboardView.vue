@@ -10,6 +10,51 @@
       </el-col>
     </el-row>
 
+    <el-row :gutter="16" v-if="summary?.lastMonthIncome != null">
+      <el-col :xs="24">
+        <section class="metric-panel" style="display:flex;gap:24px;justify-content:center;padding:16px 24px">
+          <span>📊 上月汇总</span>
+          <span>订单数 <strong>{{ summary?.lastMonthOrders || 0 }}</strong></span>
+          <span>收入 <strong>¥{{ summary?.lastMonthIncome || 0 }}</strong></span>
+          <span>异常 <strong>{{ summary?.lastMonthExceptions || 0 }}</strong></span>
+        </section>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="16">
+      <el-col :xs="24" :lg="12">
+        <section class="content-panel">
+          <div class="panel-header">
+            <div><h3>合同到期提醒</h3><p>30 天内到期合同</p></div>
+          </div>
+          <el-table :data="summary?.expiringContracts || []" v-loading="loading" height="320">
+            <el-table-column prop="contractNo" label="合同编号" min-width="140" />
+            <el-table-column prop="employeeId" label="员工ID" width="100" />
+            <el-table-column prop="endDate" label="到期日期" width="120" />
+            <el-table-column label="状态" width="100">
+              <template #default><el-tag type="warning" size="small">即将到期</el-tag></template>
+            </el-table-column>
+          </el-table>
+        </section>
+      </el-col>
+
+      <el-col :xs="24" :lg="12">
+        <section class="content-panel">
+          <div class="panel-header">
+            <div><h3>异常订单提醒</h3><p>最近上报且未关闭的运输异常</p></div>
+          </div>
+          <el-table :data="openRecentExceptions" v-loading="loading" height="320">
+            <el-table-column prop="order_no" label="订单号" min-width="160" />
+            <el-table-column prop="exception_type" label="异常类型" width="120" />
+            <el-table-column prop="exception_status" label="状态" width="120">
+              <template #default="{ row }">{{ statusLabel(row.exception_status) }}</template>
+            </el-table-column>
+            <el-table-column prop="report_user" label="上报人" width="120" />
+          </el-table>
+        </section>
+      </el-col>
+    </el-row>
+
     <el-row :gutter="16">
       <el-col :xs="24" :lg="12">
         <section class="content-panel">
@@ -34,18 +79,11 @@
       <el-col :xs="24" :lg="12">
         <section class="content-panel">
           <div class="panel-header">
-            <div>
-              <h3>异常订单提醒</h3>
-              <p>最近上报且未关闭的运输异常</p>
-            </div>
+            <div><h3>订单趋势</h3><p>最近 7 天订单创建量</p></div>
           </div>
-          <el-table :data="openRecentExceptions" v-loading="loading" height="320">
-            <el-table-column prop="order_no" label="订单号" min-width="160" />
-            <el-table-column prop="exception_type" label="异常类型" width="120" />
-            <el-table-column prop="exception_status" label="状态" width="120">
-              <template #default="{ row }">{{ statusLabel(row.exception_status) }}</template>
-            </el-table-column>
-            <el-table-column prop="report_user" label="上报人" width="120" />
+          <el-table :data="orderTrend" v-loading="loading" height="320">
+            <el-table-column prop="name" label="日期" min-width="160" />
+            <el-table-column prop="total" label="订单数" width="120" />
           </el-table>
         </section>
       </el-col>
@@ -55,27 +93,9 @@
       <el-col :xs="24" :lg="12">
         <section class="content-panel">
           <div class="panel-header">
-            <div>
-              <h3>订单趋势</h3>
-              <p>最近 7 天订单创建量</p>
-            </div>
+            <div><h3>收入趋势</h3><p>最近 6 个月已收款金额</p></div>
           </div>
-          <el-table :data="orderTrend" v-loading="loading" height="260">
-            <el-table-column prop="name" label="日期" min-width="160" />
-            <el-table-column prop="total" label="订单数" width="120" />
-          </el-table>
-        </section>
-      </el-col>
-
-      <el-col :xs="24" :lg="12">
-        <section class="content-panel">
-          <div class="panel-header">
-            <div>
-              <h3>收入趋势</h3>
-              <p>最近 6 个月已收款金额</p>
-            </div>
-          </div>
-          <el-table :data="incomeTrend" v-loading="loading" height="260">
+          <el-table :data="incomeTrend" v-loading="loading" height="320">
             <el-table-column prop="name" label="月份" min-width="160" />
             <el-table-column prop="total" label="收入" width="140" />
           </el-table>

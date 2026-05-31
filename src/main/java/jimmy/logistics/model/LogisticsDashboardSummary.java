@@ -14,6 +14,14 @@ public class LogisticsDashboardSummary {
     private BigDecimal monthIncome;
     private List<Map<String, Object>> statusDistribution;
     private List<Map<String, Object>> recentExceptions;
+    /** 30 天内到期合同 */
+    private List<Map<String, Object>> expiringContracts;
+    /** 上月收入汇总 */
+    private BigDecimal lastMonthIncome;
+    /** 上月订单数 */
+    private long lastMonthOrders;
+    /** 上月异常数 */
+    private long lastMonthExceptions;
 
     public long getTodayOrders() {
         return todayOrders;
@@ -78,4 +86,13 @@ public class LogisticsDashboardSummary {
     public void setRecentExceptions(List<Map<String, Object>> recentExceptions) {
         this.recentExceptions = recentExceptions;
     }
+
+    public List<Map<String, Object>> getExpiringContracts() { return expiringContracts; }
+    public void setExpiringContracts(List<Map<String, Object>> val) { this.expiringContracts = val; }
+    public BigDecimal getLastMonthIncome() { return lastMonthIncome; }
+    public void setLastMonthIncome(BigDecimal val) { this.lastMonthIncome = val; }
+    public long getLastMonthOrders() { return lastMonthOrders; }
+    public void setLastMonthOrders(long val) { this.lastMonthOrders = val; }
+    public long getLastMonthExceptions() { return lastMonthExceptions; }
+    public void setLastMonthExceptions(long val) { this.lastMonthExceptions = val; }
 }
