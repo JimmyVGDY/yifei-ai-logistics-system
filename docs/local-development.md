@@ -87,10 +87,16 @@ http://127.0.0.1:9200
 
 1. 用 JDK 8 打开项目
 2. 等待 Maven 依赖加载完成
-3. Run Configuration 添加 VM Options：
+3. Run Configuration 添加 VM Options（默认连接本地 XXL-Job）：
 
 ```
--Dspring.datasource.password=你的MySQL密码 -Dnacos.register-enabled=false -Dxxl.job.enabled=false
+-Dspring.datasource.password=你的MySQL密码 -Dnacos.register-enabled=false -Dxxl.job.admin.addresses=http://127.0.0.1:8081/xxl-job-admin -Dxxl.job.executor.port=9999
+```
+
+不需要 XXL-Job 时改为：
+
+```
+-Dspring.datasource.password=你的MySQL密码 -Dnacos.register-enabled=false -Dxxl.job.executor.port=-1
 ```
 
 4. 运行 `jimmy.DemoApplication`
