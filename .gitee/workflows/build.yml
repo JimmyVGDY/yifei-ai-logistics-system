@@ -1,0 +1,44 @@
+# ==========================================
+# 物流管理平台 — Gitee CI 自动编译流水线
+# Push 到 master 分支后自动验证编译是否通过
+# ==========================================
+name: Build Check
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  compile:
+    name: Maven 编译验证
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+
+      - name: 缓存 Maven 依赖
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-maven-
+
+      - name: 编译项目
+        run: *** clean compile -B
+
+      - name: 编译结果
+        if: success()
+        run: echo "✅ 编译通过"
+
+      - name: 编译失败
+        if: failure()
+        run: echo "❌ 编译失败，请检查提交代码"
