@@ -1,0 +1,10 @@
+# Grafana 仪表盘自动加载配置
+apiVersion: 1
+
+providers:
+  - name: "Logistics Dashboards"
+    folder: "物流管理"
+    type: file
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards

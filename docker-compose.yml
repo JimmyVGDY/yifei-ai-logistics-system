@@ -183,6 +183,93 @@ services:
     networks:
       - logistics-net
 
+  # ==================== 指标监控 ====================
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: logistics-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - logistics-net
+
+  # ==================== 可视化仪表盘 ====================
+  grafana:
+    image: grafana/grafana:9.5.0
+    container_name: logistics-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:***
+      GF_INSTALL_PLUGINS: ""
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./ops/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./ops/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./ops/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/logistics.json:ro
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - logistics-net
+
+  # ==================== 日志采集 ====================
+  filebeat:
+    image: elastic/filebeat:7.17.0
+    container_name: logistics-filebeat
+    restart: unless-stopped
+    user: root
+    volumes:
+      - ./ops/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - app_logs:/var/log/app:ro
+    command: filebeat -e -strict.perms=false
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - logistics-net
+
+  # ==================== 日志可视化 ====================
+  kibana:
+    image: kibana:7.17.0
+    container_name: logistics-kibana
+    restart: unless-stopped
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      SERVER_PUBLICBASEURL: http://localhost:5601
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:5601/api/status | grep -q 'green\\|yellow'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - logistics-net
+
 # ==================== 存储卷 ====================
 volumes:
   mysql_data:
@@ -198,6 +285,10 @@ volumes:
   app_logs:
     driver: local
   app_uploads:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
     driver: local
 
 # ==================== 网络 ====================

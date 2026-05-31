@@ -1,0 +1,45 @@
+# ==========================================
+# Prometheus 告警规则
+# ==========================================
+groups:
+  - name: logistics-app
+    rules:
+      # ---- 应用存活 ----
+      - alert: AppDown
+        expr: up{job="logistics-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "物流管理平台应用宕机"
+          description: "应用 {{ $labels.instance }} 已超过 1 分钟无响应"
+
+      # ---- 接口错误率 ----
+      - alert: HighErrorRate
+        expr: rate(http_server_requests_seconds_count{status=~"5..",job="logistics-app"}[5m]) / rate(http_server_requests_seconds_count{job="logistics-app"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "接口 5xx 错误率超过 5%"
+          description: "错误率: {{ $value | humanizePercentage }}"
+
+      # ---- 接口响应时间 ----
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.99, rate(http_server_requests_seconds_bucket{job="logistics-app"}[5m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "接口 P99 响应时间超过 3 秒"
+          description: "P99: {{ $value }}s"
+
+      # ---- JVM 堆内存 ----
+      - alert: HighHeapUsage
+        expr: (jvm_memory_used_bytes{area="heap",job="logistics-app"} / jvm_memory_max_bytes{area="heap",job="logistics-app"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM 堆内存使用率超过 85%"
+          description: "当前: {{ $value | humanizePercentage }}"

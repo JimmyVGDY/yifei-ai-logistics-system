@@ -1,0 +1,138 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "title": "服务运行状态",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "up{job=\"logistics-app\"}",
+        "legendFormat": "应用"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "value": "1", "text": "✅ 运行中" },
+            { "type": "value", "value": "0", "text": "❌ 宕机" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "auto" }
+    },
+    {
+      "title": "QPS",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 0 },
+      "targets": [{
+        "expr": "rate(http_server_requests_seconds_count{job=\"logistics-app\"}[1m])",
+        "legendFormat": "QPS"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "lineWidth": 2, "fillOpacity": 15 } }
+      }
+    },
+    {
+      "title": "P99 响应时间",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "targets": [{
+        "expr": "histogram_quantile(0.99, rate(http_server_requests_seconds_bucket{job=\"logistics-app\"}[1m]))",
+        "legendFormat": "P99"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2, "fillOpacity": 15 } }
+      }
+    },
+    {
+      "title": "5xx 错误率",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 4 },
+      "targets": [{
+        "expr": "rate(http_server_requests_seconds_count{status=~\"5..\",job=\"logistics-app\"}[5m]) / rate(http_server_requests_seconds_count{job=\"logistics-app\"}[5m])",
+        "legendFormat": "5xx rate"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "max": 1, "custom": { "lineWidth": 2, "fillOpacity": 20 } },
+        "overrides": [{
+          "matcher": { "id": "byName", "options": "5xx rate" },
+          "properties": [{
+            "id": "thresholds",
+            "value": { "mode": "absolute", "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]}
+          }]
+        }]
+      }
+    },
+    {
+      "title": "JVM 堆内存使用",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 8 },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{area=\"heap\",job=\"logistics-app\"}", "legendFormat": "已用" },
+        { "expr": "jvm_memory_max_bytes{area=\"heap\",job=\"logistics-app\"}", "legendFormat": "最大" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "decbytes", "min": 0, "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 350000000 },
+          { "color": "red", "value": 450000000 }
+        ]}}
+      },
+      "options": { "showThresholdLabels": true, "showThresholdMarkers": true }
+    },
+    {
+      "title": "JVM 线程数",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "jvm_threads_live_threads{job=\"logistics-app\"}", "legendFormat": "活跃线程" },
+        { "expr": "jvm_threads_daemon_threads{job=\"logistics-app\"}", "legendFormat": "守护线程" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10 } } }
+    },
+    {
+      "title": "GC 暂停时间",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "targets": [{
+        "expr": "rate(jvm_gc_pause_seconds_sum{job=\"logistics-app\"}[1m])",
+        "legendFormat": "GC 暂停速率(s/s)"
+      }],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 } } }
+    },
+    {
+      "title": "接口响应时间分布",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [{
+        "expr": "topk(5, histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{job=\"logistics-app\"}[5m])))",
+        "format": "table", "instant": true
+      }],
+      "transformations": [
+        { "id": "organize", "options": {
+          "excludeByName": { "Time": true, "Value": false, "instance": true, "job": true },
+          "renameByName": { "uri": "接口路径", "Value #P95": "P95 响应时间" }
+        }}
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto" } },
+        "overrides": [{ "matcher": { "id": "byName", "options": "P95 响应时间" }, "properties": [{ "id": "unit", "value": "s" }] }]
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["logistics", "production"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "title": "物流管理平台监控",
+  "uid": "logistics-monitor",
+  "version": 1
+}
