@@ -64,6 +64,12 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- 暴露 Prometheus 格式指标，供 Prometheus 采集 JVM、HTTP、数据库等运行时数据。 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- 启用 bootstrap.yml，适配 Spring Boot 2.7 与 Spring Cloud 2021 的 Nacos 配置加载。 -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
