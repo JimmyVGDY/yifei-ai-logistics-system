@@ -305,7 +305,7 @@ public class AuthService {
             return menus("orders", "tracks");
         }
         return menus("dashboard", "orders", "customers", "waybills", "dispatches", "tasks", "tracks",
-                "drivers", "vehicles", "exceptions", "fees", "system", "users", "roles", "permissions", "logs", "structuredLogs", "files", "resources");
+                "drivers", "vehicles", "exceptions", "fees", "system", "users", "roles", "permissions", "files", "resources");
     }
 
     private List<MenuVO> menus(String... keys) {
@@ -338,15 +338,12 @@ public class AuthService {
                 menu(-13L, -12L, "用户管理", "/system/users", "system:user:manage", 910),
                 menu(-14L, -12L, "角色管理", "/system/roles", "system:role:manage", 920),
                 menu(-18L, -12L, "权限配置", "/system/permissions", "system:permission:manage", 925),
-                menu(-15L, -12L, "操作日志", "/system/operation-logs", "system:log:view", 930),
-                menu(-19L, -12L, "结构化日志", "/system/structured-logs", "system:log:view", 935)
+                menu(-15L, -12L, "操作日志", "/system/operation-logs", "system:log:view", 930)
         ));
         menus.put("system", system);
         menus.put("users", system.getChildren().get(0));
         menus.put("roles", system.getChildren().get(1));
         menus.put("permissions", system.getChildren().get(2));
-        menus.put("logs", system.getChildren().get(3));
-        menus.put("structuredLogs", system.getChildren().get(4));
         menus.put("files", menu(-16L, 0L, "上传文件", "/files", "file:manage", 940));
         menus.put("resources", menu(-17L, 0L, "资源中心", "/resources", "resource:view", 950));
         return menus;

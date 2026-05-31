@@ -4,7 +4,6 @@ import ResourcesView from '../views/ResourcesView.vue'
 import LoginView from '../views/LoginView.vue'
 import ModuleListView from '../views/ModuleListView.vue'
 import PermissionConfigView from '../views/PermissionConfigView.vue'
-import StructuredLogsView from '../views/StructuredLogsView.vue'
 import { canVisit, firstMenuPath, isAuthenticated } from '../stores/auth-store'
 
 const routes = [
@@ -25,7 +24,6 @@ const routes = [
   { path: '/system/roles', component: ModuleListView, meta: { title: '角色管理', module: 'roles', permission: 'system:role:manage' } },
   { path: '/system/permissions', component: PermissionConfigView, meta: { title: '权限配置', permission: 'system:permission:manage' } },
   { path: '/system/operation-logs', component: ModuleListView, meta: { title: '操作日志', module: 'operationLogs', permission: 'system:log:view' } },
-  { path: '/system/structured-logs', component: StructuredLogsView, meta: { title: '结构化日志', permission: 'system:log:view' } },
   { path: '/files', component: ModuleListView, meta: { title: '上传文件', module: 'files', permission: 'file:manage' } },
   { path: '/resources', component: ResourcesView, meta: { title: '资源中心', permission: 'resource:view' } }
 ]
