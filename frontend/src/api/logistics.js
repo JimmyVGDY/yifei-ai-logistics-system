@@ -82,7 +82,3 @@ export function createOrder(payload) {
 export function fetchInfrastructureStatus() {
   return http.get('/infra/status')
 }
-
-export function fetchStructuredLogs(params = {}) {
-  return http.get('/system/structured-logs', { params })
-}

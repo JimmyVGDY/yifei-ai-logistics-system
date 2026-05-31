@@ -75,7 +75,6 @@ function iconName(path) {
     '/exceptions': 'Warning',
     '/fees': 'Money',
     '/system/permissions': 'Lock',
-    '/system/structured-logs': 'DocumentSearch',
     '/files': 'Upload',
     '/resources': 'SetUp'
   }
