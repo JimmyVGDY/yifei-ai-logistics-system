@@ -54,12 +54,6 @@
         where menu_path = '/system/permissions'
     </select>
 
-    <select id="countStructuredLogMenu" resultType="int">
-        select count(1)
-        from sys_menu
-        where menu_path = '/system/structured-logs'
-    </select>
-
     <select id="selectSystemMenuId" resultType="long">
         select id
         from sys_menu
@@ -88,18 +82,6 @@
         values (
             #{id}, #{parentId}, '权限配置', '/system/permissions', 'system:permission:manage',
             925, 1, #{createTime}, #{updateTime}
-        )
-    </insert>
-
-    <!-- 本地库缺少结构化日志菜单时自动补齐，方便在页面直接检索 JSON 日志。 -->
-    <insert id="insertStructuredLogMenu">
-        insert into sys_menu (
-            id, parent_id, menu_name, menu_path, permission_code,
-            sort_no, status, create_time, update_time
-        )
-        values (
-            #{id}, #{parentId}, '结构化日志', '/system/structured-logs', 'system:log:view',
-            935, 1, #{createTime}, #{updateTime}
         )
     </insert>
 </mapper>

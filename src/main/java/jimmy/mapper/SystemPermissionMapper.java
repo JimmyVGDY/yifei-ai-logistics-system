@@ -20,8 +20,6 @@ public interface SystemPermissionMapper {
 
     int countPermissionMenu();
 
-    int countStructuredLogMenu();
-
     Long selectSystemMenuId();
 
     int deleteRoleMenus(@Param("roleId") Long roleId);
@@ -31,8 +29,4 @@ public interface SystemPermissionMapper {
     int insertPermissionMenu(@Param("id") Long id, @Param("parentId") Long parentId,
                              @Param("createTime") Timestamp createTime,
                              @Param("updateTime") Timestamp updateTime);
-
-    int insertStructuredLogMenu(@Param("id") Long id, @Param("parentId") Long parentId,
-                                @Param("createTime") Timestamp createTime,
-                                @Param("updateTime") Timestamp updateTime);
 }

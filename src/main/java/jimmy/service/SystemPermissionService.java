@@ -80,8 +80,5 @@ public class SystemPermissionService {
         if (systemPermissionMapper.countPermissionMenu() == 0) {
             systemPermissionMapper.insertPermissionMenu(idGenerator.nextId(), resolvedParentId, now, now);
         }
-        if (systemPermissionMapper.countStructuredLogMenu() == 0) {
-            systemPermissionMapper.insertStructuredLogMenu(idGenerator.nextId(), resolvedParentId, now, now);
-        }
     }
 }
