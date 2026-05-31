@@ -1,6 +1,6 @@
 #!/bin/bash
 cd /home/jimmy/.openclaw/workspace/practice-project-about-develop
-export SPRING_DATASOURCE_PASSWORD='***'
+export SPRING_DATASOURCE_PASSWORD=***
 export SPRING_SQL_INIT_MODE=never
 export NACOS_REGISTER_ENABLED=false
 export LOCAL_FRONTEND_AUTO_OPEN=false
