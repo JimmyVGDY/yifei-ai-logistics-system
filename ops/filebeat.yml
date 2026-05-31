@@ -1,0 +1,46 @@
+# ==========================================
+# Filebeat — 日志采集配置
+# 采集 Spring Boot 应用日志并写入 Elasticsearch
+# ==========================================
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/app/logistics-management.log
+    fields:
+      app: logistics-app
+      env: production
+    fields_under_root: true
+    # 多行合并（将异常堆栈合为一条日志记录）
+    multiline.pattern: '^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}'
+    multiline.negate: true
+    multiline.match: after
+
+  # JSON 格式日志（MDC 结构化输出的日志文件）
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/app/logistics-management.*.json
+    fields:
+      app: logistics-app
+      env: production
+    fields_under_root: true
+    json.keys_under_root: true
+    json.add_error_key: true
+
+# ---- 输出到已有 Elasticsearch ----
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  index: "logistics-logs-%{+yyyy.MM.dd}"
+  # 索引生命周期：7 天后自动删除
+  ilm.enabled: true
+  ilm.rollover_alias: "logistics-logs"
+  ilm.pattern: "{now/d}-000001"
+
+# ---- 日志处理 ----
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - drop_fields:
+      fields: ["agent.ephemeral_id", "agent.id", "input.type", "log.offset"]
