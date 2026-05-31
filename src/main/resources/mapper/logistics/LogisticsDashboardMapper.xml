@@ -67,4 +67,33 @@
         order by e.report_time desc
         limit 5
     </select>
+
+    <!-- 查询指定天数内到期的合同，用于定时任务预警。 -->
+    <select id="selectExpiringContracts" resultType="map">
+        select c.id,
+               c.employee_id as employeeId,
+               c.contract_no  as contractNo,
+               date_format(c.end_date, '%Y-%m-%d') as endDate
+        from hr_contract c
+        where c.contract_status = 1
+          and c.end_date is not null
+          and c.end_date between current_date and date_add(current_date, interval #{days} day)
+    </select>
+
+    <select id="countLastMonthOrders" resultType="long">
+        select count(1)
+        from logistics_order
+        where date_format(created_at, '%Y-%m') = date_format(date_sub(current_date, interval 1 month), '%Y-%m')
+    </select>
+
+    <select id="countLastMonthExceptions" resultType="int">
+        select count(1)
+        from logistics_exception
+        where date_format(report_time, '%Y-%m') = date_format(date_sub(current_date, interval 1 month), '%Y-%m')
+    </select>
+
+    <select id="countUploadedFiles" resultType="long">
+        select count(1)
+        from sys_uploaded_file
+    </select>
 </mapper>

@@ -55,3 +55,14 @@ logging:
     root: WARN
     jimmy: INFO
     org.springframework: WARN
+
+# XXL-Job 执行器配置（定时任务）
+# 调度中心地址由 XXL_JOB_ADMIN_ADDRESSES 环境变量注入
+xxl:
+  job:
+    admin:
+      addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
+    executor:
+      appname: logistics-app
+      port: ${XXL_JOB_EXECUTOR_PORT:9999}
+      logpath: /app/logs/xxl-job
