@@ -42,3 +42,7 @@ frontend/.vite/
 # Uploaded files generated during local development
 uploads/
 F:\Development\Maven\Repository/
+docker/sentinel/*.jar
+.env
+.env.local
+ops/*.log
