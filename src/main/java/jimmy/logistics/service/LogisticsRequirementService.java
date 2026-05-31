@@ -181,7 +181,7 @@ public class LogisticsRequirementService {
         configs.put("fees", new ModuleQueryConfig("logistics_fee", "create_time", "id", "order_no", "payment_status"));
         configs.put("users", new ModuleQueryConfig("sys_user", "create_time", "id", "user_code", "username", "real_name", "mobile", "email", "role_name"));
         configs.put("roles", new ModuleQueryConfig("sys_role", "create_time", "id", "role_code", "role_name", "status"));
-        configs.put("operationLogs", new ModuleQueryConfig("sys_operation_log", "operation_time", "id", "operation_id", "trace_id", "user_id", "user_code", "username", "role_code", "operation", "request_uri", "request_method", "operation_status"));
+        configs.put("operationLogs", new ModuleQueryConfig("sys_operation_log", "operation_time", "id", "operation_id", "trace_id", "user_id", "user_code", "username", "role_code", "operation", "request_uri", "request_method", "operation_status", "error_message"));
         configs.put("files", new ModuleQueryConfig("sys_uploaded_file", "upload_time", "id", "original_name", "relative_path", "content_type", "upload_user"));
         return configs;
     }

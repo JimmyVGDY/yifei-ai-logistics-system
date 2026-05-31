@@ -118,6 +118,7 @@
                        <choose><when test="operationLogExtendedExists">role_code</when><otherwise>null</otherwise></choose> as role_code,
                        operation, request_uri, request_method, operation_status,
                        <choose><when test="operationLogExtendedExists">cost_ms</when><otherwise>null</otherwise></choose> as cost_ms,
+                       <choose><when test="operationLogExtendedExists">error_message</when><otherwise>null</otherwise></choose> as error_message,
                        operation_time,
                        0 as deleted_marker
                 from sys_operation_log

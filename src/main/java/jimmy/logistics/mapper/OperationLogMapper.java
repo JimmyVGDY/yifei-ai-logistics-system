@@ -17,7 +17,8 @@ public interface OperationLogMapper {
                            @Param("requestUri") String requestUri,
                            @Param("requestMethod") String requestMethod,
                            @Param("operationStatus") String operationStatus,
-                           @Param("costMs") Long costMs);
+                           @Param("costMs") Long costMs,
+                           @Param("errorMessage") String errorMessage);
 
     int insertLegacyOperationLog(@Param("id") Long id,
                                  @Param("username") String username,

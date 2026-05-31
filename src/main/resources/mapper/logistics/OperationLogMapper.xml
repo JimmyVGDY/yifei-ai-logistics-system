@@ -8,11 +8,13 @@
     <insert id="insertOperationLog">
         insert into sys_operation_log (
             id, operation_id, trace_id, user_id, user_code, username, role_code,
-            operation, request_uri, request_method, operation_status, cost_ms, operation_time
+            operation, request_uri, request_method, operation_status, cost_ms,
+            error_message, operation_time
         )
         values (
             #{id}, #{operationId}, #{traceId}, #{userId}, #{userCode}, #{username}, #{roleCode},
-            #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs}, current_timestamp
+            #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs},
+            #{errorMessage, jdbcType=VARCHAR}, current_timestamp
         )
     </insert>
 

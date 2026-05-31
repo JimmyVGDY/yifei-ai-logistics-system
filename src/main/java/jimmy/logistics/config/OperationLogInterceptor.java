@@ -85,13 +85,14 @@ public class OperationLogInterceptor implements HandlerInterceptor {
             String operationId = String.valueOf(request.getAttribute(OPERATION_ID_ATTRIBUTE));
             String status = exception == null && response.getStatus() < 400 ? "SUCCESS" : "FAILED";
             long costMs = System.currentTimeMillis() - (Long) request.getAttribute(START_TIME_ATTRIBUTE);
+            String errorMessage = exception == null ? null : exception.getMessage();
             MDC.put("module", firstPath(request.getRequestURI()));
             MDC.put("operation", operation);
             MDC.put("costMs", String.valueOf(costMs));
             MDC.put("result", status);
 
             try {
-                // 优先写入包含 traceId、operationId、耗时等扩展字段的新日志结构。
+                // 优先写入包含 traceId、operationId、耗时、异常信息等扩展字段的新日志结构。
                 operationLogMapper.insertOperationLog(
                         idGenerator.nextId(),
                         operationId,
@@ -104,7 +105,8 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                         request.getRequestURI(),
                         request.getMethod(),
                         status,
-                        costMs
+                        costMs,
+                        errorMessage
                 );
                 log.info("操作日志已记录，operationId={}, traceId={}, userId={}, username={}, operation={}, uri={}, method={}, status={}, costMs={}",
                         operationId, traceId, currentUserId(), LogMaskUtils.maskAccount(username), operation,

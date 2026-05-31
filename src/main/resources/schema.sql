@@ -69,6 +69,7 @@ create table if not exists sys_operation_log (
     request_method varchar(16) not null,
     operation_status varchar(32) not null,
     cost_ms bigint null,
+    error_message text null comment '异常信息，操作失败时记录异常原因便于排障',
     operation_time timestamp not null,
     index idx_operation_log_operation_id (operation_id),
     index idx_operation_log_trace_id (trace_id),
