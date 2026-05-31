@@ -21,7 +21,7 @@
 | 数据统计 | 新增 `/logistics/dashboard` 概览接口和趋势接口，前端仪表盘展示订单、异常和收入统计 |
 | 文件上传 | 新增业务附件上传接口和 `sys_uploaded_file` 文件记录表 |
 | Excel 导入导出 | 支持模块列表导出 `.xlsx`，客户基础资料支持 `.xlsx` 导入 |
-| 操作日志 | 新增操作日志拦截器，物流写操作和重点接口写入 `sys_operation_log` |
+| 操作日志 | 新增操作日志拦截器，物流写操作写入 `sys_operation_log`，含 `error_message` 字段支持排障 |
 | 中间件业务链路 | 创建订单后写 Redis 缓存、BloomFilter、ES 索引，发送 RabbitMQ 事件并初始化物流轨迹 |
 | 管理页 CRUD | 客户、订单、运单、调度、任务、轨迹、司机、车辆、异常、费用、用户、角色页面支持新增、编辑、删除 |
 | 查询增强 | 管理页支持关键词模糊查询、开始时间查询、结束时间查询和时间范围查询 |
@@ -48,25 +48,14 @@ POST /logistics/excel/import/customers
 `module` 当前支持：
 
 ```text
-customers
-orders
-waybills
-dispatches
-tasks
-tracks
-drivers
-vehicles
-exceptions
-fees
-users
-roles
-operationLogs
-files
+customers / orders / waybills / dispatches / tasks / tracks
+drivers / vehicles / exceptions / fees
+users / roles / operationLogs / files
 ```
 
 ## 前端页面
 
-侧边栏已按需求书扩展：
+侧边栏菜单结构：
 
 - 运营看板
 - 运单管理
@@ -79,21 +68,29 @@ files
 - 车辆管理
 - 异常管理
 - 费用结算
-- 上传文件
 - 系统管理
   - 用户管理
   - 角色管理
-  - 操作日志
+  - 权限配置
+  - 操作日志（含审计+排障 error_message）
+- 上传文件
 - 资源中心
 
 管理页面的时间字段统一按 `yyyy-MM-dd HH:mm:ss` 展示。
 
-运单新增入口已合并到“运单管理”页面顶部，不再单独放置侧边栏“新建运单”。
+管理页按钮会按登录用户权限码控制显示。权限码已从模块级 `order:manage` 扩展为操作级 `order:query`、`order:create`、`order:update`、`order:delete`、`order:export` 等。
 
-管理页按钮会按登录用户权限码控制显示，例如无 `fee:create` 权限时不会显示费用生成，无 `fee:update` 权限时不会显示费用收款。
+## 运维基础设施
 
-权限码已从模块级 `order:manage` 扩展为操作级 `order:query`、`order:create`、`order:update`、`order:delete`、`order:export` 等，后端接口和前端按钮都按操作权限校验。
+| 组件 | 说明 |
+|------|------|
+| Docker Compose | 13 服务全栈编排（MySQL/Redis/RabbitMQ/ES/Nacos/Sentinel/App/Prometheus/Grafana/Filebeat/Kibana/XXL-Job） |
+| Prometheus | 应用指标采集（JVM/HTTP/GC），告警规则 4 条 |
+| Grafana | 预置仪表盘（QPS/P99/错误率/堆内存/GC） |
+| Filebeat | 日志采集写入 ES |
+| Kibana | 日志检索与可视化 |
+| XXL-Job | 定时任务：合同到期预警/月度收入报表/文件清理/缓存预热 |
 
 ## 当前边界
 
-本次已完成需求书 v2.0 的基础能力框架：异常处理、费用收款、统计趋势、文件上传、Excel 导入导出、操作日志、管理页基础 CRUD、组合查询、真实分页、按钮级权限显示和订单创建中间件链路。后续可以继续深化为 Excel 模板下载、上传文件预览、操作日志详情、审计检索、ES 高亮搜索和更细颗粒度的数据权限。
+本次已完成需求书 v2.0 的基础能力框架 + DevOps 补齐：异常处理、费用收款、统计趋势、文件上传、Excel 导入导出、操作审计（含排障）、管理页基础 CRUD、组合查询、真实分页、按钮级权限显示、订单创建中间件链路、Docker 容器化、全栈监控、集中日志、定时任务和跨平台运维脚本。后续可以继续深化为 Excel 模板下载、上传文件预览、ES 高亮搜索和更细颗粒度的数据权限。

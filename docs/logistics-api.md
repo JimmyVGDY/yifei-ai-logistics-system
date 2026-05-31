@@ -159,3 +159,11 @@ exceptions, fees, users, roles, operationLogs, files
 | 400 | 参数错误或业务校验失败 |
 | 401 | 未登录或无权限 |
 | 500 | 系统异常 |
+
+## 监控与运维接口
+
+| 方法 | 地址 | 说明 |
+| --- | --- | --- |
+| GET | `/actuator/health` | 健康检查 |
+| GET | `/actuator/prometheus` | Prometheus 指标（JVM/HTTP/GC/HikariCP） |
+| GET | `/infra/status` | 中间件连接状态 |

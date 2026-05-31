@@ -7,17 +7,12 @@ database: logistics_management
 host: 127.0.0.1
 port: 3306
 username: root
-password: 空
-```
-
-项目启动时会通过 Spring SQL Init 自动执行：
-
-```text
-src/main/resources/schema.sql
-src/main/resources/data.sql
+password: 空（按实际配置）
 ```
 
 ## 核心表
+
+### 物流业务表
 
 - `logistics_customer`: 客户档案。
 - `logistics_warehouse`: 仓库档案。
@@ -25,42 +20,46 @@ src/main/resources/data.sql
 - `logistics_vehicle`: 车辆档案。
 - `logistics_route`: 运输路线。
 - `logistics_order`: 物流订单主表。
-- `logistics_order_tracking`: 订单轨迹。
-- `logistics_inventory`: 仓库库存。
-- `logistics_freight_bill`: 运费账单。
+- `logistics_waybill`: 运单表。
+- `logistics_dispatch`: 调度表。
+- `logistics_task`: 运输任务表。
+- `logistics_track`: 物流轨迹表。
+- `logistics_exception`: 运输异常表。
+- `logistics_fee`: 费用结算表。
+- `logistics_inventory`: 仓库库存表。
+
+### 系统表
+
+- `sys_user`: 系统用户（含 `password` 字段，支持 BCrypt 自动升级）。
+- `sys_role`: 角色定义。
+- `sys_menu`: 菜单/权限。
+- `sys_user_role`: 用户-角色关联。
+- `sys_role_menu`: 角色-菜单关联。
+- `sys_operation_log`: 操作审计日志，含 `error_message` 字段用于排障。
+- `sys_uploaded_file`: 上传文件记录。
+
+### 增量字段说明
+
+`sys_operation_log` 表在基础字段外，通过增量迁移脚本补齐：
+
+- `operation_id`、`trace_id`：请求链路追踪
+- `user_id`、`user_code`、`role_code`：操作人身份
+- `cost_ms`：接口耗时
+- `error_message`：异常信息（接口报错时自动记录异常原因）
+- `create_by`、`update_by`、`deleted`、`version`：通用审计字段
 
 ## 模拟数据规模
 
-当前初始化脚本会写入：
-
-- 4 个客户
-- 3 个仓库
-- 3 个司机
-- 3 辆车
-- 3 条路线
-- 3 个订单
-- 4 条轨迹
-- 3 条库存
-- 3 条运费账单
-
-数据量不大，适合本地接口联调和后续继续扩展业务模块。
+初始化脚本将写入：客户 100 条、订单/运单/调度/任务/轨迹/费用各 100 条，适合本地接口联调和演示。
 
 ## 扩展模拟数据
 
-如果需要把每张物流主表扩展到 100 条以上的演示规模，可以执行：
-
 ```bash
-F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_management < scripts/sql/seed-logistics-mock-100.sql
+mysql -uroot logistics_management < scripts/sql/seed-logistics-mock-100.sql
 ```
-
-脚本会生成 `MOCK-*` 前缀的数据，并且可以重复执行；已有相同业务编号的数据不会重复插入。
 
 ## 刷新可读演示名称
 
-如果旧数据中出现 `Mock Customer 001`、`Driver Sun` 或编码异常的演示名称，可以执行：
-
 ```bash
-F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_management < scripts/sql/refresh-logistics-readable-names.sql
+mysql -uroot logistics_management < scripts/sql/refresh-logistics-readable-names.sql
 ```
-
-该脚本会把客户公司、联系人、司机、仓库负责人、轨迹操作人、货物和 SKU 名称刷新成更贴近真实物流系统的中文演示数据。
