@@ -13,10 +13,10 @@ echo ╚════════════════════════
 echo.
 
 echo [1/3] 清理旧构建...
-call *** clean -q 2>nul
+call mvn clean -q 2>nul
 
 echo [2/3] 编译项目（89 个源文件）...
-call *** compile -B 2>&1
+call mvn compile -B 2>&1
 
 if errorlevel 1 (
     echo.

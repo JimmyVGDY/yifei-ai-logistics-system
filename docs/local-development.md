@@ -90,7 +90,7 @@ http://127.0.0.1:9200
 3. Run Configuration 添加 VM Options：
 
 ```
--Dspring.datasource.password=你的MySQL密码 -Dnacos.register-enabled=false -Dxxl.job.executor.port=-1
+-Dspring.datasource.password=你的MySQL密码 -Dnacos.register-enabled=false -Dxxl.job.enabled=false
 ```
 
 4. 运行 `jimmy.DemoApplication`
@@ -192,6 +192,9 @@ GET  http://127.0.0.1:8080/actuator/prometheus
 cp .env.example .env          # 编辑密码
 docker compose up -d           # 启动全部 13 个服务
 ```
+
+应用镜像使用多阶段 Dockerfile，`docker compose up -d` 会自动完成 Maven 打包，不需要提前在本机执行 `mvn package`。
+XXL-Job 调度中心使用独立数据库 `xxl_job`，初始化 SQL 位于 `docker/mysql/xxl-job-init.sql`。
 
 启动后可用端口：
 

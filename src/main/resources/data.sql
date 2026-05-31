@@ -32,7 +32,6 @@ insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort
 insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) values (260525120000031, 260525120000030, '用户管理', '/system/users', 'system:user:manage', 910, 1, current_timestamp, current_timestamp);
 insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) values (260525120000032, 260525120000030, '角色管理', '/system/roles', 'system:role:manage', 920, 1, current_timestamp, current_timestamp);
 insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) values (260525120000033, 260525120000030, '操作日志', '/system/operation-logs', 'system:log:view', 930, 1, current_timestamp, current_timestamp);
-insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) values (260526100000001, 260525120000030, '结构化日志', '/system/structured-logs', 'system:log:view', 935, 1, current_timestamp, current_timestamp);
 insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) values (260525120000034, 0, '上传文件', '/files', 'file:manage', 940, 1, current_timestamp, current_timestamp);
 insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) values (260525120000035, 0, '资源中心', '/resources', 'resource:view', 950, 1, current_timestamp, current_timestamp);
 insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time) values (260526090000001, 260525120000030, '权限配置', '/system/permissions', 'system:permission:manage', 925, 1, current_timestamp, current_timestamp);
@@ -51,7 +50,6 @@ insert into sys_role_menu (id, role_id, menu_id) values (260525120000047, 260525
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000048, 260525120000001, 260525120000031);
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000049, 260525120000001, 260525120000032);
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000050, 260525120000001, 260525120000033);
-insert into sys_role_menu (id, role_id, menu_id) values (260526100000002, 260525120000001, 260526100000001);
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000051, 260525120000001, 260525120000034);
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000052, 260525120000001, 260525120000035);
 insert into sys_role_menu (id, role_id, menu_id) values (260525120000053, 260525120000002, 260525120000021);

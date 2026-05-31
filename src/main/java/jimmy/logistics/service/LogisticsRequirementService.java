@@ -85,12 +85,15 @@ public class LogisticsRequirementService {
         boolean deletedExists = columnChecker.hasColumn(queryConfig.tableName, "deleted");
         boolean userCodeExists = "users".equals(module) && columnChecker.hasColumn("sys_user", "user_code");
         boolean operationLogExtendedExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "operation_id");
+        boolean operationLogErrorMessageExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "error_message");
 
         // 模块、表名和可查询字段都来自后端白名单；关键词和时间范围仍通过 MyBatis 参数绑定。
-        Long total = logisticsModuleQueryMapper.countModule(module, deletedExists, userCodeExists, operationLogExtendedExists, keyword,
+        Long total = logisticsModuleQueryMapper.countModule(module, deletedExists, userCodeExists, operationLogExtendedExists,
+                operationLogErrorMessageExists, keyword,
                 queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime);
         List<Map<String, Object>> records = logisticsModuleQueryMapper.selectModulePage(module, deletedExists,
-                userCodeExists, operationLogExtendedExists, keyword, queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime,
+                userCodeExists, operationLogExtendedExists, operationLogErrorMessageExists, keyword,
+                queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime,
                 queryConfig.orderColumn, pageSize, (page - 1) * pageSize);
         records = formatDateTimeValues(records);
 

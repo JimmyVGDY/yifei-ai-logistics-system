@@ -60,9 +60,9 @@ if !ALL_RUNNING!==0 (
 
 echo.
 echo 【确保 JAR 包存在】
-if not exist "target\demo-springboot-1.0-SNAPSHOT.jar --xxl.job.executor.port=-1" (
+if not exist "target\demo-springboot-1.0-SNAPSHOT.jar" (
     echo 📦 未找到 JAR，正在构建...
-    call *** clean package -DskipTests
+    call mvn clean package -DskipTests
     if errorlevel 1 (
         echo ❌ 构建失败
         pause
@@ -78,7 +78,7 @@ set SPRING_SQL_INIT_MODE=never
 set LOCAL_FRONTEND_AUTO_START=false
 set LOCAL_FRONTEND_AUTO_OPEN=false
 
-start "物流管理平台" javaw -jar target\demo-springboot-1.0-SNAPSHOT.jar
+start "物流管理平台" javaw -jar target\demo-springboot-1.0-SNAPSHOT.jar --xxl.job.enabled=false
 
 echo.
 echo ⏳ 等待应用就绪（最多 60 秒）...

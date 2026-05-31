@@ -54,7 +54,7 @@ public class AuthService {
         List<MenuVO> menus = mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
         List<String> permissions = collectPermissions(loginUser.roleCode, menus);
 
-        // Sa-Token 会话中保存前端渲染菜单、接口鉴权和结构化日志需要的最小身份信息。
+        // Sa-Token 会话中保存前端渲染菜单、接口鉴权和操作日志需要的最小身份信息。
         // 使用 getSessionByLoginId 可确保与 SaPermissionConfig 读取端一致，同时兼容 H2 内存模式。
         StpUtil.login(loginUser.id);
         StpUtil.getSessionByLoginId(loginUser.id).set("userCode", loginUser.userCode);

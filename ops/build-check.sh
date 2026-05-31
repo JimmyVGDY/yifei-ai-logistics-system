@@ -12,7 +12,7 @@ echo "╚═══════════════════════�
 echo ""
 
 echo "[1/2] 编译项目..."
-if *** clean compile -B -q 2>&1; then
+if mvn clean compile -B -q 2>&1; then
     echo ""
     echo "✅ 编译通过"
 else

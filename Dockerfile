@@ -1,6 +1,13 @@
 # 物流管理平台 Docker 镜像
 # 构建: docker build -t logistics-app:latest .
 # 运行: docker run -p 8080:8080 logistics-app:latest
+FROM maven:3.9.9-eclipse-temurin-8 AS builder
+
+WORKDIR /workspace
+COPY pom.xml .
+COPY src ./src
+RUN mvn -B -DskipTests package
+
 FROM openjdk:8-jre-slim
 
 LABEL maintainer="jimmy"
@@ -11,7 +18,7 @@ WORKDIR /app
 # 创建日志和上传目录
 RUN mkdir -p /app/logs /app/uploads
 
-COPY target/demo-springboot-1.0-SNAPSHOT.jar app.jar
+COPY --from=builder /workspace/target/demo-springboot-1.0-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
 

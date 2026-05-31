@@ -60,9 +60,11 @@ logging:
 # 调度中心地址由 XXL_JOB_ADMIN_ADDRESSES 环境变量注入
 xxl:
   job:
+    enabled: ${XXL_JOB_ENABLED:true}
     admin:
       addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
+    accessToken: ${XXL_JOB_ACCESS_TOKEN:}
     executor:
-      appname: logistics-app
+      appname: ${XXL_JOB_EXECUTOR_APPNAME:logistics-app}
       port: ${XXL_JOB_EXECUTOR_PORT:9999}
-      logpath: /app/logs/xxl-job
+      logpath: ${XXL_JOB_EXECUTOR_LOGPATH:/app/logs/xxl-job}

@@ -63,3 +63,11 @@ mysql -uroot logistics_management < scripts/sql/seed-logistics-mock-100.sql
 ```bash
 mysql -uroot logistics_management < scripts/sql/refresh-logistics-readable-names.sql
 ```
+
+## 兼容旧库补丁
+
+如果本地已经执行过旧增量脚本，可执行下面脚本补齐操作日志 `error_message` 字段，并清理已下线的结构化日志菜单：
+
+```bash
+mysql -uroot logistics_management < scripts/sql/20260531_cleanup_structured_log_and_operation_log.sql
+```

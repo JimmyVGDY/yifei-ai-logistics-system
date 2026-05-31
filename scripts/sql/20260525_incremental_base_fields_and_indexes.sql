@@ -111,32 +111,15 @@ call add_column_if_missing('sys_operation_log', 'user_id', 'varchar(32) null com
 call add_column_if_missing('sys_operation_log', 'user_code', 'varchar(32) null comment ''登录用户业务编号''');
 call add_column_if_missing('sys_operation_log', 'role_code', 'varchar(64) null comment ''角色编码''');
 call add_column_if_missing('sys_operation_log', 'cost_ms', 'bigint null comment ''接口耗时毫秒''');
+call add_column_if_missing('sys_operation_log', 'error_message', 'text null comment ''异常信息，操作失败时记录异常原因便于排障''');
 
-insert into sys_menu (id, parent_id, menu_name, menu_path, permission_code, sort_no, status, create_time, update_time)
-select 260526100000001,
-       coalesce((select id from sys_menu where menu_path = '/system' order by id limit 1), 0),
-       '结构化日志',
-       '/system/structured-logs',
-       'system:log:view',
-       935,
-       1,
-       current_timestamp,
-       current_timestamp
-where not exists (select 1 from sys_menu where menu_path = '/system/structured-logs');
+delete rm
+from sys_role_menu rm
+join sys_menu m on m.id = rm.menu_id
+where m.menu_path = '/system/structured-logs';
 
-insert into sys_role_menu (id, role_id, menu_id)
-select 260526100000002,
-       r.id,
-       m.id
-from sys_role r
-join sys_menu m on m.menu_path = '/system/structured-logs'
-where r.role_code = 'ADMIN'
-  and not exists (
-      select 1
-      from sys_role_menu rm
-      where rm.role_id = r.id
-        and rm.menu_id = m.id
-  );
+delete from sys_menu
+where menu_path = '/system/structured-logs';
 
 call add_index_if_missing('sys_role', 'idx_sys_role_status_time', '(status, update_time)');
 call add_index_if_missing('sys_user', 'idx_sys_user_status_time', '(status, update_time)');

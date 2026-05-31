@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.annotation.OperationLog;
 import jimmy.logistics.mapper.OperationLogMapper;
+import jimmy.logistics.util.ColumnExistenceChecker;
 import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -25,10 +26,14 @@ public class OperationLogInterceptor implements HandlerInterceptor {
     private static final String TRACE_ID_ATTRIBUTE = "operationLogTraceId";
 
     private final OperationLogMapper operationLogMapper;
+    private final ColumnExistenceChecker columnChecker;
     private final CompactSnowflakeIdGenerator idGenerator;
 
-    public OperationLogInterceptor(OperationLogMapper operationLogMapper, CompactSnowflakeIdGenerator idGenerator) {
+    public OperationLogInterceptor(OperationLogMapper operationLogMapper,
+                                   ColumnExistenceChecker columnChecker,
+                                   CompactSnowflakeIdGenerator idGenerator) {
         this.operationLogMapper = operationLogMapper;
+        this.columnChecker = columnChecker;
         this.idGenerator = idGenerator;
     }
 
@@ -93,21 +98,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
 
             try {
                 // 优先写入包含 traceId、operationId、耗时、异常信息等扩展字段的新日志结构。
-                operationLogMapper.insertOperationLog(
-                        idGenerator.nextId(),
-                        operationId,
-                        traceId,
-                        currentUserId(),
-                        currentUserCode(),
-                        username,
-                        currentRoleCode(),
-                        operation,
-                        request.getRequestURI(),
-                        request.getMethod(),
-                        status,
-                        costMs,
-                        errorMessage
-                );
+                insertCompatibleOperationLog(username, operation, request, status, costMs, traceId, operationId, errorMessage);
                 log.info("操作日志已记录，operationId={}, traceId={}, userId={}, username={}, operation={}, uri={}, method={}, status={}, costMs={}",
                         operationId, traceId, currentUserId(), LogMaskUtils.maskAccount(username), operation,
                         request.getRequestURI(), request.getMethod(), status, costMs);
@@ -119,6 +110,26 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         } finally {
             clearRequestMdc();
         }
+    }
+
+    private void insertCompatibleOperationLog(String username, String operation, HttpServletRequest request,
+                                              String status, long costMs, String traceId, String operationId,
+                                              String errorMessage) {
+        if (!columnChecker.hasColumn("sys_operation_log", "operation_id")) {
+            insertLegacyLog(username, operation, request, status);
+            return;
+        }
+        if (columnChecker.hasColumn("sys_operation_log", "error_message")) {
+            operationLogMapper.insertOperationLog(
+                    idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
+                    currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs, errorMessage
+            );
+            return;
+        }
+        operationLogMapper.insertOperationLogWithoutErrorMessage(
+                idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
+                currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs
+        );
     }
 
     private void insertLegacyLog(String username, String operation, HttpServletRequest request, String status) {
