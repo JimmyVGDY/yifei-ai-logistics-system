@@ -24,6 +24,6 @@ set SPRING_SQL_INIT_MODE=never
 set LOCAL_FRONTEND_AUTO_START=true
 set LOCAL_FRONTEND_AUTO_OPEN=true
 
-start "物流管理平台" javaw -jar target\demo-springboot-1.0-SNAPSHOT.jar
+start "物流管理平台" javaw -jar target\demo-springboot-1.0-SNAPSHOT.jar --xxl.job.executor.port=-1
 
 echo   应用将在后台启动，浏览器将自动打开前端页面

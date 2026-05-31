@@ -60,7 +60,7 @@ if !ALL_RUNNING!==0 (
 
 echo.
 echo 【确保 JAR 包存在】
-if not exist "target\demo-springboot-1.0-SNAPSHOT.jar" (
+if not exist "target\demo-springboot-1.0-SNAPSHOT.jar --xxl.job.executor.port=-1" (
     echo 📦 未找到 JAR，正在构建...
     call *** clean package -DskipTests
     if errorlevel 1 (
