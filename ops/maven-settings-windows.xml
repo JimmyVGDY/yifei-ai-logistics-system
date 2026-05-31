@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  物流管理平台 — Windows 环境 Maven 配置
+  使用方式：复制到 %USERPROFILE%\.m2\settings.xml
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+    <mirrors>
+        <!-- Windows 上阿里云通常可用，优先使用 -->
+        <mirror>
+            <id>aliyunmaven</id>
+            <mirrorOf>*</mirrorOf>
+            <name>阿里云公共仓库</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+        </mirror>
+        
+        <!-- 备选：腾讯云 -->
+        <!--
+        <mirror>
+            <id>tencent-maven-public</id>
+            <mirrorOf>*</mirrorOf>
+            <name>腾讯云公共仓库</name>
+            <url>https://mirrors.cloud.tencent.com/nexus/repository/maven-public/</url>
+        </mirror>
+        -->
+    </mirrors>
+
+</settings>
