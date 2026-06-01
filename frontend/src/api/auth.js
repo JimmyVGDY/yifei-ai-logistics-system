@@ -23,3 +23,7 @@ export function fetchCurrentLoginConflict() {
 export function rejectLoginConflict(conflictId) {
   return http.post(`/auth/login-conflicts/${conflictId}/reject`)
 }
+
+export function acceptLoginConflict(conflictId) {
+  return http.post(`/auth/login-conflicts/${conflictId}/accept`)
+}

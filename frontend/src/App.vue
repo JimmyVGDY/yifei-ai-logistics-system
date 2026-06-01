@@ -52,7 +52,7 @@ import { computed, h, onBeforeUnmount, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { SwitchButton } from '@element-plus/icons-vue'
-import { fetchCurrentLoginConflict, logout, rejectLoginConflict } from './api/auth'
+import { fetchCurrentLoginConflict, logout, rejectLoginConflict, acceptLoginConflict } from './api/auth'
 import { clearAuthToken, getAuthToken, isAuthenticated } from './stores/auth-store'
 
 const router = useRouter()
@@ -130,9 +130,10 @@ function showLoginConflictDialog(conflict) {
   ).then(async () => {
     await rejectLoginConflict(conflict.conflictId)
     ElMessage.success('已拒绝新的登录请求，当前会话继续保留')
-  }).catch((action) => {
+  }).catch(async (action) => {
     if (action === 'cancel') {
-      ElMessage.info('已允许新的登录请求，当前会话稍后会下线')
+      await acceptLoginConflict(conflict.conflictId)
+      ElMessage.success('已允许新的登录请求，当前会话稍后会下线')
     }
   }).finally(() => {
     clearTimeout(conflictAutoCloseTimer)
