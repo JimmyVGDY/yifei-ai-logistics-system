@@ -6,8 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -22,7 +22,8 @@ import java.util.Map;
 @Component
 public class LogisticsScheduledJobs {
 
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
+    /** 线程安全的日期格式化器，替代 SimpleDateFormat */
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final LogisticsDashboardMapper dashboardMapper;
 
@@ -86,7 +87,7 @@ public class LogisticsScheduledJobs {
 
             log.info("═══════════════════════════════════");
             log.info("  月度收入报表");
-            log.info("  统计时间: {}", DATE_FORMAT.format(new Date()));
+            log.info("  统计时间: {}", LocalDate.now().format(DATE_FORMAT));
             log.info("  上月订单数: {}", lastMonthOrders);
             log.info("  上月收入: ¥{}", monthIncome);
             log.info("  异常订单数: {}", exceptionCount);
