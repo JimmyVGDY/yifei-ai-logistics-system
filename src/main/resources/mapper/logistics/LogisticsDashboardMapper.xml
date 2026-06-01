@@ -8,6 +8,7 @@
     <select id="countTodayOrders" resultType="long">
         select count(1)
         from logistics_order
+        where (#{customerId} is null or customer_id = #{customerId})
         where date(created_at) = current_date
     </select>
 
@@ -15,6 +16,7 @@
     <select id="countCompletedOrders" resultType="long">
         select count(1)
         from logistics_order
+        where (#{customerId} is null or customer_id = #{customerId})
         where status in ('COMPLETED', 'SIGNED', 'DELIVERED')
     </select>
 
@@ -22,12 +24,14 @@
     <select id="countWaitDispatchOrders" resultType="long">
         select count(1)
         from logistics_order
+        where (#{customerId} is null or customer_id = #{customerId})
         where status in ('WAIT_DISPATCH', 'CREATED')
     </select>
 
     <select id="countInTransitOrders" resultType="long">
         select count(1)
         from logistics_order
+        where (#{customerId} is null or customer_id = #{customerId})
         where status = 'IN_TRANSIT'
     </select>
 
@@ -48,6 +52,7 @@
         select status,
                count(1) as total
         from logistics_order
+        where (#{customerId} is null or customer_id = #{customerId})
         group by status
         order by total desc
     </select>
@@ -83,6 +88,7 @@
     <select id="countLastMonthOrders" resultType="long">
         select count(1)
         from logistics_order
+        where (#{customerId} is null or customer_id = #{customerId})
         where date_format(created_at, '%Y-%m') = date_format(date_sub(current_date, interval 1 month), '%Y-%m')
     </select>
 

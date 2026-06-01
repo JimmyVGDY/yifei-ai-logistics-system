@@ -150,6 +150,18 @@
         <if test="timeColumn != null and timeColumn != '' and endTime != null and endTime != ''">
             and ${timeColumn} &lt;= #{endTime}
         </if>
+        <!-- 客户角色数据权限隔离：只允许查看自己关联的订单数据。非客户角色(customerId=null)不应用此过滤。 -->
+        <if test="customerId != null">
+            <choose>
+                <when test="module == 'orders'">and customer_id = #{customerId}</when>
+                <when test="module == 'waybills'">and w.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <when test="module == 'dispatches'">and d.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <when test="module == 'tasks'">and t.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <when test="module == 'tracks'">and tr.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <when test="module == 'exceptions'">and e.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <when test="module == 'fees'">and f.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+            </choose>
+        </if>
     </sql>
 
     <!-- 分页前先计算总数，前端分页组件依赖 total 展示页码。 -->

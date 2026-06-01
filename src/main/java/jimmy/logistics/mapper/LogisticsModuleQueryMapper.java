@@ -18,7 +18,8 @@ public interface LogisticsModuleQueryMapper {
                      @Param("keywordColumns") List<String> keywordColumns,
                      @Param("timeColumn") String timeColumn,
                      @Param("startTime") String startTime,
-                     @Param("endTime") String endTime);
+                     @Param("endTime") String endTime,
+                     @Param("customerId") Long customerId);
 
     List<Map<String, Object>> selectModulePage(@Param("module") String module,
                                                @Param("deletedExists") boolean deletedExists,
@@ -32,5 +33,6 @@ public interface LogisticsModuleQueryMapper {
                                                @Param("endTime") String endTime,
                                                @Param("orderColumn") String orderColumn,
                                                @Param("pageSize") int pageSize,
-                                               @Param("offset") int offset);
+                                               @Param("offset") int offset,
+                                               @Param("customerId") Long customerId);
 }

@@ -1,5 +1,6 @@
 package jimmy.logistics.service;
 
+import cn.dev33.satoken.stp.StpUtil;
 import jimmy.logistics.mapper.LogisticsDashboardMapper;
 import jimmy.logistics.mapper.LogisticsModuleQueryMapper;
 import jimmy.logistics.model.LogisticsDashboardSummary;
@@ -52,18 +53,19 @@ public class LogisticsRequirementService {
     public LogisticsDashboardSummary dashboardSummary() {
         log.info("开始查询物流运营看板统计数据");
         LogisticsDashboardSummary summary = new LogisticsDashboardSummary();
-        summary.setTodayOrders(safeLong(logisticsDashboardMapper.countTodayOrders()));
-        summary.setCompletedOrders(safeLong(logisticsDashboardMapper.countCompletedOrders()));
-        summary.setWaitDispatchOrders(safeLong(logisticsDashboardMapper.countWaitDispatchOrders()));
-        summary.setInTransitOrders(safeLong(logisticsDashboardMapper.countInTransitOrders()));
-        summary.setExceptionOrders(safeLong(logisticsDashboardMapper.countOpenExceptionOrders()));
-        summary.setMonthIncome(safeBigDecimal(logisticsDashboardMapper.sumPaidMonthIncome()));
-        summary.setStatusDistribution(logisticsDashboardMapper.selectStatusDistribution());
-        summary.setRecentExceptions(formatDateTimeValues(logisticsDashboardMapper.selectRecentOpenExceptions()));
+        Long customerId = getCurrentCustomerId();
+        summary.setTodayOrders(safeLong(logisticsDashboardMapper.countTodayOrders(customerId)));
+        summary.setCompletedOrders(safeLong(logisticsDashboardMapper.countCompletedOrders(customerId)));
+        summary.setWaitDispatchOrders(safeLong(logisticsDashboardMapper.countWaitDispatchOrders(customerId)));
+        summary.setInTransitOrders(safeLong(logisticsDashboardMapper.countInTransitOrders(customerId)));
+        summary.setExceptionOrders(safeLong(logisticsDashboardMapper.countOpenExceptionOrders(customerId)));
+        summary.setMonthIncome(safeBigDecimal(logisticsDashboardMapper.sumPaidMonthIncome(customerId)));
+        summary.setStatusDistribution(logisticsDashboardMapper.selectStatusDistribution(customerId));
+        summary.setRecentExceptions(formatDateTimeValues(logisticsDashboardMapper.selectRecentOpenExceptions(customerId)));
         // 合同到期预警：查询 30 天内到期的有效合同
         summary.setExpiringContracts(logisticsDashboardMapper.selectExpiringContracts(30));
         // 上月收入/订单/异常汇总
-        summary.setLastMonthIncome(safeBigDecimal(logisticsDashboardMapper.sumPaidMonthIncome()));
+        summary.setLastMonthIncome(safeBigDecimal(logisticsDashboardMapper.sumPaidMonthIncome(customerId)));
         summary.setLastMonthOrders(safeLong(logisticsDashboardMapper.countLastMonthOrders()));
         summary.setLastMonthExceptions(logisticsDashboardMapper.countLastMonthExceptions());
         log.info("物流运营看板统计完成，todayOrders={}, waitDispatch={}, inTransit={}, exceptionOrders={}",
@@ -101,11 +103,13 @@ public class LogisticsRequirementService {
         // 模块、表名和可查询字段都来自后端白名单；关键词和时间范围仍通过 MyBatis 参数绑定。
         Long total = logisticsModuleQueryMapper.countModule(module, deletedExists, userCodeExists, operationLogExtendedExists,
                 operationLogErrorMessageExists, keyword,
-                queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime);
+                queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime,
+                getCurrentCustomerId());
         List<Map<String, Object>> records = logisticsModuleQueryMapper.selectModulePage(module, deletedExists,
                 userCodeExists, operationLogExtendedExists, operationLogErrorMessageExists, keyword,
                 queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime,
-                queryConfig.orderColumn, pageSize, (page - 1) * pageSize);
+                queryConfig.orderColumn, pageSize, (page - 1) * pageSize,
+                getCurrentCustomerId());
         // 敏感字段解密：手机号等字段从数据库读取后解密为原文
         decryptRecords(records);
         records = formatDateTimeValues(records);
@@ -127,6 +131,20 @@ public class LogisticsRequirementService {
                     entry.setValue(fieldEncryptor.decrypt((String) entry.getValue()));
                 }
             }
+        }
+    }
+
+    /** 获取当前登录用户的客户ID，用于客户角色数据权限隔离 */
+    private Long getCurrentCustomerId() {
+        try {
+            Object loginId = StpUtil.getLoginIdDefaultNull();
+            if (loginId == null) {
+                return null;
+            }
+            Object customerId = StpUtil.getSessionByLoginId(loginId).get("customerId");
+            return customerId instanceof Number ? ((Number) customerId).longValue() : null;
+        } catch (Exception e) {
+            return null;
         }
     }
 

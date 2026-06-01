@@ -91,6 +91,7 @@ public class AuthService {
         StpUtil.getSessionByLoginId(loginUser.id).set("realNameMasked", LogMaskUtils.maskName(loginUser.realName));
         StpUtil.getSessionByLoginId(loginUser.id).set("roleCode", loginUser.roleCode);
         StpUtil.getSessionByLoginId(loginUser.id).set("roleName", loginUser.roleName);
+        StpUtil.getSessionByLoginId(loginUser.id).set("customerId", loginUser.customerId);
         StpUtil.getSessionByLoginId(loginUser.id).set("permissions", permissions);
         StpUtil.getSessionByLoginId(loginUser.id).set("menus", menus);
 
@@ -287,6 +288,7 @@ public class AuthService {
         user.roleId = toLong(row.get("roleId"));
         user.roleCode = toString(row.get("roleCode"));
         user.roleName = toString(row.get("roleName"));
+        user.customerId = toLong(row.get("customerId"));
         return user;
     }
 
@@ -595,5 +597,6 @@ public class AuthService {
         private Long roleId;
         private String roleCode;
         private String roleName;
+        private Long customerId;
     }
 }

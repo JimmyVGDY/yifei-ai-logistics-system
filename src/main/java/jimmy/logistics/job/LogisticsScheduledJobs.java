@@ -73,7 +73,7 @@ public class LogisticsScheduledJobs {
     public void monthlyIncomeReport() {
         log.info("【定时任务】月度收入报表开始");
         try {
-            BigDecimal monthIncome = dashboardMapper.sumPaidMonthIncome();
+            BigDecimal monthIncome = dashboardMapper.sumPaidMonthIncome(null);
             if (monthIncome == null) {
                 monthIncome = BigDecimal.ZERO;
             }
@@ -129,7 +129,7 @@ public class LogisticsScheduledJobs {
         log.info("【定时任务】缓存预热开始");
         try {
             // 查询近期订单数量作为预热参考
-            Long todayOrders = dashboardMapper.countTodayOrders();
+            Long todayOrders = dashboardMapper.countTodayOrders(null);
             log.info("【定时任务】缓存预热完成，今日订单数: {}", todayOrders == null ? 0 : todayOrders);
         } catch (Exception e) {
             log.error("【定时任务】缓存预热执行失败", e);

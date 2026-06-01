@@ -9,21 +9,21 @@ import java.util.Map;
 @Mapper
 public interface LogisticsDashboardMapper {
 
-    Long countTodayOrders();
+    Long countTodayOrders(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
 
-    Long countCompletedOrders();
+    Long countCompletedOrders(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
 
-    Long countWaitDispatchOrders();
+    Long countWaitDispatchOrders(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
 
-    Long countInTransitOrders();
+    Long countInTransitOrders(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
 
-    Long countOpenExceptionOrders();
+    Long countOpenExceptionOrders(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
 
-    BigDecimal sumPaidMonthIncome();
+    BigDecimal sumPaidMonthIncome(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
 
-    List<Map<String, Object>> selectStatusDistribution();
+    List<Map<String, Object>> selectStatusDistribution(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
 
-    List<Map<String, Object>> selectRecentOpenExceptions();
+    List<Map<String, Object>> selectRecentOpenExceptions(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
 
     /** 查询 30 天内到期的合同 */
     List<Map<String, Object>> selectExpiringContracts(@org.apache.ibatis.annotations.Param("days") int days);
