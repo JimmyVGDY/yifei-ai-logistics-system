@@ -124,7 +124,9 @@ public class AuthService {
         if (conflict == null) {
             return loginConflictService.status(conflictId);
         }
-        if (!loginConflictService.isExpired(conflict)) {
+        // 原会话已接受时跳过超时等待，立即为新页面完成登录
+        boolean accepted = "ACCEPTED".equals(conflict.getStatus());
+        if (!accepted && !loginConflictService.isExpired(conflict)) {
             return loginConflictService.status(conflictId);
         }
         LoginUser loginUser = findLoginUserById(conflict.getUserId());
@@ -154,7 +156,7 @@ public class AuthService {
         return loginConflictService.reject(conflictId, userId);
     }
 
-    /** 原会话主动接受新的登录请求，立即完成登录并返回 token */
+    /** 原会话主动接受新的登录请求，只标记状态，由新页面轮询完成登录 */
     public LoginConflictResponse acceptLoginConflict(String conflictId) {
         StpUtil.checkLogin();
         Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
@@ -165,18 +167,12 @@ public class AuthService {
             response.setMessage("登录确认请求不存在或无权处理");
             return response;
         }
-        LoginUser loginUser = findLoginUserById(userId);
-        if (loginUser == null || loginUser.status == null || loginUser.status != 1) {
-            LoginConflictResponse response = loginConflictService.status(conflictId);
-            response.setLoginStatus("REJECTED");
-            response.setMessage("登录账号不存在或已停用");
-            return response;
-        }
-        LoginResponse loginResponse = completeLogin(loginUser);
-        loginConflictService.markTakenOver(conflictId);
+        // 仅标记为已接受，不在此处进行 completeLogin（避免影响当前会话的 token）。
+        // 新页面轮询 loginConflictStatus 检测到 ACCEPTED 后会自行完成登录。
+        loginConflictService.accept(conflictId);
         LoginConflictResponse response = loginConflictService.status(conflictId);
-        response.setLoginStatus("TAKEN_OVER");
-        response.setLoginResponse(loginResponse);
+        response.setLoginStatus("ACCEPTED");
+        response.setMessage("已允许新的登录请求");
         return response;
     }
 

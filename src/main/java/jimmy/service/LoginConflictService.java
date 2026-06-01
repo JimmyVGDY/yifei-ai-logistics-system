@@ -63,7 +63,11 @@ public class LoginConflictService {
     public PendingLoginConflict pending(String conflictId) {
         cleanupExpired();
         PendingLoginConflict conflict = conflicts.get(conflictId);
-        return conflict != null && "PENDING".equals(conflict.status) ? conflict : null;
+        if (conflict == null) {
+            return null;
+        }
+        // PENDING（等待确认）和 ACCEPTED（已接受，待轮询完成登录）都视为活跃状态
+        return ("PENDING".equals(conflict.status) || "ACCEPTED".equals(conflict.status)) ? conflict : null;
     }
 
     public boolean isExpired(PendingLoginConflict conflict) {
@@ -89,6 +93,16 @@ public class LoginConflictService {
         conflict.status = "TAKEN_OVER";
         conflict.message = "原会话未在一分钟内拒绝，新登录已生效";
         latestConflictByUser.remove(conflict.userId, conflictId);
+    }
+
+    /** 原会话主动接受：标记冲突为已接受，新页面轮询检测后完成登录 */
+    public void accept(String conflictId) {
+        PendingLoginConflict conflict = conflicts.get(conflictId);
+        if (conflict == null) {
+            return;
+        }
+        conflict.status = "ACCEPTED";
+        conflict.message = "原会话已允许新的登录请求";
     }
 
     private void cleanupExpired() {
@@ -135,7 +149,7 @@ public class LoginConflictService {
         private String message;
 
         public String getConflictId() { return conflictId; }
-
         public Long getUserId() { return userId; }
+        public String getStatus() { return status; }
     }
 }
