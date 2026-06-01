@@ -79,6 +79,7 @@ async function handleLogin() {
       return
     }
     saveAuthToken(response)
+    markSessionChecked()
     ElMessage.success('登录成功')
     router.replace(route.query.redirect || firstMenuPath())
   } finally {
