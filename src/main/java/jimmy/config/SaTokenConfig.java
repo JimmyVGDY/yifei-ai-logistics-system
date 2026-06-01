@@ -37,6 +37,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
                         "/error",
                         "/favicon.ico",
                         "/auth/login",
+                        "/auth/login-conflicts/*/status",
                         "/actuator/health"
                 );
         registry.addInterceptor(operationLogInterceptor)

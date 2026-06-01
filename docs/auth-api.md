@@ -29,7 +29,21 @@
 
 返回包含 `token`、`userId`、脱敏用户名、角色编码、权限码和菜单树。管理员拥有全部菜单和操作权限。
 
-登录采用单账号单会话策略：同一账号再次登录时，新 token 会生效，旧 token 会被 Sa-Token 自动踢下线，避免同一账号多处同时在线。
+登录采用单账号单会话策略，并增加登录冲突确认流程：
+
+- 同一账号已在线时，新登录不会立刻顶掉旧会话。
+- 后端会创建 60 秒登录冲突确认请求。
+- 旧会话页面会弹窗提示“同一账号正在其他地方登录”。
+- 旧会话点击“保持当前登录”会拒绝新登录。
+- 旧会话不处理或允许新登录时，新登录会在确认窗口结束后生效，旧 token 随后失效。
+
+相关接口：
+
+```text
+GET  /auth/login-conflicts/{conflictId}/status
+GET  /auth/login-conflicts/current
+POST /auth/login-conflicts/{conflictId}/reject
+```
 
 ## 当前会话
 

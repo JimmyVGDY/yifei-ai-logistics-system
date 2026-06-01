@@ -2,14 +2,11 @@ package jimmy.controller;
 
 import jimmy.logistics.annotation.OperationLog;
 import jimmy.model.ApiResponse;
+import jimmy.model.LoginConflictResponse;
 import jimmy.model.LoginRequest;
 import jimmy.model.LoginResponse;
 import jimmy.service.AuthService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * 认证控制器 —— 登录、会话恢复、退出。
@@ -31,8 +28,23 @@ public class AuthController {
     /** 用户登录 —— 返回 token、权限码列表和菜单树 */
     @OperationLog("用户登录")
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@RequestBody LoginRequest request) {
+    public ApiResponse<Object> login(@RequestBody LoginRequest request) {
         return ApiResponse.success(authService.login(request));
+    }
+
+    @GetMapping("/login-conflicts/{conflictId}/status")
+    public ApiResponse<LoginConflictResponse> loginConflictStatus(@PathVariable String conflictId) {
+        return ApiResponse.success(authService.loginConflictStatus(conflictId));
+    }
+
+    @GetMapping("/login-conflicts/current")
+    public ApiResponse<LoginConflictResponse> currentLoginConflict() {
+        return ApiResponse.success(authService.currentLoginConflict());
+    }
+
+    @PostMapping("/login-conflicts/{conflictId}/reject")
+    public ApiResponse<LoginConflictResponse> rejectLoginConflict(@PathVariable String conflictId) {
+        return ApiResponse.success(authService.rejectLoginConflict(conflictId));
     }
 
     /** 会话恢复 —— 用于刷新页面后从 localStorage 恢复登录态 */

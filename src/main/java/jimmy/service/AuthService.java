@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.SaTokenInfo;
 import cn.dev33.satoken.stp.SaLoginModel;
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.mapper.AuthMapper;
+import jimmy.model.LoginConflictResponse;
 import jimmy.model.LoginRequest;
 import jimmy.model.LoginResponse;
 import jimmy.model.MenuVO;
@@ -30,13 +31,16 @@ public class AuthService {
 
     private final AuthMapper authMapper;
     private final SystemPermissionService systemPermissionService;
+    private final LoginConflictService loginConflictService;
 
-    public AuthService(AuthMapper authMapper, SystemPermissionService systemPermissionService) {
+    public AuthService(AuthMapper authMapper, SystemPermissionService systemPermissionService,
+                       LoginConflictService loginConflictService) {
         this.authMapper = authMapper;
         this.systemPermissionService = systemPermissionService;
+        this.loginConflictService = loginConflictService;
     }
 
-    public LoginResponse login(LoginRequest request) {
+    public Object login(LoginRequest request) {
         String username = request == null ? null : request.getUsername();
         String password = request == null ? null : request.getPassword();
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
@@ -53,7 +57,15 @@ public class AuthService {
             throw new IllegalArgumentException("账号已停用");
         }
         upgradePasswordIfNecessary(loginUser, password);
+        if (StpUtil.isLogin(loginUser.id)) {
+            log.info("检测到同一账号已有在线会话，创建登录冲突确认，userId={}, username={}",
+                    loginUser.id, LogMaskUtils.maskAccount(loginUser.username));
+            return loginConflictService.create(loginUser.id, loginUser.username);
+        }
+        return completeLogin(loginUser);
+    }
 
+    private LoginResponse completeLogin(LoginUser loginUser) {
         systemPermissionService.ensurePermissionInfrastructure();
         List<String> permissions = systemPermissionService.effectivePermissionCodes(loginUser.id, loginUser.roleId);
         List<MenuVO> menus = queryMenus(loginUser.roleId, permissions);
@@ -107,6 +119,41 @@ public class AuthService {
         StpUtil.getSessionByLoginId(userId).set("permissions", permissions);
         StpUtil.getSessionByLoginId(userId).set("menus", menus);
         return buildResponse(loginUser, StpUtil.getTokenInfo(), permissions, menus);
+    }
+
+    public LoginConflictResponse loginConflictStatus(String conflictId) {
+        LoginConflictService.PendingLoginConflict conflict = loginConflictService.pending(conflictId);
+        if (conflict == null) {
+            return loginConflictService.status(conflictId);
+        }
+        if (!loginConflictService.isExpired(conflict)) {
+            return loginConflictService.status(conflictId);
+        }
+        LoginUser loginUser = findLoginUserById(conflict.getUserId());
+        if (loginUser == null || loginUser.status == null || loginUser.status != 1) {
+            LoginConflictResponse response = loginConflictService.status(conflictId);
+            response.setLoginStatus("REJECTED");
+            response.setMessage("登录账号不存在或已停用");
+            return response;
+        }
+        LoginResponse loginResponse = completeLogin(loginUser);
+        loginConflictService.markTakenOver(conflictId);
+        LoginConflictResponse response = loginConflictService.status(conflictId);
+        response.setLoginStatus("TAKEN_OVER");
+        response.setLoginResponse(loginResponse);
+        return response;
+    }
+
+    public LoginConflictResponse currentLoginConflict() {
+        StpUtil.checkLogin();
+        Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
+        return loginConflictService.current(userId);
+    }
+
+    public LoginConflictResponse rejectLoginConflict(String conflictId) {
+        StpUtil.checkLogin();
+        Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
+        return loginConflictService.reject(conflictId, userId);
     }
 
     public void logout() {

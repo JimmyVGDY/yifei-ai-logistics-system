@@ -48,18 +48,21 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { SwitchButton } from '@element-plus/icons-vue'
-import { logout } from './api/auth'
-import { clearAuthToken, getAuthToken } from './stores/auth-store'
+import { fetchCurrentLoginConflict, logout, rejectLoginConflict } from './api/auth'
+import { clearAuthToken, getAuthToken, isAuthenticated } from './stores/auth-store'
 
 const router = useRouter()
 const auth = getAuthToken()
 const username = computed(() => auth.username || '未登录')
 const roleName = computed(() => auth.roleName || '未分配角色')
 const menus = computed(() => auth.menus || [])
+let conflictPollTimer = null
+let conflictDialogVisible = false
+let conflictAutoCloseTimer = null
 
 function iconName(path) {
   const icons = {
@@ -90,4 +93,60 @@ async function handleLogout() {
     router.replace('/login')
   }
 }
+
+async function pollLoginConflict() {
+  if (!isAuthenticated() || conflictDialogVisible) {
+    return
+  }
+  const conflict = await fetchCurrentLoginConflict()
+  if (conflict?.loginStatus === 'PENDING') {
+    showLoginConflictDialog(conflict)
+  }
+}
+
+function showLoginConflictDialog(conflict) {
+  conflictDialogVisible = true
+  const remainingSeconds = conflict.remainingSeconds || 60
+  conflictAutoCloseTimer = setTimeout(() => {
+    ElMessageBox.close()
+    conflictDialogVisible = false
+  }, remainingSeconds * 1000)
+
+  ElMessageBox.confirm(
+    h('div', null, [
+      h('p', null, '检测到同一账号正在其他地方登录。'),
+      h('p', null, `如果你要保留当前会话，请在 ${remainingSeconds} 秒内点击“保持当前登录”。`),
+      h('p', null, '如果不处理，倒计时结束后新登录会生效，当前会话会被下线。')
+    ]),
+    '登录冲突提醒',
+    {
+      confirmButtonText: '保持当前登录',
+      cancelButtonText: '允许新登录',
+      distinguishCancelAndClose: true,
+      closeOnClickModal: false,
+      closeOnPressEscape: false,
+      type: 'warning'
+    }
+  ).then(async () => {
+    await rejectLoginConflict(conflict.conflictId)
+    ElMessage.success('已拒绝新的登录请求，当前会话继续保留')
+  }).catch((action) => {
+    if (action === 'cancel') {
+      ElMessage.info('已允许新的登录请求，当前会话稍后会下线')
+    }
+  }).finally(() => {
+    clearTimeout(conflictAutoCloseTimer)
+    conflictAutoCloseTimer = null
+    conflictDialogVisible = false
+  })
+}
+
+onMounted(() => {
+  conflictPollTimer = setInterval(pollLoginConflict, 5000)
+})
+
+onBeforeUnmount(() => {
+  clearInterval(conflictPollTimer)
+  clearTimeout(conflictAutoCloseTimer)
+})
 </script>
