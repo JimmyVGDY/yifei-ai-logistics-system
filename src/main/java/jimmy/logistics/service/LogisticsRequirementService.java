@@ -9,6 +9,7 @@ import jimmy.logistics.model.StatusLabel;
 import jimmy.logistics.util.ColumnExistenceChecker;
 import jimmy.model.PageResult;
 import jimmy.util.FieldEncryptor;
+import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -114,7 +115,7 @@ public class LogisticsRequirementService {
             voRecords.add(new ModuleRecordVO(record));
         }
         log.info("查询物流模块分页完成，module={}, page={}, pageSize={}, total={}, keyword={}, startTime={}, endTime={}",
-                module, page, pageSize, total, keyword, startTime, endTime);
+                module, page, pageSize, total, LogMaskUtils.maskText(keyword), startTime, endTime);
         return new PageResult<>(voRecords, page, pageSize, total == null ? 0 : total);
     }
 
