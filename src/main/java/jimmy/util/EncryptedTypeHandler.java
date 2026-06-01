@@ -10,17 +10,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 /**
- * MyBatis 加密字段 TypeHandler —— 自动对 VARCHAR 字段进行 AES 加解密。
+ * MyBatis 加密字段 TypeHandler —— 按需在 Mapper XML 中显式指定启用。
  * <p>
- * 在 Mapper XML 中指定 {@code typeHandler=...} 即可透明加解密，业务代码无需感知。
- * 未配置加密密钥时加密操作会被跳过，写入和读出均为原文。
+ * 注意：此类不注册为 {@code @Component}，避免 MyBatis 自动注册为全局 String 处理器
+ * 导致所有字符串参数被误加密。敏感字段加解密由 Service 层的
+ * {@code encryptValues() / decryptRecords()} 统一处理。
  * </p>
- *
- * <pre>
- * #{mobile, typeHandler=jimmy.util.EncryptedTypeHandler}
- * </pre>
  */
-@Component
 public class EncryptedTypeHandler extends BaseTypeHandler<String> {
 
     private static FieldEncryptor encryptor;
