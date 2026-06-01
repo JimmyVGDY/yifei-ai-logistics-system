@@ -318,7 +318,7 @@ function dynamicFieldOptions(prop, module) {
 
 function canAction(action) {
   const permission = actionPermission(action)
-  return hasPermission(permission) || hasPermission(modulePermission.value)
+  return hasPermission(permission)
 }
 
 function actionPermission(action) {
@@ -363,6 +363,10 @@ async function loadData() {
       page.value = result.page || page.value
       limit.value = result.pageSize || limit.value
     }
+  } catch (error) {
+    records.value = []
+    total.value = 0
+    throw error
   } finally {
     loading.value = false
   }
@@ -374,12 +378,37 @@ async function loadCurrentRelationOptions() {
 }
 
 async function loadRelationOptions(source) {
+  if (!hasPermission(sourceQueryPermission(source))) {
+    relationOptions[source] = []
+    if (source === 'orders') {
+      relationRows.orders = []
+    }
+    return
+  }
   const result = await fetchModuleRecords(source, { page: 1, pageSize: 100 })
   const rows = Array.isArray(result) ? result : (result.records || [])
   if (source === 'orders') {
     relationRows.orders = rows
   }
   relationOptions[source] = rows.map((row) => ({ value: String(row.id), label: relationLabel(source, row) }))
+}
+
+function sourceQueryPermission(source) {
+  const prefixes = {
+    orders: 'order',
+    customers: 'customer',
+    waybills: 'waybill',
+    dispatches: 'dispatch',
+    tasks: 'task',
+    tracks: 'track',
+    drivers: 'driver',
+    vehicles: 'vehicle',
+    exceptions: 'exception',
+    fees: 'fee',
+    roles: 'system:role',
+    users: 'system:user'
+  }
+  return `${prefixes[source] || source}:query`
 }
 
 function relationLabel(source, row) {

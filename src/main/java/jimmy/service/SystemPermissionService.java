@@ -124,15 +124,15 @@ public class SystemPermissionService {
 
     public List<String> effectivePermissionCodes(Long userId, Long roleId) {
         ensurePermissionInfrastructure();
-        LinkedHashSet<String> permissions = new LinkedHashSet<>(safeList(systemPermissionMapper.selectRolePermissionCodes(roleId)));
+        LinkedHashSet<String> permissions = expandPermissionCodes(safeList(systemPermissionMapper.selectRolePermissionCodes(roleId)));
         for (Map<String, Object> row : systemPermissionMapper.selectUserPermissionOverrides(userId)) {
             String code = String.valueOf(row.get("permissionCode"));
             String grantType = String.valueOf(row.get("grantType"));
             if ("DENY".equalsIgnoreCase(grantType)) {
-                permissions.remove(code);
+                permissions.removeAll(expandPermissionCodes(Collections.singletonList(code)));
                 continue;
             }
-            permissions.add(code);
+            permissions.addAll(expandPermissionCodes(Collections.singletonList(code)));
         }
         return new ArrayList<>(permissions);
     }
@@ -417,6 +417,21 @@ public class SystemPermissionService {
 
     private List<String> safeList(List<String> values) {
         return values == null ? Collections.emptyList() : values;
+    }
+
+    private LinkedHashSet<String> expandPermissionCodes(List<String> permissionCodes) {
+        LinkedHashSet<String> expanded = new LinkedHashSet<>();
+        for (String permissionCode : permissionCodes) {
+            if (!StringUtils.hasText(permissionCode)) {
+                continue;
+            }
+            expanded.add(permissionCode);
+            String moduleCode = moduleFromCode(permissionCode);
+            for (String action : actionsFor(permissionCode)) {
+                expanded.add(moduleCode + ":" + action);
+            }
+        }
+        return expanded;
     }
 
     private List<String> actionsFor(String permissionCode) {

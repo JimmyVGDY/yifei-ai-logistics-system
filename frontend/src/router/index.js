@@ -5,7 +5,7 @@ import LoginView from '../views/LoginView.vue'
 import ModuleListView from '../views/ModuleListView.vue'
 import PermissionConfigView from '../views/PermissionConfigView.vue'
 import { fetchSession } from '../api/auth'
-import { canVisit, clearAuthToken, firstMenuPath, hasMenus, isAuthenticated, saveAuthToken } from '../stores/auth-store'
+import { canVisit, clearAuthToken, firstMenuPath, hasMenus, hasPermission, isAuthenticated, saveAuthToken } from '../stores/auth-store'
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
@@ -34,6 +34,8 @@ const router = createRouter({
   routes
 })
 
+let sessionChecked = false
+
 router.beforeEach(async (to) => {
   if (to.meta.public) {
     return true
@@ -41,15 +43,17 @@ router.beforeEach(async (to) => {
   if (!isAuthenticated()) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
-  if (!hasMenus()) {
+  if (!sessionChecked || !hasMenus()) {
     try {
       saveAuthToken(await fetchSession())
+      sessionChecked = true
     } catch (error) {
       clearAuthToken()
+      sessionChecked = false
       return { path: '/login', query: { redirect: to.fullPath } }
     }
   }
-  if (!canVisit(to.path)) {
+  if (!canVisit(to.path) || !hasPermission(to.meta.permission)) {
     const target = firstMenuPath()
     return target === to.path ? { path: '/login' } : target
   }
