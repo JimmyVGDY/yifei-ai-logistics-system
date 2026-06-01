@@ -68,3 +68,8 @@ xxl:
       appname: ${XXL_JOB_EXECUTOR_APPNAME:logistics-app}
       port: ${XXL_JOB_EXECUTOR_PORT:9999}
       logpath: ${XXL_JOB_EXECUTOR_LOGPATH:/app/logs/xxl-job}
+
+# AES 加密密钥（至少 16 字符，环境变量 APP_ENCRYPT_KEY 传入，不配置则明文存储）
+app:
+  encrypt:
+    key: ${APP_ENCRYPT_KEY:}
