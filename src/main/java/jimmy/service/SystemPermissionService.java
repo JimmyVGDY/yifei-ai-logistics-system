@@ -54,8 +54,11 @@ public class SystemPermissionService {
         ensureStandardMenus();
         ensurePermissionMenu();
         ensurePermissionCatalog();
-        ensureDefaultRoleMenus();
-        syncRolePermissionsFromMenus();
+        // 仅在首次启动（权限表无数据）时自动同步预设菜单和权限，后续的人工调整不再被覆盖。
+        if (countAllRolePermissions() == 0) {
+            ensureDefaultRoleMenus();
+            syncRolePermissionsFromMenus();
+        }
     }
 
     public List<MenuVO> menuTree() {
@@ -223,6 +226,18 @@ public class SystemPermissionService {
                 systemPermissionMapper.insertRolePermission(idGenerator.nextId(), entry.getKey(), permission.getId());
             }
         }
+    }
+
+    private long countAllRolePermissions() {
+        long total = 0;
+        List<Long> roleIds = systemPermissionMapper.selectAllRoleIds();
+        for (Long roleId : roleIds) {
+            List<Long> permissions = systemPermissionMapper.selectRolePermissionIds(roleId);
+            if (permissions != null) {
+                total += permissions.size();
+            }
+        }
+        return total;
     }
 
     private void ensureStandardMenus() {
