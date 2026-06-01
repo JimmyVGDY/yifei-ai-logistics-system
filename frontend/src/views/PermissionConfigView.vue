@@ -224,8 +224,7 @@ function selectSubject(subject) {
 
 function checkedPermissionIds(treeRef) {
   const checked = treeRef?.getCheckedKeys(false) || []
-  const halfChecked = treeRef?.getHalfCheckedKeys() || []
-  return [...new Set([...checked, ...halfChecked])].map((id) => Number(id)).filter(Boolean)
+  return checked.map((id) => Number(id)).filter(Boolean)
 }
 
 function syncUserTrees(source) {
