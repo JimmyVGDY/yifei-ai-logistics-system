@@ -45,7 +45,7 @@
         select coalesce(sum(payable_fee), 0)
         from logistics_fee
         where payment_status = 'PAID'
-          and date_format(payment_time, '%Y-%m') = date_format(current_date, '%Y-%m')
+          and date_format(update_time, '%Y-%m') = date_format(current_date, '%Y-%m')
         <if test="customerId != null">and order_id in (select id from logistics_order where customer_id = #{customerId})</if>
     </select>
 
