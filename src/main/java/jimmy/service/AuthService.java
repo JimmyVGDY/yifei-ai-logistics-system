@@ -292,16 +292,40 @@ public class AuthService {
     }
 
     private void addRelationQueryPermissions(String roleCode, List<String> expanded) {
+        if ("OPERATIONS_MANAGER".equals(roleCode)) {
+            addQueryPermissions(expanded, "customer", "driver", "vehicle", "fee");
+            return;
+        }
+        if ("ORDER_OPERATOR".equals(roleCode) || "CUSTOMER_SERVICE".equals(roleCode)) {
+            addQueryPermissions(expanded, "customer", "order", "waybill", "track");
+            return;
+        }
         if ("DISPATCHER".equals(roleCode)) {
             addQueryPermissions(expanded, "order", "waybill");
+            return;
+        }
+        if ("FLEET_MANAGER".equals(roleCode)) {
+            addQueryPermissions(expanded, "order", "waybill", "dispatch", "driver", "vehicle");
             return;
         }
         if ("DRIVER".equals(roleCode)) {
             addQueryPermissions(expanded, "order", "waybill", "dispatch", "driver", "vehicle");
             return;
         }
+        if ("EXCEPTION_HANDLER".equals(roleCode)) {
+            addQueryPermissions(expanded, "order", "task", "track");
+            return;
+        }
         if ("FINANCE".equals(roleCode)) {
             addQueryPermissions(expanded, "order");
+            return;
+        }
+        if ("FINANCE_MANAGER".equals(roleCode)) {
+            addQueryPermissions(expanded, "order", "fee");
+            return;
+        }
+        if ("AUDITOR".equals(roleCode)) {
+            addQueryPermissions(expanded, "order", "waybill", "track", "fee", "system:log");
         }
     }
 
@@ -345,14 +369,35 @@ public class AuthService {
         if ("CUSTOMER_SERVICE".equals(roleCode)) {
             return menus("customers", "orders", "waybills", "tracks");
         }
+        if ("ORDER_OPERATOR".equals(roleCode)) {
+            return menus("orders", "customers", "waybills", "tracks");
+        }
         if ("DISPATCHER".equals(roleCode)) {
             return menus("dispatches", "tasks", "drivers", "vehicles", "tracks", "exceptions");
+        }
+        if ("FLEET_MANAGER".equals(roleCode)) {
+            return menus("drivers", "vehicles", "dispatches", "tasks", "tracks");
         }
         if ("DRIVER".equals(roleCode)) {
             return menus("tasks", "tracks", "exceptions");
         }
+        if ("EXCEPTION_HANDLER".equals(roleCode)) {
+            return menus("exceptions", "orders", "tasks", "tracks");
+        }
         if ("FINANCE".equals(roleCode)) {
             return menus("fees", "dashboard");
+        }
+        if ("FINANCE_MANAGER".equals(roleCode)) {
+            return menus("fees", "dashboard", "system", "operationLogs");
+        }
+        if ("OPERATIONS_MANAGER".equals(roleCode)) {
+            return menus("dashboard", "orders", "waybills", "dispatches", "tasks", "tracks", "exceptions");
+        }
+        if ("AUDITOR".equals(roleCode)) {
+            return menus("dashboard", "orders", "waybills", "tracks", "fees", "system", "operationLogs");
+        }
+        if ("FILE_MANAGER".equals(roleCode)) {
+            return menus("files", "resources");
         }
         if ("CUSTOMER".equals(roleCode)) {
             return menus("orders", "tracks");
@@ -397,6 +442,7 @@ public class AuthService {
         menus.put("users", system.getChildren().get(0));
         menus.put("roles", system.getChildren().get(1));
         menus.put("permissions", system.getChildren().get(2));
+        menus.put("operationLogs", system.getChildren().get(3));
         menus.put("files", menu(-16L, 0L, "上传文件", "/files", "file:manage", 940));
         menus.put("resources", menu(-17L, 0L, "资源中心", "/resources", "resource:view", 950));
         return menus;

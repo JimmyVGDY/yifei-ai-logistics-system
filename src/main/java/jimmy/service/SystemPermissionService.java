@@ -383,10 +383,17 @@ public class SystemPermissionService {
     private Map<String, List<String>> defaultRoleMenuPaths() {
         Map<String, List<String>> defaults = new LinkedHashMap<>();
         defaults.put("ADMIN", standardMenus().stream().map(menu -> menu.path).collect(Collectors.toList()));
+        defaults.put("OPERATIONS_MANAGER", Arrays.asList("/dashboard", "/orders", "/waybills", "/dispatches", "/tasks", "/tracks", "/exceptions"));
+        defaults.put("ORDER_OPERATOR", Arrays.asList("/orders", "/customers", "/waybills", "/tracks"));
         defaults.put("CUSTOMER_SERVICE", Arrays.asList("/customers", "/orders", "/waybills", "/tracks"));
         defaults.put("DISPATCHER", Arrays.asList("/dispatches", "/tasks", "/drivers", "/vehicles", "/tracks", "/exceptions"));
+        defaults.put("FLEET_MANAGER", Arrays.asList("/drivers", "/vehicles", "/dispatches", "/tasks", "/tracks"));
         defaults.put("DRIVER", Arrays.asList("/tasks", "/tracks", "/exceptions"));
+        defaults.put("EXCEPTION_HANDLER", Arrays.asList("/exceptions", "/orders", "/tasks", "/tracks"));
         defaults.put("FINANCE", Arrays.asList("/fees", "/dashboard"));
+        defaults.put("FINANCE_MANAGER", Arrays.asList("/fees", "/dashboard", "/system/operation-logs"));
+        defaults.put("AUDITOR", Arrays.asList("/dashboard", "/orders", "/waybills", "/tracks", "/fees", "/system/operation-logs"));
+        defaults.put("FILE_MANAGER", Arrays.asList("/files", "/resources"));
         defaults.put("CUSTOMER", Arrays.asList("/orders", "/tracks"));
         return defaults;
     }
