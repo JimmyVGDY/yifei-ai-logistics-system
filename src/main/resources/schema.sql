@@ -23,11 +23,13 @@ create table if not exists sys_user (
     email varchar(128) null,
     password varchar(128) not null,
     role_id bigint null,
+    customer_account_type varchar(16) null comment '客户账号类型：MAIN主账号，SUB子账号',
     customer_id bigint null comment '关联的物流客户ID，用于客户角色数据权限隔离',
     status tinyint not null,
     create_time timestamp not null,
     update_time timestamp not null,
     index idx_sys_user_role (role_id),
+    index idx_sys_user_customer (customer_id),
     index idx_sys_user_status (status)
 );
 

@@ -62,7 +62,7 @@
         <el-row :gutter="16">
           <el-col v-for="field in activeEditFields" :key="field.prop" :xs="24" :md="12">
             <el-form-item :label="field.label">
-              <el-select v-if="field.options" v-model="crudForm[field.prop]" clearable filterable style="width: 100%">
+              <el-select v-if="field.options" v-model="crudForm[field.prop]" clearable filterable :allow-create="field.allowCreate" default-first-option style="width: 100%">
                 <el-option v-for="option in field.options" :key="option.value" :label="option.label" :value="option.value" />
               </el-select>
               <el-input-number v-else-if="field.type === 'number'" v-model="crudForm[field.prop]" :precision="field.precision || 0" style="width: 100%" />
@@ -160,7 +160,8 @@ const relationOptions = reactive({
   dispatches: [],
   drivers: [],
   vehicles: [],
-  tasks: []
+  tasks: [],
+  orderCustomers: []
 })
 const relationRows = reactive({
   orders: []
@@ -188,7 +189,7 @@ const fieldOptionGroups = {
 }
 
 const relationFieldSources = {
-  users: { role_id: 'roles' },
+  users: { role_id: 'roles', customer_id: 'orderCustomers' },
   waybills: { order_id: 'orders' },
   dispatches: { order_id: 'orders', waybill_id: 'waybills', driver_id: 'drivers', vehicle_id: 'vehicles' },
   tasks: { order_id: 'orders', waybill_id: 'waybills', dispatch_id: 'dispatches', driver_id: 'drivers', vehicle_id: 'vehicles' },
@@ -208,7 +209,7 @@ const moduleMetas = {
   vehicles: moduleMeta('vehicles', '车辆管理', '维护车辆、容量和当前位置', 'vehicle_no:车牌号,vehicle_type:车辆类型,load_capacity_kg:载重,volume_capacity_cubic:容积,current_city:当前城市,status:状态,created_at:创建时间,updated_at:更新时间', 'vehicle_no:车牌号,vehicle_type:车辆类型,load_capacity_kg:载重:number:2,volume_capacity_cubic:容积:number:2,current_city:当前城市,status:状态'),
   exceptions: moduleMeta('exceptions', '异常管理', '运输异常上报、处理和查询', 'order_id:订单ID,order_no:订单号,task_id:任务ID,exception_type:异常类型,exception_desc:异常描述,exception_status:异常状态,report_user:上报人,report_time:上报时间,handle_user:处理人,handle_time:处理时间', 'order_id:订单ID,task_id:任务ID,exception_type:异常类型,exception_desc:异常描述,exception_status:异常状态'),
   fees: moduleMeta('fees', '费用结算', '订单费用计算、账单和付款状态', 'order_id:订单ID,order_no:订单号,base_fee:基础运费,weight_fee:重量费用,distance_fee:距离费用,additional_fee:附加费,discount_fee:优惠金额,payable_fee:应收金额,actual_fee:实收金额,payment_status:付款状态,create_time:创建时间,update_time:更新时间', 'order_id:订单ID,base_fee:基础运费:number:2,weight_fee:重量费用:number:2,distance_fee:距离费用:number:2,additional_fee:附加费:number:2,discount_fee:优惠金额:number:2,payable_fee:应收金额:number:2,actual_fee:实收金额:number:2,payment_status:付款状态'),
-  users: moduleMeta('users', '用户管理', '后台用户、状态和角色分配', 'user_code:用户编号,username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,role_id:角色ID,role_name:角色,status:状态,create_time:创建时间,update_time:更新时间', 'username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,password:密码,role_id:角色ID,status:状态'),
+  users: moduleMeta('users', '用户管理', '后台用户、状态和角色分配', 'user_code:用户编号,username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,role_id:角色ID,role_name:角色,customer_id:关联客户ID,customer_name:关联客户,customer_account_type:客户账号类型,status:状态,create_time:创建时间,update_time:更新时间', 'username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,password:密码,role_id:角色ID,customer_id:客户名称,status:状态'),
   roles: moduleMeta('roles', '角色管理', '系统管理员、客服、调度、司机、财务和客户角色', 'role_code:角色编码,role_name:角色名称,status:状态,create_time:创建时间,update_time:更新时间', 'role_name:角色名称,status:状态'),
   operationLogs: { title: '操作日志', description: '记录关键接口和业务写操作', editable: false, columns: columns('operation_id:操作ID,trace_id:Trace ID,user_code:用户编号,user_id:用户主键,username:操作人,role_code:角色编号,operation:操作内容,request_uri:请求地址,request_method:方法,operation_status:状态,cost_ms:耗时ms,operation_time:操作时间') },
   files: { title: '上传文件', description: '查看上传到本地的业务附件记录', editable: false, columns: columns('original_name:原文件名,relative_path:保存路径,file_size:大小,content_type:类型,upload_user:上传人,upload_time:上传时间') }
@@ -222,7 +223,7 @@ const exceptionOrderOptions = computed(() => relationRows.orders.map((row) => ({
 const activeEditFields = computed(() => (meta.value.editFields || []).map((field) => {
   const dynamicOptions = dynamicFieldOptions(field.prop, route.meta.module)
   if (dynamicOptions) {
-    return { ...field, options: dynamicOptions }
+    return { ...field, options: dynamicOptions, allowCreate: field.prop === 'customer_id' }
   }
   return field
 }))
@@ -336,6 +337,9 @@ function actionPermission(action) {
 }
 
 function formatCell(prop, value) {
+  if (prop === 'customer_account_type') {
+    return value === 'MAIN' ? '主账号' : value === 'SUB' ? '子账号' : value
+  }
   if (prop.includes('status') || prop === 'status') {
     return statusLabel(value)
   }
@@ -379,6 +383,40 @@ async function loadCurrentRelationOptions() {
 }
 
 async function loadRelationOptions(source) {
+  if (source === 'orderCustomers') {
+    const customerMap = new Map()
+    if (hasPermission('order:query')) {
+      const orderResult = await fetchModuleRecords('orders', { page: 1, pageSize: 200 })
+      const orderRows = Array.isArray(orderResult) ? orderResult : (orderResult.records || [])
+      orderRows.forEach((row) => {
+        const customerName = row.customer_name || row.customerName
+        if (!customerName || customerMap.has(customerName)) {
+          return
+        }
+        const customerId = row.customer_id || row.customerId || customerName
+        customerMap.set(customerName, {
+          value: String(customerId),
+          label: `${customerName}${row.order_no ? `（来自运单 ${row.order_no}）` : ''}`
+        })
+      })
+    }
+    if (hasPermission('customer:query')) {
+      const customerResult = await fetchModuleRecords('customers', { page: 1, pageSize: 200 })
+      const customerRows = Array.isArray(customerResult) ? customerResult : (customerResult.records || [])
+      customerRows.forEach((row) => {
+        const customerName = row.customer_name || row.customerName
+        if (!customerName || customerMap.has(customerName)) {
+          return
+        }
+        customerMap.set(customerName, {
+          value: String(row.id || customerName),
+          label: `${customerName}${row.customer_code ? `（${row.customer_code}）` : ''}`
+        })
+      })
+    }
+    relationOptions[source] = Array.from(customerMap.values())
+    return
+  }
   if (!hasPermission(sourceQueryPermission(source))) {
     relationOptions[source] = []
     if (source === 'orders') {
@@ -407,7 +445,8 @@ function sourceQueryPermission(source) {
     exceptions: 'exception',
     fees: 'fee',
     roles: 'system:role',
-    users: 'system:user'
+    users: 'system:user',
+    orderCustomers: 'order'
   }
   return `${prefixes[source] || source}:query`
 }
@@ -415,6 +454,9 @@ function sourceQueryPermission(source) {
 function relationLabel(source, row) {
   if (source === 'roles') {
     return `${row.role_name || '未命名角色'}（${row.role_code || row.id}）`
+  }
+  if (source === 'customers') {
+    return `${row.customer_name || row.id}${row.customer_code ? `（${row.customer_code}）` : ''}`
   }
   if (source === 'orders') {
     return `${row.order_no || row.id}${row.customer_name ? ` - ${row.customer_name}` : ''}`

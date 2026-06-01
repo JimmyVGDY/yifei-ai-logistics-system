@@ -9,6 +9,7 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 source scripts/sql/20260526_incremental_role_permission_menu.sql;
 source scripts/sql/20260601_incremental_user_permission.sql;
 source scripts/sql/20260601_incremental_enterprise_roles.sql;
+source scripts/sql/20260601_incremental_customer_account_binding.sql;
 ```
 
 这些脚本会保留现有数据，并补充：

@@ -28,4 +28,18 @@ public interface LogisticsCrudMapper {
     int countByBusinessCode(@Param("tableName") String tableName,
                             @Param("columnName") String columnName,
                             @Param("code") String code);
+
+    Long selectCustomerIdFromOrdersByName(@Param("customerName") String customerName);
+
+    Long selectCustomerIdByName(@Param("customerName") String customerName);
+
+    int insertCustomerForAccount(@Param("id") Long id,
+                                 @Param("customerCode") String customerCode,
+                                 @Param("customerName") String customerName,
+                                 @Param("now") java.sql.Timestamp now);
+
+    String selectRoleCodeById(@Param("roleId") Long roleId);
+
+    int countCustomerAccounts(@Param("customerId") Long customerId,
+                              @Param("excludeUserId") Long excludeUserId);
 }

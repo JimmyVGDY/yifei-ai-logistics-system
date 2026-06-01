@@ -48,6 +48,7 @@ public class LogisticsCrudService {
         Map<String, Object> values = filteredPayload(config, payload, false);
         Long id = idGenerator.nextId();
         values.put("id", id);
+        normalizeUserCustomerBinding(module, values, id, false);
         // 业务编号由后端统一生成,前端不需要手填,避免人工输入重复或格式不统一。
         fillBusinessCodeDefaults(config, values);
         fillCreateDefaults(config, values);
@@ -63,6 +64,7 @@ public class LogisticsCrudService {
     public OperationResultVO update(String module, long id, Map<String, Object> payload) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> values = filteredPayload(config, payload, true);
+        normalizeUserCustomerBinding(module, values, id, true);
         fillUpdateDefaults(config, values);
         fillAuditDefaults(config, values, false);
         // 敏感字段加密：手机号等字段入库前加密
@@ -144,6 +146,78 @@ public class LogisticsCrudService {
             return;
         }
         values.put(config.generatedCodeColumn, nextBusinessCode(config.tableName, config.generatedCodeColumn, config.generatedCodePrefix));
+    }
+
+    private void normalizeUserCustomerBinding(String module, Map<String, Object> values, Long userId, boolean update) {
+        if (!"users".equals(module)) {
+            return;
+        }
+        Long roleId = parseLong(values.get("role_id"));
+        String roleCode = roleId == null ? null : logisticsCrudMapper.selectRoleCodeById(roleId);
+        boolean customerRole = "CUSTOMER".equals(roleCode);
+        if (roleCode != null && !customerRole) {
+            if (columnChecker.hasColumn("sys_user", "customer_id")) {
+                values.put("customer_id", null);
+            }
+            if (columnChecker.hasColumn("sys_user", "customer_account_type")) {
+                values.put("customer_account_type", null);
+            }
+            return;
+        }
+        if (!customerRole && !values.containsKey("customer_id")) {
+            return;
+        }
+        Long customerId = resolveCustomerId(values.get("customer_id"));
+        if (customerId == null) {
+            if (customerRole && !update) {
+                throw new IllegalArgumentException("客户角色账号必须选择或填写客户名称");
+            }
+            values.remove("customer_id");
+            values.remove("customer_account_type");
+            return;
+        }
+        values.put("customer_id", customerId);
+        if (columnChecker.hasColumn("sys_user", "customer_account_type")) {
+            int existingAccounts = logisticsCrudMapper.countCustomerAccounts(customerId, update ? userId : null);
+            values.put("customer_account_type", existingAccounts == 0 ? "MAIN" : "SUB");
+        }
+    }
+
+    private Long resolveCustomerId(Object customerValue) {
+        if (customerValue == null) {
+            return null;
+        }
+        String rawValue = String.valueOf(customerValue).trim();
+        if (rawValue.isEmpty()) {
+            return null;
+        }
+        Long numericId = parseLong(rawValue);
+        if (numericId != null) {
+            return numericId;
+        }
+        Long orderCustomerId = logisticsCrudMapper.selectCustomerIdFromOrdersByName(rawValue);
+        if (orderCustomerId != null) {
+            return orderCustomerId;
+        }
+        Long existingCustomerId = logisticsCrudMapper.selectCustomerIdByName(rawValue);
+        if (existingCustomerId != null) {
+            return existingCustomerId;
+        }
+        Long newCustomerId = idGenerator.nextId();
+        String customerCode = nextBusinessCode("logistics_customer", "customer_code", "CUST");
+        logisticsCrudMapper.insertCustomerForAccount(newCustomerId, customerCode, rawValue, new Timestamp(System.currentTimeMillis()));
+        return newCustomerId;
+    }
+
+    private Long parseLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Long.valueOf(String.valueOf(value).trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     private String nextBusinessCode(String tableName, String columnName, String prefix) {
@@ -231,7 +305,7 @@ public class LogisticsCrudService {
         map.put("vehicles", new CrudConfig("logistics_vehicle", "created_at", "updated_at", "vehicle_no", "vehicle_type", "load_capacity_kg", "volume_capacity_cubic", "current_city", "status"));
         map.put("exceptions", new CrudConfig("logistics_exception", "report_time", "handle_time", "order_id", "task_id", "exception_type", "exception_desc", "exception_status", "report_user", "handle_user"));
         map.put("fees", new CrudConfig("logistics_fee", "create_time", "update_time", "order_id", "base_fee", "weight_fee", "distance_fee", "additional_fee", "discount_fee", "payable_fee", "actual_fee", "payment_status"));
-        map.put("users", CrudConfig.withGeneratedCode("sys_user", "create_time", "update_time", "user_code", "U", "user_code", "username", "real_name", "mobile", "email", "password", "role_id", "status"));
+        map.put("users", CrudConfig.withGeneratedCode("sys_user", "create_time", "update_time", "user_code", "U", "user_code", "username", "real_name", "mobile", "email", "password", "role_id", "customer_id", "customer_account_type", "status"));
         map.put("roles", CrudConfig.withGeneratedCode("sys_role", "create_time", "update_time", "role_code", "R", "role_code", "role_name", "status"));
         return map;
     }

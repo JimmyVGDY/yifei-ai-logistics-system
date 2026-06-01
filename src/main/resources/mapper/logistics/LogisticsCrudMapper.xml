@@ -65,4 +65,51 @@
         from ${tableName}
         where ${columnName} = #{code}
     </select>
+
+    <!-- 新增客户账号时，优先从历史运单中找到同名客户绑定，避免客户档案和账号重复割裂。 -->
+    <select id="selectCustomerIdFromOrdersByName" resultType="long">
+        select customer_id
+        from logistics_order
+        where customer_name = #{customerName}
+          and customer_id is not null
+        order by created_at desc
+        limit 1
+    </select>
+
+    <!-- 如果历史运单没有可用 customer_id，则回退到客户档案表按名称匹配。 -->
+    <select id="selectCustomerIdByName" resultType="long">
+        select id
+        from logistics_customer
+        where customer_name = #{customerName}
+        order by id
+        limit 1
+    </select>
+
+    <!-- 手输客户名称且系统无档案时，创建一条最小客户档案，后续可在客户管理中补全联系人和地址。 -->
+    <insert id="insertCustomerForAccount">
+        insert into logistics_customer
+            (id, customer_code, customer_name, contact_name, contact_phone, province, city, address, status, created_at, updated_at)
+        values
+            (#{id}, #{customerCode}, #{customerName}, #{customerName}, '', '待补充', '待补充', '待补充', 'ACTIVE', #{now}, #{now})
+    </insert>
+
+    <!-- 判断当前选择的角色是否为客户角色，只有客户角色才需要绑定客户数据权限。 -->
+    <select id="selectRoleCodeById" resultType="string">
+        select role_code
+        from sys_role
+        where id = #{roleId}
+        limit 1
+    </select>
+
+    <!-- 同一客户下第一个客户账号标记为主账号，后续账号标记为子账号。 -->
+    <select id="countCustomerAccounts" resultType="int">
+        select count(1)
+        from sys_user u
+        join sys_role r on r.id = u.role_id
+        where u.customer_id = #{customerId}
+          and r.role_code = 'CUSTOMER'
+          <if test="excludeUserId != null">
+              and u.id != #{excludeUserId}
+          </if>
+    </select>
 </mapper>
