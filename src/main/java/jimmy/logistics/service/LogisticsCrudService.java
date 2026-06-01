@@ -199,15 +199,18 @@ public class LogisticsCrudService {
         }
         Long orderCustomerId = logisticsCrudMapper.selectCustomerIdFromOrdersByName(rawValue);
         if (orderCustomerId != null) {
+            logisticsCrudMapper.updateOrderCustomerIdByName(orderCustomerId, rawValue);
             return orderCustomerId;
         }
         Long existingCustomerId = logisticsCrudMapper.selectCustomerIdByName(rawValue);
         if (existingCustomerId != null) {
+            logisticsCrudMapper.updateOrderCustomerIdByName(existingCustomerId, rawValue);
             return existingCustomerId;
         }
         Long newCustomerId = idGenerator.nextId();
         String customerCode = nextBusinessCode("logistics_customer", "customer_code", "CUST");
         logisticsCrudMapper.insertCustomerForAccount(newCustomerId, customerCode, rawValue, new Timestamp(System.currentTimeMillis()));
+        logisticsCrudMapper.updateOrderCustomerIdByName(newCustomerId, rawValue);
         return newCustomerId;
     }
 

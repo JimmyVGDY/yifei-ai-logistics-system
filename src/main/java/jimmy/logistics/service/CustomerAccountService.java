@@ -129,10 +129,12 @@ public class CustomerAccountService {
     private Long findOrCreateCustomer(String customerName) {
         Long orderCustomerId = logisticsCrudMapper.selectCustomerIdFromOrdersByName(customerName);
         if (orderCustomerId != null) {
+            logisticsCrudMapper.updateOrderCustomerIdByName(orderCustomerId, customerName);
             return orderCustomerId;
         }
         Long existingCustomerId = logisticsCrudMapper.selectCustomerIdByName(customerName);
         if (existingCustomerId != null) {
+            logisticsCrudMapper.updateOrderCustomerIdByName(existingCustomerId, customerName);
             return existingCustomerId;
         }
         Long customerId = idGenerator.nextId();
@@ -141,6 +143,7 @@ public class CustomerAccountService {
                 nextBusinessCode("logistics_customer", "customer_code", "CUST"),
                 customerName,
                 new Timestamp(System.currentTimeMillis()));
+        logisticsCrudMapper.updateOrderCustomerIdByName(customerId, customerName);
         return customerId;
     }
 

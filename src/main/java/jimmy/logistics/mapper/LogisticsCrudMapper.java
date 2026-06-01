@@ -38,6 +38,9 @@ public interface LogisticsCrudMapper {
                                  @Param("customerName") String customerName,
                                  @Param("now") java.sql.Timestamp now);
 
+    int updateOrderCustomerIdByName(@Param("customerId") Long customerId,
+                                    @Param("customerName") String customerName);
+
     Long selectRoleIdByCode(@Param("roleCode") String roleCode);
 
     String selectRoleCodeById(@Param("roleId") Long roleId);

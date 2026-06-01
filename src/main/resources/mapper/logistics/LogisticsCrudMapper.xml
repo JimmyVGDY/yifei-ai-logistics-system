@@ -93,6 +93,14 @@
             (#{id}, #{customerCode}, #{customerName}, #{customerName}, '', '待补充', '待补充', '待补充', 'ACTIVE', #{now}, #{now})
     </insert>
 
+    <!-- 客户账号绑定到客户档案后，按客户名称把历史订单补上 customer_id，保证客户登录后能看到自己的存量订单。 -->
+    <update id="updateOrderCustomerIdByName">
+        update logistics_order
+        set customer_id = #{customerId}
+        where customer_name = #{customerName}
+          and customer_id is null
+    </update>
+
     <select id="selectRoleIdByCode" resultType="long">
         select id
         from sys_role

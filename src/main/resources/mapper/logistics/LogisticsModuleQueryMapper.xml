@@ -156,12 +156,12 @@
         <if test="customerId != null">
             <choose>
                 <when test="module == 'orders'">and customer_id = #{customerId}</when>
-                <when test="module == 'waybills'">and w.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
-                <when test="module == 'dispatches'">and d.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
-                <when test="module == 'tasks'">and t.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
-                <when test="module == 'tracks'">and tr.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
-                <when test="module == 'exceptions'">and e.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
-                <when test="module == 'fees'">and f.order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <when test="module == 'waybills'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <when test="module == 'dispatches'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <when test="module == 'tasks'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <when test="module == 'tracks'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <when test="module == 'exceptions'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <when test="module == 'fees'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
             </choose>
         </if>
     </sql>
