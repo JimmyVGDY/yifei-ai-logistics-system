@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import javax.annotation.PostConstruct;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,9 +44,10 @@ public class SystemPermissionService {
     }
 
     /**
-     * 权限基础设施采用“只补齐缺失对象”的增量方式，避免本地已有业务数据被清理。
+     * 权限基础设施采用"只补齐缺失对象"的增量方式，在应用启动时一次性执行。
+     * 避免每个业务请求都执行 DDL 和权限同步，减少运行时开销。
      */
-    @Transactional
+    @PostConstruct
     public void ensurePermissionInfrastructure() {
         systemPermissionMapper.createPermissionTable();
         systemPermissionMapper.createRolePermissionTable();
@@ -58,12 +60,10 @@ public class SystemPermissionService {
     }
 
     public List<MenuVO> menuTree() {
-        ensurePermissionInfrastructure();
         return buildMenuTree(systemPermissionMapper.selectAllActiveMenus());
     }
 
     public List<PermissionTreeNodeVO> permissionTree() {
-        ensurePermissionInfrastructure();
         List<MenuVO> menus = systemPermissionMapper.selectAllActiveMenus();
         Map<Long, PermissionTreeNodeVO> menuNodes = new LinkedHashMap<>();
         for (MenuVO menu : menus) {
@@ -105,17 +105,14 @@ public class SystemPermissionService {
     }
 
     public List<Long> roleMenuIds(long roleId) {
-        ensurePermissionInfrastructure();
         return systemPermissionMapper.selectRoleMenuIds(roleId);
     }
 
     public List<Long> rolePermissionIds(long roleId) {
-        ensurePermissionInfrastructure();
         return systemPermissionMapper.selectRolePermissionIds(roleId);
     }
 
     public UserPermissionVO userPermissionIds(long userId) {
-        ensurePermissionInfrastructure();
         return new UserPermissionVO(
                 systemPermissionMapper.selectUserPermissionIds(userId, "GRANT"),
                 systemPermissionMapper.selectUserPermissionIds(userId, "DENY")
@@ -123,7 +120,6 @@ public class SystemPermissionService {
     }
 
     public List<String> effectivePermissionCodes(Long userId, Long roleId) {
-        ensurePermissionInfrastructure();
         LinkedHashSet<String> permissions = expandPermissionCodes(safeList(systemPermissionMapper.selectRolePermissionCodes(roleId)));
         for (Map<String, Object> row : systemPermissionMapper.selectUserPermissionOverrides(userId)) {
             String code = String.valueOf(row.get("permissionCode"));
@@ -151,13 +147,12 @@ public class SystemPermissionService {
             systemPermissionMapper.insertRoleMenu(idGenerator.nextId(), roleId, menuId);
         }
         syncRolePermissionsFromMenus();
-        log.info("角色菜单权限已更新，roleId={}, menuCount={}, operator={}", roleId, menuIds.size(), StpUtil.getLoginIdDefaultNull());
+        log.info("角色菜单权限已更新,roleId={}, menuCount={}, operator={}", roleId, menuIds.size(), StpUtil.getLoginIdDefaultNull());
         return roleMenuIds(roleId);
     }
 
     @Transactional
     public List<Long> updateRolePermissions(long roleId, PermissionAssignmentRequest request) {
-        ensurePermissionInfrastructure();
         if (systemPermissionMapper.countRoleById(roleId) == 0) {
             throw new IllegalArgumentException("角色不存在");
         }
@@ -170,20 +165,24 @@ public class SystemPermissionService {
             systemPermissionMapper.insertRolePermission(idGenerator.nextId(), roleId, permissionId);
         }
         syncRoleMenusFromPermissions(roleId, permissionIds);
-        log.info("角色细粒度权限已更新，roleId={}, permissionCount={}, operator={}", roleId, permissionIds.size(), StpUtil.getLoginIdDefaultNull());
+        log.info("角色细粒度权限已更新,roleId={}, permissionCount={}, operator={}", roleId, permissionIds.size(), StpUtil.getLoginIdDefaultNull());
         return rolePermissionIds(roleId);
     }
 
     @Transactional
     public UserPermissionVO updateUserPermissions(long userId, PermissionAssignmentRequest request) {
-        ensurePermissionInfrastructure();
         if (systemPermissionMapper.countUserById(userId) == 0) {
             throw new IllegalArgumentException("用户不存在");
         }
         List<Long> grantIds = normalizedIds(request == null ? null : request.getGrantPermissionIds());
         List<Long> denyIds = normalizedIds(request == null ? null : request.getDenyPermissionIds());
         Set<Long> denySet = new LinkedHashSet<>(denyIds);
-        List<Long> filteredGrantIds = grantIds.stream().filter(id -> !denySet.contains(id)).collect(Collectors.toList());
+        List<Long> filteredGrantIds = new ArrayList<>();
+        for (Long id : grantIds) {
+            if (!denySet.contains(id)) {
+                filteredGrantIds.add(id);
+            }
+        }
         Timestamp now = new Timestamp(System.currentTimeMillis());
 
         systemPermissionMapper.deleteUserPermissions(userId);
@@ -193,7 +192,7 @@ public class SystemPermissionService {
         for (Long permissionId : denyIds) {
             insertUserPermissionIfValid(userId, permissionId, "DENY", now);
         }
-        log.info("用户特殊权限已更新，userId={}, grantCount={}, denyCount={}, operator={}",
+        log.info("用户特殊权限已更新,userId={}, grantCount={}, denyCount={}, operator={}",
                 userId, filteredGrantIds.size(), denyIds.size(), StpUtil.getLoginIdDefaultNull());
         return userPermissionIds(userId);
     }
@@ -206,9 +205,14 @@ public class SystemPermissionService {
     }
 
     private void syncRolePermissionsFromMenus() {
-        Map<Long, PermissionVO> permissionByMenu = systemPermissionMapper.selectAllActivePermissions().stream()
-                .filter(permission -> permission.getMenuId() != null)
-                .collect(Collectors.toMap(PermissionVO::getId, permission -> permission, (a, b) -> a, LinkedHashMap::new));
+        List<PermissionVO> allPermissions = systemPermissionMapper.selectAllActivePermissions();
+        // 构建 menuId → PermissionVO 的映射，只保留有 menu_id 的权限
+        Map<Long, PermissionVO> permissionByMenu = new LinkedHashMap<>();
+        for (PermissionVO permission : allPermissions) {
+            if (permission.getMenuId() != null) {
+                permissionByMenu.put(permission.getId(), permission);
+            }
+        }
         Map<Long, List<Long>> menuIdsByRole = roleMenuIdsByRole();
         for (Map.Entry<Long, List<Long>> entry : menuIdsByRole.entrySet()) {
             List<Long> existing = systemPermissionMapper.selectRolePermissionIds(entry.getKey());
@@ -269,13 +273,20 @@ public class SystemPermissionService {
     }
 
     private void syncRoleMenusFromPermissions(long roleId, List<Long> permissionIds) {
-        Map<Long, PermissionVO> permissions = systemPermissionMapper.selectAllActivePermissions().stream()
-                .filter(permission -> permissionIds.contains(permission.getId()))
-                .collect(Collectors.toMap(PermissionVO::getId, permission -> permission, (a, b) -> a));
-        LinkedHashSet<Long> menuIds = permissions.values().stream()
-                .map(PermissionVO::getMenuId)
-                .filter(id -> id != null && menuExists(id))
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<PermissionVO> allPermissions = systemPermissionMapper.selectAllActivePermissions();
+        Map<Long, PermissionVO> permissionMap = new LinkedHashMap<>();
+        for (PermissionVO permission : allPermissions) {
+            if (permissionIds.contains(permission.getId())) {
+                permissionMap.put(permission.getId(), permission);
+            }
+        }
+        LinkedHashSet<Long> menuIds = new LinkedHashSet<>();
+        for (PermissionVO permission : permissionMap.values()) {
+            Long menuId = permission.getMenuId();
+            if (menuId != null && menuExists(menuId)) {
+                menuIds.add(menuId);
+            }
+        }
         systemPermissionMapper.deleteRoleMenus(roleId);
         for (Long menuId : menuIds) {
             systemPermissionMapper.insertRoleMenu(idGenerator.nextId(), roleId, menuId);
@@ -412,7 +423,13 @@ public class SystemPermissionService {
         if (ids == null) {
             return new ArrayList<>();
         }
-        return ids.stream().filter(id -> id != null).distinct().collect(Collectors.toList());
+        List<Long> result = new ArrayList<>();
+        for (Long id : ids) {
+            if (id != null && !result.contains(id)) {
+                result.add(id);
+            }
+        }
+        return result;
     }
 
     private List<String> safeList(List<String> values) {

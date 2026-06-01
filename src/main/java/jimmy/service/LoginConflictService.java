@@ -96,6 +96,11 @@ public class LoginConflictService {
         Iterator<Map.Entry<String, PendingLoginConflict>> iterator = conflicts.entrySet().iterator();
         while (iterator.hasNext()) {
             PendingLoginConflict conflict = iterator.next().getValue();
+            // 已完成或已过期的冲突均需清理，包括用户未响应导致的过期 PENDING。
+            if ("PENDING".equals(conflict.status) && now >= conflict.expireAt) {
+                conflict.status = "EXPIRED";
+                conflict.message = "登录确认请求已过期";
+            }
             if (!"PENDING".equals(conflict.status) && now - conflict.expireAt > CONFIRM_WINDOW_MILLIS) {
                 latestConflictByUser.remove(conflict.userId, conflict.conflictId);
                 iterator.remove();

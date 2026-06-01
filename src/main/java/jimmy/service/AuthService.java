@@ -66,7 +66,6 @@ public class AuthService {
     }
 
     private LoginResponse completeLogin(LoginUser loginUser) {
-        systemPermissionService.ensurePermissionInfrastructure();
         List<String> permissions = systemPermissionService.effectivePermissionCodes(loginUser.id, loginUser.roleId);
         List<MenuVO> menus = queryMenus(loginUser.roleId, permissions);
         if (menus.isEmpty()) {
@@ -105,7 +104,6 @@ public class AuthService {
         if (loginUser == null) {
             throw new IllegalArgumentException("登录用户不存在，请重新登录");
         }
-        systemPermissionService.ensurePermissionInfrastructure();
         List<String> permissions = systemPermissionService.effectivePermissionCodes(userId, loginUser.roleId);
         List<MenuVO> menus = queryMenus(loginUser.roleId, permissions);
         if (menus.isEmpty()) {
