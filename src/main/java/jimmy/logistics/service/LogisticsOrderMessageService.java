@@ -4,6 +4,9 @@ import jimmy.config.LogisticsProperties;
 import jimmy.logistics.entity.LogisticsOrder;
 import jimmy.logistics.model.LogisticsOrderEvent;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageDeliveryMode;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
@@ -32,7 +35,12 @@ public class LogisticsOrderMessageService {
         rabbitTemplate.convertAndSend(
                 logisticsProperties.getMq().getOrderExchange(),
                 logisticsProperties.getMq().getOrderCreatedRoutingKey(),
-                event
+                event,
+                message -> {
+                    // 消息持久化到磁盘，RabbitMQ 重启后消息不会丢失
+                    message.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+                    return message;
+                }
         );
         log.info("物流订单创建事件已发送，orderNo={}, exchange={}, routingKey={}",
                 logisticsOrder.getOrderNo(),
