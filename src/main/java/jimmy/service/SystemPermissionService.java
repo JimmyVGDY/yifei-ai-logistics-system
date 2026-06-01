@@ -460,6 +460,7 @@ public class SystemPermissionService {
             if (!StringUtils.hasText(permissionCode)) {
                 continue;
             }
+            permissionCode = normalizePermissionCode(permissionCode);
             expanded.add(permissionCode);
             String moduleCode = moduleFromCode(permissionCode);
             for (String action : actionsFor(permissionCode)) {
@@ -467,6 +468,16 @@ public class SystemPermissionService {
             }
         }
         return expanded;
+    }
+
+    private String normalizePermissionCode(String permissionCode) {
+        if (permissionCode.startsWith("logistics:")) {
+            permissionCode = permissionCode.substring("logistics:".length());
+        }
+        if (permissionCode.endsWith(":list")) {
+            return permissionCode.substring(0, permissionCode.length() - ":list".length()) + ":query";
+        }
+        return permissionCode;
     }
 
     private List<String> actionsFor(String permissionCode) {

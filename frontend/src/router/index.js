@@ -14,7 +14,7 @@ const routes = [
   { path: '/orders', component: ModuleListView, meta: { title: '运单管理', module: 'orders', permission: 'order:query', businessCreate: true } },
   { path: '/customers', component: ModuleListView, meta: { title: '客户管理', module: 'customers', permission: 'customer:query' } },
   { path: '/waybills', component: ModuleListView, meta: { title: '运单中心', module: 'waybills', permission: 'waybill:query' } },
-  { path: '/dispatches', component: ModuleListView, meta: { title: '调度管理', module: 'dispatches', permission: 'logistics:dispatch:query' } },
+  { path: '/dispatches', component: ModuleListView, meta: { title: '调度管理', module: 'dispatches', permission: 'dispatch:query' } },
   { path: '/tasks', component: ModuleListView, meta: { title: '运输任务', module: 'tasks', permission: 'task:query' } },
   { path: '/tracks', component: ModuleListView, meta: { title: '物流轨迹', module: 'tracks', permission: 'track:view' } },
   { path: '/drivers', component: ModuleListView, meta: { title: '司机管理', module: 'drivers', permission: 'driver:query' } },
@@ -33,8 +33,6 @@ const router = createRouter({
   history: createWebHistory(),
   routes
 })
-
-let sessionChecked = false
 
 router.beforeEach(async (to) => {
   if (to.meta.public) {
