@@ -11,7 +11,7 @@ const routes = [
   { path: '/', redirect: '/dashboard' },
   { path: '/login', component: LoginView, meta: { title: '用户登录', public: true } },
   { path: '/dashboard', component: DashboardView, meta: { title: '运营看板', permission: 'dashboard:view' } },
-  { path: '/orders', component: ModuleListView, meta: { title: '运单管理', module: 'orders', permission: 'logistics:order:list', businessCreate: true } },
+  { path: '/orders', component: ModuleListView, meta: { title: '运单管理', module: 'orders', permission: 'order:manage', businessCreate: true } },
   { path: '/customers', component: ModuleListView, meta: { title: '客户管理', module: 'customers', permission: 'customer:manage' } },
   { path: '/waybills', component: ModuleListView, meta: { title: '运单中心', module: 'waybills', permission: 'waybill:manage' } },
   { path: '/dispatches', component: ModuleListView, meta: { title: '调度管理', module: 'dispatches', permission: 'dispatch:manage' } },
