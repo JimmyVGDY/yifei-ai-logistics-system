@@ -6,6 +6,7 @@ import jimmy.logistics.mapper.LogisticsCrudMapper;
 import jimmy.logistics.model.CrudFieldValue;
 import jimmy.logistics.model.OperationResultVO;
 import jimmy.logistics.util.ColumnExistenceChecker;
+import jimmy.util.FieldEncryptor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -27,14 +28,17 @@ public class LogisticsCrudService {
 
     private final LogisticsCrudMapper logisticsCrudMapper;
     private final ColumnExistenceChecker columnChecker;
+    private final FieldEncryptor fieldEncryptor;
     private final CompactSnowflakeIdGenerator idGenerator;
     private final Map<String, CrudConfig> configs;
 
     public LogisticsCrudService(LogisticsCrudMapper logisticsCrudMapper,
                                 ColumnExistenceChecker columnChecker,
+                                FieldEncryptor fieldEncryptor,
                                 CompactSnowflakeIdGenerator idGenerator) {
         this.logisticsCrudMapper = logisticsCrudMapper;
         this.columnChecker = columnChecker;
+        this.fieldEncryptor = fieldEncryptor;
         this.idGenerator = idGenerator;
         this.configs = buildConfigs();
     }
@@ -48,6 +52,8 @@ public class LogisticsCrudService {
         fillBusinessCodeDefaults(config, values);
         fillCreateDefaults(config, values);
         fillAuditDefaults(config, values, true);
+        // 敏感字段加密：手机号等字段入库前加密
+        encryptValues(values);
 
         logisticsCrudMapper.insertRecord(config.tableName, toFieldValues(values));
         log.info("管理模块新增完成,module={}, id={}", module, id);
@@ -59,6 +65,8 @@ public class LogisticsCrudService {
         Map<String, Object> values = filteredPayload(config, payload, true);
         fillUpdateDefaults(config, values);
         fillAuditDefaults(config, values, false);
+        // 敏感字段加密：手机号等字段入库前加密
+        encryptValues(values);
         if (values.isEmpty()) {
             throw new IllegalArgumentException("没有可更新字段");
         }
@@ -187,6 +195,15 @@ public class LogisticsCrudService {
             throw new IllegalArgumentException("当前模块不支持增删改操作");
         }
         return config;
+    }
+
+    /** 加密 values 中的敏感字段（手机号等） */
+    private void encryptValues(Map<String, Object> values) {
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            if (FieldEncryptor.isEncryptedField(entry.getKey()) && entry.getValue() instanceof String) {
+                entry.setValue(fieldEncryptor.encrypt((String) entry.getValue()));
+            }
+        }
     }
 
     private Long currentUserId() {

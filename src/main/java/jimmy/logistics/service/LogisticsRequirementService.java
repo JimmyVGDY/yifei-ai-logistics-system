@@ -8,6 +8,7 @@ import jimmy.logistics.model.ModuleRecordVO;
 import jimmy.logistics.model.StatusLabel;
 import jimmy.logistics.util.ColumnExistenceChecker;
 import jimmy.model.PageResult;
+import jimmy.util.FieldEncryptor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -33,14 +34,17 @@ public class LogisticsRequirementService {
     private final LogisticsDashboardMapper logisticsDashboardMapper;
     private final LogisticsModuleQueryMapper logisticsModuleQueryMapper;
     private final ColumnExistenceChecker columnChecker;
+    private final FieldEncryptor fieldEncryptor;
     private final Map<String, ModuleQueryConfig> moduleQueryConfigs;
 
     public LogisticsRequirementService(LogisticsDashboardMapper logisticsDashboardMapper,
                                        LogisticsModuleQueryMapper logisticsModuleQueryMapper,
-                                       ColumnExistenceChecker columnChecker) {
+                                       ColumnExistenceChecker columnChecker,
+                                       FieldEncryptor fieldEncryptor) {
         this.logisticsDashboardMapper = logisticsDashboardMapper;
         this.logisticsModuleQueryMapper = logisticsModuleQueryMapper;
         this.columnChecker = columnChecker;
+        this.fieldEncryptor = fieldEncryptor;
         this.moduleQueryConfigs = buildModuleQueryConfigs();
     }
 
@@ -101,6 +105,8 @@ public class LogisticsRequirementService {
                 userCodeExists, operationLogExtendedExists, operationLogErrorMessageExists, keyword,
                 queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime,
                 queryConfig.orderColumn, pageSize, (page - 1) * pageSize);
+        // 敏感字段解密：手机号等字段从数据库读取后解密为原文
+        decryptRecords(records);
         records = formatDateTimeValues(records);
 
         List<ModuleRecordVO> voRecords = new ArrayList<>();
@@ -110,6 +116,17 @@ public class LogisticsRequirementService {
         log.info("查询物流模块分页完成，module={}, page={}, pageSize={}, total={}, keyword={}, startTime={}, endTime={}",
                 module, page, pageSize, total, keyword, startTime, endTime);
         return new PageResult<>(voRecords, page, pageSize, total == null ? 0 : total);
+    }
+
+    /** 解密记录中的敏感字段（手机号等） */
+    private void decryptRecords(List<Map<String, Object>> records) {
+        for (Map<String, Object> record : records) {
+            for (Map.Entry<String, Object> entry : record.entrySet()) {
+                if (FieldEncryptor.isEncryptedField(entry.getKey()) && entry.getValue() instanceof String) {
+                    entry.setValue(fieldEncryptor.decrypt((String) entry.getValue()));
+                }
+            }
+        }
     }
 
     private List<Map<String, Object>> formatDateTimeValues(List<Map<String, Object>> records) {

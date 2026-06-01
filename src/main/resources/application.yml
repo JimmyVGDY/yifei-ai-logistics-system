@@ -115,6 +115,9 @@ app:
     demo-exchange: ${RABBITMQ_DEMO_EXCHANGE:practice.demo.exchange}
     demo-queue: ${RABBITMQ_DEMO_QUEUE:practice.demo.queue}
     demo-routing-key: ${RABBITMQ_DEMO_ROUTING_KEY:practice.demo.routing-key}
+  # 敏感字段加密开关（默认开启，开发环境可设为 false 跳过加密）
+  encrypt:
+    enabled: ${APP_ENCRYPT_ENABLED:true}
   logistics:
     cache-prefix: ${LOGISTICS_CACHE_PREFIX:logistics}
     order-cache-ttl-seconds: ${LOGISTICS_ORDER_CACHE_TTL_SECONDS:1800}
