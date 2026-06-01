@@ -10,6 +10,7 @@ import jimmy.model.LoginResponse;
 import jimmy.model.MenuVO;
 import jimmy.model.PasswordChangeRequest;
 import jimmy.model.ProfileUpdateRequest;
+import jimmy.util.FieldEncryptor;
 import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -33,12 +34,14 @@ public class AuthService {
     private final AuthMapper authMapper;
     private final SystemPermissionService systemPermissionService;
     private final LoginConflictService loginConflictService;
+    private final FieldEncryptor fieldEncryptor;
 
     public AuthService(AuthMapper authMapper, SystemPermissionService systemPermissionService,
-                       LoginConflictService loginConflictService) {
+                       LoginConflictService loginConflictService, FieldEncryptor fieldEncryptor) {
         this.authMapper = authMapper;
         this.systemPermissionService = systemPermissionService;
         this.loginConflictService = loginConflictService;
+        this.fieldEncryptor = fieldEncryptor;
     }
 
     public Object login(LoginRequest request) {
@@ -212,7 +215,8 @@ public class AuthService {
         if (!StringUtils.hasText(request.getRealName()) && !StringUtils.hasText(request.getMobile()) && !StringUtils.hasText(request.getEmail())) {
             throw new IllegalArgumentException("至少需要填写一项信息");
         }
-        authMapper.updateProfile(userId, request.getRealName(), request.getMobile(), request.getEmail());
+        authMapper.updateProfile(userId, request.getRealName(),
+                fieldEncryptor.encrypt(request.getMobile()), request.getEmail());
     }
 
     /** 修改密码（需原密码验证，改完后强制退出当前会话） */
