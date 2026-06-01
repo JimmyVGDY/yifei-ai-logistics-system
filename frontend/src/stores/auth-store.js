@@ -31,7 +31,7 @@ export function clearAuthToken() {
     'auth.roleName',
     'auth.permissions',
     'auth.menus'
-  ].forEach((key) => localStorage.removeItem(key))
+  ].forEach((key) => sessionStorage.removeItem(key))
 }
 
 export function getAuthToken() {
@@ -81,28 +81,28 @@ function normalizeSession(payload) {
 
 function readAuthFromStorage() {
   return {
-    tokenName: localStorage.getItem('auth.tokenName') || '',
-    tokenValue: localStorage.getItem('auth.tokenValue') || '',
-    username: localStorage.getItem('auth.username') || '',
-    userId: localStorage.getItem('auth.userId') || '',
-    userCode: localStorage.getItem('auth.userCode') || '',
-    roleCode: localStorage.getItem('auth.roleCode') || '',
-    roleName: localStorage.getItem('auth.roleName') || '',
+    tokenName: sessionStorage.getItem('auth.tokenName') || '',
+    tokenValue: sessionStorage.getItem('auth.tokenValue') || '',
+    username: sessionStorage.getItem('auth.username') || '',
+    userId: sessionStorage.getItem('auth.userId') || '',
+    userCode: sessionStorage.getItem('auth.userCode') || '',
+    roleCode: sessionStorage.getItem('auth.roleCode') || '',
+    roleName: sessionStorage.getItem('auth.roleName') || '',
     permissions: readJson('auth.permissions', []),
     menus: readJson('auth.menus', [])
   }
 }
 
 function writeAuthToStorage(state) {
-  localStorage.setItem('auth.tokenName', state.tokenName)
-  localStorage.setItem('auth.tokenValue', state.tokenValue)
-  localStorage.setItem('auth.username', state.username)
-  localStorage.setItem('auth.userId', state.userId)
-  localStorage.setItem('auth.userCode', state.userCode)
-  localStorage.setItem('auth.roleCode', state.roleCode)
-  localStorage.setItem('auth.roleName', state.roleName)
-  localStorage.setItem('auth.permissions', JSON.stringify(state.permissions))
-  localStorage.setItem('auth.menus', JSON.stringify(state.menus))
+  sessionStorage.setItem('auth.tokenName', state.tokenName)
+  sessionStorage.setItem('auth.tokenValue', state.tokenValue)
+  sessionStorage.setItem('auth.username', state.username)
+  sessionStorage.setItem('auth.userId', state.userId)
+  sessionStorage.setItem('auth.userCode', state.userCode)
+  sessionStorage.setItem('auth.roleCode', state.roleCode)
+  sessionStorage.setItem('auth.roleName', state.roleName)
+  sessionStorage.setItem('auth.permissions', JSON.stringify(state.permissions))
+  sessionStorage.setItem('auth.menus', JSON.stringify(state.menus))
 }
 
 function emptyAuth() {
@@ -125,7 +125,7 @@ function flattenMenus(menus) {
 
 function readJson(key, fallback) {
   try {
-    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback))
+    return JSON.parse(sessionStorage.getItem(key) || JSON.stringify(fallback))
   } catch (error) {
     return fallback
   }
