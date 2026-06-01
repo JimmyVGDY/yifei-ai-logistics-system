@@ -11,7 +11,7 @@
           <el-radio-button label="user">用户特殊权限</el-radio-button>
         </el-radio-group>
         <el-button :loading="loading" @click="loadAll">刷新</el-button>
-        <el-button type="primary" :loading="saving" :disabled="!canSave" @click="savePermissions">保存权限</el-button>
+        <el-button v-if="canUpdatePermission" type="primary" :loading="saving" :disabled="!canSave" @click="savePermissions">保存权限</el-button>
       </div>
     </div>
 
@@ -127,7 +127,7 @@ import {
   updateRolePermissionIds,
   updateUserPermissionIds
 } from '../api/system-permission'
-import { getAuthToken, saveAuthToken } from '../stores/auth-store'
+import { getAuthToken, hasPermission, saveAuthToken } from '../stores/auth-store'
 
 const mode = ref('role')
 const roles = ref([])
@@ -153,6 +153,7 @@ const filteredSubjects = computed(() => {
   return subjects.value.filter((subject) => `${subject.name}${subject.code}`.toLowerCase().includes(keyword))
 })
 const canSave = computed(() => Boolean(selectedSubjectId.value))
+const canUpdatePermission = computed(() => hasPermission('system:permission:update') || hasPermission('system:permission:manage'))
 
 async function loadAll() {
   loading.value = true

@@ -67,7 +67,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
         // 非通用模块接口在这里集中声明权限，便于和前端路由 meta.permission 对照维护。
         SaRouter.match("/logistics/dashboard", r -> StpUtil.checkPermission("dashboard:view"));
         SaRouter.match("/logistics/statistics/**", r -> StpUtil.checkPermission("dashboard:view"));
-        SaRouter.match("/system/permissions/**", r -> StpUtil.checkPermission("system:permission:manage"));
+        SaRouter.match("/system/permissions/**", r -> StpUtil.checkPermission(permissionAction("system:permission")));
         SaRouter.match("/infra", r -> StpUtil.checkPermission("resource:view"));
         SaRouter.match("/infra/**", r -> StpUtil.checkPermission("resource:view"));
     }
@@ -133,6 +133,14 @@ public class SaTokenConfig implements WebMvcConfigurer {
         }
         // 其余 POST/PUT/PATCH 统一按更新权限处理，例如状态处理、编辑表单保存等。
         return "update";
+    }
+
+    private String permissionAction(String prefix) {
+        HttpServletRequest request = currentRequest();
+        if (request == null || "GET".equalsIgnoreCase(request.getMethod())) {
+            return prefix + ":query";
+        }
+        return prefix + ":update";
     }
 
     private HttpServletRequest currentRequest() {

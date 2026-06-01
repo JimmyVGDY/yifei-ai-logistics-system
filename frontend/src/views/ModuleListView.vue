@@ -15,6 +15,7 @@
         :can-generate-fee="canGenerateFee"
         :can-import-customer="canImportCustomer"
         :can-export="canExport"
+        :can-query="canQuery"
         @create="openCreateDialog"
         @report-exception="exceptionDialogVisible = true"
         @generate-fee="feeDialogVisible = true"
@@ -73,7 +74,7 @@
       </el-form>
       <template #footer>
         <el-button @click="crudDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitCrud">保存</el-button>
+        <el-button v-if="canSubmitCrud" type="primary" :loading="saving" @click="submitCrud">保存</el-button>
       </template>
     </el-dialog>
 
@@ -93,7 +94,7 @@
       </el-form>
       <template #footer>
         <el-button @click="exceptionDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitException">提交</el-button>
+        <el-button v-if="canReportException" type="primary" :loading="saving" @click="submitException">提交</el-button>
       </template>
     </el-dialog>
 
@@ -107,7 +108,7 @@
       </el-form>
       <template #footer>
         <el-button @click="feeDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitFee">生成</el-button>
+        <el-button v-if="canGenerateFee" type="primary" :loading="saving" @click="submitFee">生成</el-button>
       </template>
     </el-dialog>
   </section>
@@ -229,6 +230,7 @@ const modulePermission = computed(() => route.meta.permission || meta.value.perm
 const canCreate = computed(() => meta.value.editable && canAction('create'))
 const canUpdate = computed(() => meta.value.editable && canAction('update'))
 const canDelete = computed(() => meta.value.editable && canAction('delete'))
+const canQuery = computed(() => canAction('query'))
 const canExport = computed(() => canAction('export'))
 const canImportCustomer = computed(() => route.meta.module === 'customers' && canAction('import'))
 const canReportException = computed(() => route.meta.module === 'exceptions' && canAction('create'))
@@ -236,6 +238,7 @@ const canHandleException = computed(() => route.meta.module === 'exceptions' && 
 const canGenerateFee = computed(() => route.meta.module === 'fees' && canAction('create'))
 const canPayFee = computed(() => route.meta.module === 'fees' && canAction('update'))
 const showCrudColumn = computed(() => canUpdate.value || canDelete.value)
+const canSubmitCrud = computed(() => crudMode.value === 'create' ? canCreate.value : canUpdate.value)
 
 function columns(definition) {
   return definition.split(',').map((item) => {
@@ -325,11 +328,9 @@ function actionPermission(action) {
   if (!modulePermission.value) {
     return ''
   }
-  if (modulePermission.value.endsWith(':manage')) {
-    return `${modulePermission.value.slice(0, -':manage'.length)}:${action}`
-  }
-  if (modulePermission.value.endsWith(':view')) {
-    return `${modulePermission.value.slice(0, -':view'.length)}:${action}`
+  const index = modulePermission.value.lastIndexOf(':')
+  if (index > 0) {
+    return `${modulePermission.value.slice(0, index)}:${action}`
   }
   return modulePermission.value
 }

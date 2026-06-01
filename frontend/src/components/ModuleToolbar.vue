@@ -18,7 +18,7 @@
       <el-button>导入客户</el-button>
     </el-upload>
     <el-button v-if="canExport" @click="$emit('export')">导出 Excel</el-button>
-    <el-button type="primary" :loading="loading" @click="$emit('search')">
+    <el-button v-if="canQuery" type="primary" :loading="loading" @click="$emit('search')">
       <el-icon><Search /></el-icon>
       查询
     </el-button>
@@ -37,7 +37,8 @@ defineProps({
   canReportException: { type: Boolean, default: false },
   canGenerateFee: { type: Boolean, default: false },
   canImportCustomer: { type: Boolean, default: false },
-  canExport: { type: Boolean, default: false }
+  canExport: { type: Boolean, default: false },
+  canQuery: { type: Boolean, default: false }
 })
 
 defineEmits([
