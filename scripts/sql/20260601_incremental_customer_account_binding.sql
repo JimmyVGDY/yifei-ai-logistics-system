@@ -8,6 +8,21 @@ set @column_exists = (
     from information_schema.columns
     where table_schema = @schema_name
       and table_name = 'sys_user'
+      and column_name = 'customer_subject_type'
+);
+set @ddl = if(@column_exists = 0,
+    'alter table sys_user add column customer_subject_type varchar(16) null comment ''客户主体类型：PERSONAL个人，ENTERPRISE企业'' after customer_id',
+    'select 1'
+);
+prepare stmt from @ddl;
+execute stmt;
+deallocate prepare stmt;
+
+set @column_exists = (
+    select count(1)
+    from information_schema.columns
+    where table_schema = @schema_name
+      and table_name = 'sys_user'
       and column_name = 'customer_account_type'
 );
 set @ddl = if(@column_exists = 0,
@@ -43,6 +58,13 @@ update sys_user
 set real_name = '测试客户'
 where username = 'customer'
   and real_name = '娴嬭瘯瀹㈡埛';
+
+update sys_user u
+join sys_role r on r.id = u.role_id
+set u.customer_subject_type = 'ENTERPRISE'
+where r.role_code = 'CUSTOMER'
+  and u.customer_id is not null
+  and u.customer_subject_type is null;
 
 -- 已有客户角色账号按同一客户下最早创建的账号标记主账号，其余标记子账号。
 update sys_user u

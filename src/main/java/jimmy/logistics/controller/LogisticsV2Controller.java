@@ -1,12 +1,14 @@
 package jimmy.logistics.controller;
 
 import jimmy.logistics.annotation.OperationLog;
+import jimmy.logistics.model.CreateCustomerAccountRequest;
 import jimmy.logistics.model.ExceptionHandleDTO;
 import jimmy.logistics.model.ExceptionReportDTO;
 import jimmy.logistics.model.ModuleMutationDTO;
 import jimmy.logistics.model.OperationResultVO;
 import jimmy.logistics.model.SimpleResultVO;
 import jimmy.logistics.model.TrendPointVO;
+import jimmy.logistics.service.CustomerAccountService;
 import jimmy.logistics.service.LogisticsCrudService;
 import jimmy.logistics.service.LogisticsExceptionService;
 import jimmy.logistics.service.LogisticsFeeService;
@@ -39,20 +41,29 @@ public class LogisticsV2Controller {
 
     private final LogisticsV2Service logisticsV2Service;
     private final LogisticsCrudService logisticsCrudService;
+    private final CustomerAccountService customerAccountService;
     private final LogisticsExceptionService logisticsExceptionService;
     private final LogisticsFeeService logisticsFeeService;
     private final LogisticsStatisticsService logisticsStatisticsService;
 
     public LogisticsV2Controller(LogisticsV2Service logisticsV2Service,
                                  LogisticsCrudService logisticsCrudService,
+                                 CustomerAccountService customerAccountService,
                                  LogisticsExceptionService logisticsExceptionService,
                                  LogisticsFeeService logisticsFeeService,
                                  LogisticsStatisticsService logisticsStatisticsService) {
         this.logisticsV2Service = logisticsV2Service;
         this.logisticsCrudService = logisticsCrudService;
+        this.customerAccountService = customerAccountService;
         this.logisticsExceptionService = logisticsExceptionService;
         this.logisticsFeeService = logisticsFeeService;
         this.logisticsStatisticsService = logisticsStatisticsService;
+    }
+
+    @OperationLog("创建客户账号")
+    @PostMapping("/customer-accounts")
+    public ApiResponse<OperationResultVO> createCustomerAccount(@Valid @RequestBody CreateCustomerAccountRequest request) {
+        return ApiResponse.success(customerAccountService.createCustomerAccount(request));
     }
 
     @OperationLog("新增管理模块记录")

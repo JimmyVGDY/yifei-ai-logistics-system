@@ -11,12 +11,14 @@
         v-model:page-size="limit"
         :loading="loading"
         :can-create="canCreate"
+        :can-create-customer-account="canCreateCustomerAccount"
         :can-report-exception="canReportException"
         :can-generate-fee="canGenerateFee"
         :can-import-customer="canImportCustomer"
         :can-export="canExport"
         :can-query="canQuery"
         @create="openCreateDialog"
+        @create-customer-account="openCustomerAccountDialog"
         @report-exception="exceptionDialogVisible = true"
         @generate-fee="feeDialogVisible = true"
         @import-customer="handleCustomerImport"
@@ -78,6 +80,47 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="customerAccountDialogVisible" title="新增客户账号" width="760px">
+      <el-form label-position="top" :model="customerAccountForm">
+        <el-row :gutter="16">
+          <el-col :xs="24" :md="12">
+            <el-form-item label="账号类型">
+              <el-radio-group v-model="customerAccountForm.customerSubjectType">
+                <el-radio-button label="PERSONAL">个人账号</el-radio-button>
+                <el-radio-button label="ENTERPRISE">企业账号</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="12">
+            <el-form-item :label="customerAccountForm.customerSubjectType === 'ENTERPRISE' ? '公司名称' : '客户名称'">
+              <el-select v-model="customerAccountForm.customerName" clearable filterable allow-create default-first-option style="width: 100%">
+                <el-option v-for="option in relationOptions.orderCustomers" :key="option.value" :label="option.label" :value="option.rawName || option.value" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="12">
+            <el-form-item label="登录账号"><el-input v-model="customerAccountForm.username" clearable /></el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="12">
+            <el-form-item label="姓名"><el-input v-model="customerAccountForm.realName" clearable /></el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="12">
+            <el-form-item label="手机号"><el-input v-model="customerAccountForm.mobile" maxlength="11" clearable /></el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="12">
+            <el-form-item label="邮箱"><el-input v-model="customerAccountForm.email" clearable /></el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="12">
+            <el-form-item label="密码"><el-input v-model="customerAccountForm.password" type="password" show-password clearable /></el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="customerAccountDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitCustomerAccount">保存</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="exceptionDialogVisible" title="上报运输异常" width="520px">
       <el-form label-position="top" :model="exceptionForm">
         <el-form-item label="订单号">
@@ -119,6 +162,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  createCustomerAccount,
   createModuleRecord,
   createOrder,
   deleteModuleRecord,
@@ -148,11 +192,21 @@ const saving = ref(false)
 const exceptionDialogVisible = ref(false)
 const feeDialogVisible = ref(false)
 const crudDialogVisible = ref(false)
+const customerAccountDialogVisible = ref(false)
 const crudMode = ref('create')
 const editingId = ref(null)
 const crudForm = reactive({})
 const exceptionForm = reactive({ orderNo: '', exceptionType: '', exceptionDesc: '' })
 const feeForm = reactive({ orderNo: '' })
+const customerAccountForm = reactive({
+  customerSubjectType: 'ENTERPRISE',
+  customerName: '',
+  username: '',
+  realName: '',
+  mobile: '',
+  email: '',
+  password: ''
+})
 const relationOptions = reactive({
   roles: [],
   orders: [],
@@ -209,7 +263,7 @@ const moduleMetas = {
   vehicles: moduleMeta('vehicles', '车辆管理', '维护车辆、容量和当前位置', 'vehicle_no:车牌号,vehicle_type:车辆类型,load_capacity_kg:载重,volume_capacity_cubic:容积,current_city:当前城市,status:状态,created_at:创建时间,updated_at:更新时间', 'vehicle_no:车牌号,vehicle_type:车辆类型,load_capacity_kg:载重:number:2,volume_capacity_cubic:容积:number:2,current_city:当前城市,status:状态'),
   exceptions: moduleMeta('exceptions', '异常管理', '运输异常上报、处理和查询', 'order_id:订单ID,order_no:订单号,task_id:任务ID,exception_type:异常类型,exception_desc:异常描述,exception_status:异常状态,report_user:上报人,report_time:上报时间,handle_user:处理人,handle_time:处理时间', 'order_id:订单ID,task_id:任务ID,exception_type:异常类型,exception_desc:异常描述,exception_status:异常状态'),
   fees: moduleMeta('fees', '费用结算', '订单费用计算、账单和付款状态', 'order_id:订单ID,order_no:订单号,base_fee:基础运费,weight_fee:重量费用,distance_fee:距离费用,additional_fee:附加费,discount_fee:优惠金额,payable_fee:应收金额,actual_fee:实收金额,payment_status:付款状态,create_time:创建时间,update_time:更新时间', 'order_id:订单ID,base_fee:基础运费:number:2,weight_fee:重量费用:number:2,distance_fee:距离费用:number:2,additional_fee:附加费:number:2,discount_fee:优惠金额:number:2,payable_fee:应收金额:number:2,actual_fee:实收金额:number:2,payment_status:付款状态'),
-  users: moduleMeta('users', '用户管理', '后台用户、状态和角色分配', 'user_code:用户编号,username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,role_id:角色ID,role_name:角色,customer_id:关联客户ID,customer_name:关联客户,customer_account_type:客户账号类型,status:状态,create_time:创建时间,update_time:更新时间', 'username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,password:密码,role_id:角色ID,customer_id:客户名称,status:状态'),
+  users: moduleMeta('users', '用户管理', '后台用户、状态和角色分配', 'user_code:用户编号,username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,role_id:角色ID,role_name:角色,customer_id:关联客户ID,customer_name:关联客户,customer_subject_type:客户主体类型,customer_account_type:客户账号类型,status:状态,create_time:创建时间,update_time:更新时间', 'username:登录账号,real_name:姓名,mobile:手机号,email:邮箱,password:密码,role_id:角色ID,status:状态'),
   roles: moduleMeta('roles', '角色管理', '系统管理员、客服、调度、司机、财务和客户角色', 'role_code:角色编码,role_name:角色名称,status:状态,create_time:创建时间,update_time:更新时间', 'role_name:角色名称,status:状态'),
   operationLogs: { title: '操作日志', description: '记录关键接口和业务写操作', editable: false, columns: columns('operation_id:操作ID,trace_id:Trace ID,user_code:用户编号,user_id:用户主键,username:操作人,role_code:角色编号,operation:操作内容,request_uri:请求地址,request_method:方法,operation_status:状态,cost_ms:耗时ms,operation_time:操作时间') },
   files: { title: '上传文件', description: '查看上传到本地的业务附件记录', editable: false, columns: columns('original_name:原文件名,relative_path:保存路径,file_size:大小,content_type:类型,upload_user:上传人,upload_time:上传时间') }
@@ -229,6 +283,7 @@ const activeEditFields = computed(() => (meta.value.editFields || []).map((field
 }))
 const modulePermission = computed(() => route.meta.permission || meta.value.permission)
 const canCreate = computed(() => meta.value.editable && canAction('create'))
+const canCreateCustomerAccount = computed(() => route.meta.module === 'users' && canAction('create'))
 const canUpdate = computed(() => meta.value.editable && canAction('update'))
 const canDelete = computed(() => meta.value.editable && canAction('delete'))
 const canQuery = computed(() => canAction('query'))
@@ -337,6 +392,9 @@ function actionPermission(action) {
 }
 
 function formatCell(prop, value) {
+  if (prop === 'customer_subject_type') {
+    return value === 'PERSONAL' ? '个人客户' : value === 'ENTERPRISE' ? '企业客户' : value
+  }
   if (prop === 'customer_account_type') {
     return value === 'MAIN' ? '主账号' : value === 'SUB' ? '子账号' : value
   }
@@ -396,6 +454,7 @@ async function loadRelationOptions(source) {
         const customerId = row.customer_id || row.customerId || customerName
         customerMap.set(customerName, {
           value: String(customerId),
+          rawName: customerName,
           label: `${customerName}${row.order_no ? `（来自运单 ${row.order_no}）` : ''}`
         })
       })
@@ -410,6 +469,7 @@ async function loadRelationOptions(source) {
         }
         customerMap.set(customerName, {
           value: String(row.id || customerName),
+          rawName: customerName,
           label: `${customerName}${row.customer_code ? `（${row.customer_code}）` : ''}`
         })
       })
@@ -564,6 +624,20 @@ function openCreateDialog() {
   crudDialogVisible.value = true
 }
 
+function openCustomerAccountDialog() {
+  Object.assign(customerAccountForm, {
+    customerSubjectType: 'ENTERPRISE',
+    customerName: '',
+    username: '',
+    realName: '',
+    mobile: '',
+    email: '',
+    password: ''
+  })
+  customerAccountDialogVisible.value = true
+  loadRelationOptions('orderCustomers')
+}
+
 function openEditDialog(row) {
   crudMode.value = 'edit'
   editingId.value = row.id
@@ -612,6 +686,26 @@ async function submitCrud() {
       ElMessage.success('修改成功')
     }
     crudDialogVisible.value = false
+    await loadData()
+  } finally {
+    saving.value = false
+  }
+}
+
+async function submitCustomerAccount() {
+  if (!/^1[3-9]\d{9}$/.test(customerAccountForm.mobile || '')) {
+    ElMessage.warning('手机号必须是11位中国大陆手机号')
+    return
+  }
+  if (customerAccountForm.customerSubjectType === 'ENTERPRISE' && !customerAccountForm.customerName) {
+    ElMessage.warning('企业账号必须选择或填写公司名称')
+    return
+  }
+  saving.value = true
+  try {
+    await createCustomerAccount({ ...customerAccountForm })
+    ElMessage.success('客户账号创建成功')
+    customerAccountDialogVisible.value = false
     await loadData()
   } finally {
     saving.value = false

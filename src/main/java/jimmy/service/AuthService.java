@@ -223,6 +223,9 @@ public class AuthService {
         if (!StringUtils.hasText(request.getRealName()) && !StringUtils.hasText(request.getMobile()) && !StringUtils.hasText(request.getEmail())) {
             throw new IllegalArgumentException("至少需要填写一项信息");
         }
+        if (StringUtils.hasText(request.getMobile()) && !request.getMobile().trim().matches("^1[3-9]\\d{9}$")) {
+            throw new IllegalArgumentException("手机号必须是11位中国大陆手机号");
+        }
         authMapper.updateProfile(userId, request.getRealName(),
                 fieldEncryptor.encrypt(request.getMobile()), request.getEmail());
     }

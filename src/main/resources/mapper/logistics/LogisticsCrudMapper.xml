@@ -93,6 +93,13 @@
             (#{id}, #{customerCode}, #{customerName}, #{customerName}, '', '待补充', '待补充', '待补充', 'ACTIVE', #{now}, #{now})
     </insert>
 
+    <select id="selectRoleIdByCode" resultType="long">
+        select id
+        from sys_role
+        where role_code = #{roleCode}
+        limit 1
+    </select>
+
     <!-- 判断当前选择的角色是否为客户角色，只有客户角色才需要绑定客户数据权限。 -->
     <select id="selectRoleCodeById" resultType="string">
         select role_code
@@ -111,5 +118,37 @@
           <if test="excludeUserId != null">
               and u.id != #{excludeUserId}
           </if>
+    </select>
+
+    <select id="countUserByUsername" resultType="int">
+        select count(1)
+        from sys_user
+        where username = #{username}
+    </select>
+
+    <select id="countUserByMobile" resultType="int">
+        select count(1)
+        from sys_user
+        where mobile in (#{plainMobile}, #{encryptedMobile})
+    </select>
+
+    <select id="countPersonalCustomerByMobile" resultType="int">
+        select count(1)
+        from sys_user u
+        join sys_role r on r.id = u.role_id
+        where r.role_code = 'CUSTOMER'
+          and u.customer_subject_type = 'PERSONAL'
+          and u.mobile in (#{plainMobile}, #{encryptedMobile})
+    </select>
+
+    <select id="countEnterpriseMainAccountByCustomerName" resultType="int">
+        select count(1)
+        from sys_user u
+        join sys_role r on r.id = u.role_id
+        join logistics_customer c on c.id = u.customer_id
+        where r.role_code = 'CUSTOMER'
+          and u.customer_subject_type = 'ENTERPRISE'
+          and u.customer_account_type = 'MAIN'
+          and c.customer_name = #{customerName}
     </select>
 </mapper>

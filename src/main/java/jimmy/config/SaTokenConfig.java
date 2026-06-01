@@ -106,6 +106,10 @@ public class SaTokenConfig implements WebMvcConfigurer {
             StpUtil.checkPermission("file:create");
             return true;
         }
+        if (uri.equals("/logistics/customer-accounts")) {
+            StpUtil.checkPermission("system:user:create");
+            return true;
+        }
         if (uri.startsWith("/logistics/orders")) {
             StpUtil.checkPermission("GET".equalsIgnoreCase(method) ? "order:query" : "order:create");
             return true;

@@ -16,6 +16,10 @@ export function createModuleRecord(module, payload) {
   return http.post(`/logistics/modules/${module}`, payload)
 }
 
+export function createCustomerAccount(payload) {
+  return http.post('/logistics/customer-accounts', payload)
+}
+
 export function updateModuleRecord(module, id, payload) {
   return http.post(`/logistics/modules/${module}/${id}`, payload)
 }

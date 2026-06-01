@@ -98,7 +98,7 @@
                 select u.id,
                        <choose><when test="userCodeExists">u.user_code</when><otherwise>concat('U-', u.id)</otherwise></choose> as user_code,
                        u.username, u.real_name, u.mobile, u.email, u.role_id,
-                       r.role_name, u.customer_id, c.customer_name, u.customer_account_type, u.status, u.create_time, u.update_time,
+                       r.role_name, u.customer_id, c.customer_name, u.customer_subject_type, u.customer_account_type, u.status, u.create_time, u.update_time,
                        <choose><when test="deletedExists">u.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
                 from sys_user u
                 left join sys_role r on r.id = u.role_id

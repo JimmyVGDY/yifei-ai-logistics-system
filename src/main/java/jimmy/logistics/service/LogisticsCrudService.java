@@ -53,6 +53,7 @@ public class LogisticsCrudService {
         fillBusinessCodeDefaults(config, values);
         fillCreateDefaults(config, values);
         fillAuditDefaults(config, values, true);
+        validateMobileFields(values);
         // 敏感字段加密：手机号等字段入库前加密
         encryptValues(values);
 
@@ -67,6 +68,7 @@ public class LogisticsCrudService {
         normalizeUserCustomerBinding(module, values, id, true);
         fillUpdateDefaults(config, values);
         fillAuditDefaults(config, values, false);
+        validateMobileFields(values);
         // 敏感字段加密：手机号等字段入库前加密
         encryptValues(values);
         if (values.isEmpty()) {
@@ -276,6 +278,18 @@ public class LogisticsCrudService {
         for (Map.Entry<String, Object> entry : values.entrySet()) {
             if (FieldEncryptor.isEncryptedField(entry.getKey()) && entry.getValue() instanceof String) {
                 entry.setValue(fieldEncryptor.encrypt((String) entry.getValue()));
+            }
+        }
+    }
+
+    private void validateMobileFields(Map<String, Object> values) {
+        for (String column : Arrays.asList("mobile", "phone")) {
+            Object value = values.get(column);
+            if (value == null || String.valueOf(value).trim().isEmpty()) {
+                continue;
+            }
+            if (!String.valueOf(value).trim().matches("^1[3-9]\\d{9}$")) {
+                throw new IllegalArgumentException("手机号必须是11位中国大陆手机号");
             }
         }
     }

@@ -12,6 +12,7 @@
     />
     <el-input-number :model-value="pageSize" :min="1" :max="100" @update:model-value="$emit('update:pageSize', $event)" />
     <el-button v-if="canCreate" type="primary" @click="$emit('create')">新增</el-button>
+    <el-button v-if="canCreateCustomerAccount" type="success" @click="$emit('create-customer-account')">新增客户账号</el-button>
     <el-button v-if="canReportException" type="warning" @click="$emit('report-exception')">上报异常</el-button>
     <el-button v-if="canGenerateFee" type="success" @click="$emit('generate-fee')">生成费用</el-button>
     <el-upload v-if="canImportCustomer" :show-file-list="false" :auto-upload="false" accept=".xlsx" @change="$emit('import-customer', $event)">
@@ -34,6 +35,7 @@ defineProps({
   pageSize: { type: Number, default: 20 },
   loading: { type: Boolean, default: false },
   canCreate: { type: Boolean, default: false },
+  canCreateCustomerAccount: { type: Boolean, default: false },
   canReportException: { type: Boolean, default: false },
   canGenerateFee: { type: Boolean, default: false },
   canImportCustomer: { type: Boolean, default: false },
@@ -46,6 +48,7 @@ defineEmits([
   'update:timeRange',
   'update:pageSize',
   'create',
+  'create-customer-account',
   'report-exception',
   'generate-fee',
   'import-customer',

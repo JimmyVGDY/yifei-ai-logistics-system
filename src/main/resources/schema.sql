@@ -23,6 +23,7 @@ create table if not exists sys_user (
     email varchar(128) null,
     password varchar(128) not null,
     role_id bigint null,
+    customer_subject_type varchar(16) null comment '客户主体类型：PERSONAL个人，ENTERPRISE企业',
     customer_account_type varchar(16) null comment '客户账号类型：MAIN主账号，SUB子账号',
     customer_id bigint null comment '关联的物流客户ID，用于客户角色数据权限隔离',
     status tinyint not null,

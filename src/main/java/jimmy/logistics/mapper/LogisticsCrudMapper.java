@@ -38,8 +38,20 @@ public interface LogisticsCrudMapper {
                                  @Param("customerName") String customerName,
                                  @Param("now") java.sql.Timestamp now);
 
+    Long selectRoleIdByCode(@Param("roleCode") String roleCode);
+
     String selectRoleCodeById(@Param("roleId") Long roleId);
 
     int countCustomerAccounts(@Param("customerId") Long customerId,
                               @Param("excludeUserId") Long excludeUserId);
+
+    int countUserByUsername(@Param("username") String username);
+
+    int countUserByMobile(@Param("plainMobile") String plainMobile,
+                          @Param("encryptedMobile") String encryptedMobile);
+
+    int countPersonalCustomerByMobile(@Param("plainMobile") String plainMobile,
+                                      @Param("encryptedMobile") String encryptedMobile);
+
+    int countEnterpriseMainAccountByCustomerName(@Param("customerName") String customerName);
 }
