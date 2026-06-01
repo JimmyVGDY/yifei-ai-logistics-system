@@ -118,6 +118,15 @@ mybatis:
 
 项目已接入 Sa-Token，默认保护后端业务接口。前端登录成功后会保存后端返回的 token，并在后续请求头中自动携带。
 
+当前登录策略为单账号单会话：
+
+```text
+SA_TOKEN_IS_CONCURRENT=false
+SA_TOKEN_IS_SHARE=false
+```
+
+登录代码也会显式指定该策略，保证同一账号不会同时保留多个有效 token。再次登录会让旧 token 失效。
+
 默认管理员账号：
 
 ```text

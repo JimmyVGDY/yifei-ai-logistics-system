@@ -1,6 +1,7 @@
 package jimmy.service;
 
 import cn.dev33.satoken.stp.SaTokenInfo;
+import cn.dev33.satoken.stp.SaLoginModel;
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.mapper.AuthMapper;
 import jimmy.model.LoginRequest;
@@ -66,7 +67,9 @@ public class AuthService {
 
         // Sa-Token 会话中保存前端渲染菜单、接口鉴权和操作日志需要的最小身份信息。
         // 使用 getSessionByLoginId 可确保与 SaPermissionConfig 读取端一致，同时兼容 H2 内存模式。
-        StpUtil.login(loginUser.id);
+        // 登录时强制单账号单会话：新 token 生效后，旧 token 会被 Sa-Token 自动踢下线。
+        // 这里显式声明策略，避免环境变量误改全局配置后出现同一账号多处同时在线。
+        StpUtil.login(loginUser.id, SaLoginModel.create().setIsConcurrent(false).setIsShare(false));
         StpUtil.getSessionByLoginId(loginUser.id).set("userCode", loginUser.userCode);
         StpUtil.getSessionByLoginId(loginUser.id).set("username", loginUser.username);
         StpUtil.getSessionByLoginId(loginUser.id).set("usernameMasked", LogMaskUtils.maskAccount(loginUser.username));
