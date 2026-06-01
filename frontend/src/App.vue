@@ -37,6 +37,7 @@
         <div class="topbar-actions">
           <el-tag type="success" effect="light">{{ roleName }}</el-tag>
           <el-tag effect="light">{{ username }}</el-tag>
+          <el-button :icon="Setting" @click="profileVisible = true">设置</el-button>
           <el-button :icon="SwitchButton" @click="handleLogout">退出</el-button>
         </div>
       </el-header>
@@ -44,6 +45,41 @@
         <router-view />
       </el-main>
     </el-container>
+
+    <!-- 个人设置弹窗 -->
+    <el-dialog v-model="profileVisible" title="个人设置" width="480px" append-to-body>
+      <el-tabs v-model="settingTab">
+        <el-tab-pane label="修改资料" name="profile">
+          <el-form :model="profileForm" label-width="80px">
+            <el-form-item label="姓名">
+              <el-input v-model="profileForm.realName" placeholder="真实姓名" />
+            </el-form-item>
+            <el-form-item label="手机">
+              <el-input v-model="profileForm.mobile" placeholder="手机号" />
+            </el-form-item>
+            <el-form-item label="邮箱">
+              <el-input v-model="profileForm.email" placeholder="邮箱" />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="handleProfileSave" :loading="saving">保存</el-button>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="修改密码" name="password">
+          <el-form :model="passwordForm" label-width="80px">
+            <el-form-item label="原密码">
+              <el-input v-model="passwordForm.oldPassword" type="password" show-password placeholder="请输入原密码" />
+            </el-form-item>
+            <el-form-item label="新密码">
+              <el-input v-model="passwordForm.newPassword" type="password" show-password placeholder="至少6位" />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="handlePasswordSave" :loading="saving">修改密码</el-button>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+    </el-dialog>
   </el-container>
 </template>
 
@@ -51,8 +87,8 @@
 import { computed, h, onBeforeUnmount, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { SwitchButton } from '@element-plus/icons-vue'
-import { fetchCurrentLoginConflict, logout, rejectLoginConflict, acceptLoginConflict } from './api/auth'
+import { SwitchButton, Setting } from '@element-plus/icons-vue'
+import { fetchCurrentLoginConflict, logout, rejectLoginConflict, acceptLoginConflict, updateProfile, changePassword } from './api/auth'
 import { clearAuthToken, getAuthToken, isAuthenticated } from './stores/auth-store'
 
 const router = useRouter()
@@ -140,6 +176,42 @@ function showLoginConflictDialog(conflict) {
     conflictAutoCloseTimer = null
     conflictDialogVisible = false
   })
+}
+
+ 
+// 个人设置
+const profileVisible = ref(false)
+const settingTab = ref('profile')
+const saving = ref(false)
+const profileForm = reactive({ realName: '', mobile: '', email: '' })
+const passwordForm = reactive({ oldPassword: '', newPassword: '' })
+
+async function handleProfileSave() {
+  saving.value = true
+  try {
+    await updateProfile({ ...profileForm })
+    ElMessage.success('个人信息已更新')
+    profileVisible.value = false
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handlePasswordSave() {
+  saving.value = true
+  try {
+    await changePassword({ ...passwordForm })
+    ElMessage.success('密码已修改，请重新登录')
+    profileVisible.value = false
+    clearAuthToken()
+    router.push('/login')
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '修改失败')
+  } finally {
+    saving.value = false
+  }
 }
 
 onMounted(() => {

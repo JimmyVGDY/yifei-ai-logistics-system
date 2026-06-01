@@ -27,3 +27,11 @@ export function rejectLoginConflict(conflictId) {
 export function acceptLoginConflict(conflictId) {
   return http.post(`/auth/login-conflicts/${conflictId}/accept`)
 }
+
+export function updateProfile(data) {
+  return http.put('/auth/profile', data)
+}
+
+export function changePassword(data) {
+  return http.put('/auth/password', data)
+}

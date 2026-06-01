@@ -90,4 +90,15 @@
         </choose>
         order by m.sort_no, m.id
     </select>
+
+    <!-- 动态更新个人资料，只更新非空字段。 -->
+    <update id="updateProfile">
+        update sys_user
+        <set>
+            <if test="realName != null and realName != ''">real_name = #{realName},</if>
+            <if test="mobile != null and mobile != ''">mobile = #{mobile},</if>
+            <if test="email != null and email != ''">email = #{email},</if>
+        </set>
+        where id = #{userId}
+    </update>
 </mapper>

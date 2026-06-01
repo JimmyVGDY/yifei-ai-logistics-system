@@ -31,4 +31,10 @@ public interface AuthMapper {
 
     /** 根据最终权限码反查可见菜单，用于用户级特殊授权后动态补齐页面入口。 */
     List<MenuVO> selectMenusByPermissionCodes(@Param("permissionCodes") List<String> permissionCodes);
+
+    /** 更新个人资料（姓名/手机/邮箱），只更新非空字段 */
+    int updateProfile(@Param("userId") Long userId,
+                      @Param("realName") String realName,
+                      @Param("mobile") String mobile,
+                      @Param("email") String email);
 }

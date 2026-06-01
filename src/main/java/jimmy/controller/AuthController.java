@@ -5,8 +5,12 @@ import jimmy.model.ApiResponse;
 import jimmy.model.LoginConflictResponse;
 import jimmy.model.LoginRequest;
 import jimmy.model.LoginResponse;
+import jimmy.model.PasswordChangeRequest;
+import jimmy.model.ProfileUpdateRequest;
 import jimmy.service.AuthService;
 import org.springframework.web.bind.annotation.*;
+
+import javax.validation.Valid;
 
 /**
  * 认证控制器 —— 登录、会话恢复、退出。
@@ -63,6 +67,22 @@ public class AuthController {
     @PostMapping("/logout")
     public ApiResponse<Boolean> logout() {
         authService.logout();
+        return ApiResponse.success(Boolean.TRUE);
+    }
+
+    /** 修改个人资料 */
+    @OperationLog("修改个人资料")
+    @PutMapping("/profile")
+    public ApiResponse<Boolean> updateProfile(@RequestBody ProfileUpdateRequest request) {
+        authService.updateProfile(request);
+        return ApiResponse.success(Boolean.TRUE);
+    }
+
+    /** 修改密码 */
+    @OperationLog("修改密码")
+    @PutMapping("/password")
+    public ApiResponse<Boolean> changePassword(@Valid @RequestBody PasswordChangeRequest request) {
+        authService.changePassword(request);
         return ApiResponse.success(Boolean.TRUE);
     }
 }

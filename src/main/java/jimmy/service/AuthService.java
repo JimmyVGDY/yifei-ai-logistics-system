@@ -8,6 +8,8 @@ import jimmy.model.LoginConflictResponse;
 import jimmy.model.LoginRequest;
 import jimmy.model.LoginResponse;
 import jimmy.model.MenuVO;
+import jimmy.model.PasswordChangeRequest;
+import jimmy.model.ProfileUpdateRequest;
 import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -201,6 +203,32 @@ public class AuthService {
                 permissions,
                 menus
         );
+    }
+
+    /** 修改个人资料（仅限姓名/手机/邮箱） */
+    public void updateProfile(ProfileUpdateRequest request) {
+        StpUtil.checkLogin();
+        Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
+        if (!StringUtils.hasText(request.getRealName()) && !StringUtils.hasText(request.getMobile()) && !StringUtils.hasText(request.getEmail())) {
+            throw new IllegalArgumentException("至少需要填写一项信息");
+        }
+        authMapper.updateProfile(userId, request.getRealName(), request.getMobile(), request.getEmail());
+    }
+
+    /** 修改密码（需原密码验证，改完后强制退出当前会话） */
+    public void changePassword(PasswordChangeRequest request) {
+        StpUtil.checkLogin();
+        Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
+        Map<String, Object> user = authMapper.findLoginUserById(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("用户不存在");
+        }
+        String storedPassword = toString(user.get("password"));
+        if (!matchesPassword(request.getOldPassword(), storedPassword)) {
+            throw new IllegalArgumentException("原密码错误");
+        }
+        authMapper.updatePassword(userId, PASSWORD_ENCODER.encode(request.getNewPassword()));
+        StpUtil.logout();
     }
 
     private LoginUser findLoginUser(String username) {
