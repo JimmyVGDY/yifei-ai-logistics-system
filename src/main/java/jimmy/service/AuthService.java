@@ -21,7 +21,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -73,7 +72,7 @@ public class AuthService {
             permissions = collectPermissions(loginUser.roleCode, menus);
         } else {
             addRelationQueryPermissions(loginUser.roleCode, permissions);
-            permissions = permissions.stream().distinct().collect(Collectors.toList());
+            permissions = distinctList(permissions);
         }
 
         // Sa-Token 会话中保存前端渲染菜单、接口鉴权和操作日志需要的最小身份信息。
@@ -111,7 +110,7 @@ public class AuthService {
             permissions = collectPermissions(loginUser.roleCode, menus);
         } else {
             addRelationQueryPermissions(loginUser.roleCode, permissions);
-            permissions = permissions.stream().distinct().collect(Collectors.toList());
+            permissions = distinctList(permissions);
         }
         // 与会话初始化保持一致的写入策略，确保 H2 等环境下读写同一会话域。
         StpUtil.getSessionByLoginId(userId).set("permissions", permissions);
@@ -295,9 +294,28 @@ public class AuthService {
         if (menu == null || !StringUtils.hasText(menu.getPermissionCode())) {
             return true;
         }
+        if (permissions.contains(menu.getPermissionCode())) {
+            return true;
+        }
         String module = moduleFromPermission(menu.getPermissionCode());
-        return permissions.contains(menu.getPermissionCode())
-                || permissions.stream().anyMatch(permission -> permission.startsWith(module + ":"));
+        String prefix = module + ":";
+        for (String permission : permissions) {
+            if (permission.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 列表去重，保持顺序 */
+    private List<String> distinctList(List<String> list) {
+        List<String> result = new ArrayList<>();
+        for (String s : list) {
+            if (!result.contains(s)) {
+                result.add(s);
+            }
+        }
+        return result;
     }
 
     private String moduleFromPermission(String permissionCode) {
@@ -347,18 +365,19 @@ public class AuthService {
     }
 
     private List<String> collectPermissions(String roleCode, List<MenuVO> menus) {
-        List<String> permissions = flattenMenus(menus).stream()
-                .map(MenuVO::getPermissionCode)
-                .filter(StringUtils::hasText)
-                .distinct()
-                .collect(Collectors.toList());
+        List<String> permissions = new ArrayList<>();
+        for (MenuVO menu : flattenMenus(menus)) {
+            if (StringUtils.hasText(menu.getPermissionCode()) && !permissions.contains(menu.getPermissionCode())) {
+                permissions.add(menu.getPermissionCode());
+            }
+        }
         List<String> expanded = new ArrayList<>(permissions);
         for (String permission : permissions) {
             expandActionPermissions(permission, expanded);
         }
         // 部分角色页面需要加载关联下拉数据，只补充只读查询权限，不额外开放对应菜单。
         addRelationQueryPermissions(roleCode, expanded);
-        return expanded.stream().distinct().collect(Collectors.toList());
+        return distinctList(expanded);
     }
 
     private void addRelationQueryPermissions(String roleCode, List<String> expanded) {
