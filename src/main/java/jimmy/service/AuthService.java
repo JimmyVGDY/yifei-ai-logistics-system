@@ -182,9 +182,14 @@ public class AuthService {
 
     public void logout() {
         Object loginId = StpUtil.getLoginIdDefaultNull();
-        String usernameMasked = loginId == null ? "" : String.valueOf(StpUtil.getSession().get("usernameMasked", ""));
+        if (loginId == null) {
+            StpUtil.logout();
+            return;
+        }
+        String usernameMasked = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("usernameMasked", ""));
         log.info("账号退出登录，userId={}, username={}", loginId, usernameMasked);
-        StpUtil.logout();
+        // logout(loginId) 同时清除 TokenSession 和 AccountSession，防止重新登录时误判为冲突。
+        StpUtil.logout(loginId);
     }
 
     private LoginResponse buildResponse(LoginUser loginUser, SaTokenInfo tokenInfo,
@@ -232,7 +237,7 @@ public class AuthService {
             throw new IllegalArgumentException("原密码错误");
         }
         authMapper.updatePassword(userId, PASSWORD_ENCODER.encode(request.getNewPassword()));
-        StpUtil.logout();
+        StpUtil.logout(userId);
     }
 
     private LoginUser findLoginUser(String username) {
