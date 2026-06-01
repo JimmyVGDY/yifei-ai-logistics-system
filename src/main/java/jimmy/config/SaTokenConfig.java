@@ -107,7 +107,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
             return true;
         }
         if (uri.startsWith("/logistics/orders")) {
-            StpUtil.checkPermission("GET".equalsIgnoreCase(method) ? "logistics:order:query" : "logistics:order:create");
+            StpUtil.checkPermission("GET".equalsIgnoreCase(method) ? "logistics:order:list" : "logistics:order:create");
             return true;
         }
         if (uri.startsWith("/logistics/exceptions")) {
@@ -123,7 +123,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
 
     private String resolveModuleAction(String method, String[] parts) {
         if ("GET".equalsIgnoreCase(method)) {
-            return "query";
+            return "list";
         }
         if (parts.length >= 3 && "delete".equals(parts[2])) {
             return "delete";
