@@ -33,6 +33,17 @@ prepare stmt from @ddl;
 execute stmt;
 deallocate prepare stmt;
 
+-- 兼容早期本地演示账号：旧库里 customer 账号可能绑定到已经不存在的旧角色 ID，并且姓名曾出现编码误写。
+update sys_user u
+set u.role_id = (select r.id from sys_role r where r.role_code = 'CUSTOMER' limit 1)
+where u.username = 'customer'
+  and not exists (select 1 from sys_role r where r.id = u.role_id);
+
+update sys_user
+set real_name = '测试客户'
+where username = 'customer'
+  and real_name = '娴嬭瘯瀹㈡埛';
+
 -- 已有客户角色账号按同一客户下最早创建的账号标记主账号，其余标记子账号。
 update sys_user u
 join sys_role r on r.id = u.role_id
