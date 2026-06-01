@@ -44,7 +44,7 @@ export function isAuthenticated() {
 
 export function canVisit(path) {
   if (!authState.menus.length) {
-    return true
+    return false
   }
   return flattenMenus(authState.menus).some((menu) => {
     if (path === menu.path) {
@@ -63,6 +63,10 @@ export function hasPermission(permission) {
 
 export function firstMenuPath() {
   return flattenMenus(authState.menus).find((menu) => menu.path && menu.path !== '/system')?.path || '/dashboard'
+}
+
+export function hasMenus() {
+  return flattenMenus(authState.menus).some((menu) => Boolean(menu.path))
 }
 
 function normalizeSession(payload) {
