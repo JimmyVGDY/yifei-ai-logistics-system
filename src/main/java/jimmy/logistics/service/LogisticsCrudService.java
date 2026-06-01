@@ -6,6 +6,7 @@ import jimmy.logistics.mapper.LogisticsCrudMapper;
 import jimmy.logistics.model.CrudFieldValue;
 import jimmy.logistics.model.OperationResultVO;
 import jimmy.logistics.util.ColumnExistenceChecker;
+import jimmy.logistics.util.CrudBusinessUtils;
 import jimmy.util.FieldEncryptor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,21 +24,23 @@ import java.util.Map;
 @Service
 public class LogisticsCrudService {
 
-    private static final String BUSINESS_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final LogisticsCrudMapper logisticsCrudMapper;
     private final ColumnExistenceChecker columnChecker;
+    private final CrudBusinessUtils utils;
     private final FieldEncryptor fieldEncryptor;
     private final CompactSnowflakeIdGenerator idGenerator;
     private final Map<String, CrudConfig> configs;
 
     public LogisticsCrudService(LogisticsCrudMapper logisticsCrudMapper,
                                 ColumnExistenceChecker columnChecker,
+                                CrudBusinessUtils utils,
                                 FieldEncryptor fieldEncryptor,
                                 CompactSnowflakeIdGenerator idGenerator) {
         this.logisticsCrudMapper = logisticsCrudMapper;
         this.columnChecker = columnChecker;
+        this.utils = utils;
         this.fieldEncryptor = fieldEncryptor;
         this.idGenerator = idGenerator;
         this.configs = buildConfigs();
@@ -57,7 +60,7 @@ public class LogisticsCrudService {
         // 敏感字段加密：手机号等字段入库前加密
         encryptValues(values);
 
-        logisticsCrudMapper.insertRecord(config.tableName, toFieldValues(values));
+        logisticsCrudMapper.insertRecord(config.tableName, utils.toFieldValues(values));
         log.info("管理模块新增完成,module={}, id={}", module, id);
         return new OperationResultVO(id);
     }
@@ -75,7 +78,7 @@ public class LogisticsCrudService {
             throw new IllegalArgumentException("没有可更新字段");
         }
 
-        int updated = logisticsCrudMapper.updateRecord(config.tableName, id, toFieldValues(values), columnChecker.hasColumn(config.tableName, "version"));
+        int updated = logisticsCrudMapper.updateRecord(config.tableName, id, utils.toFieldValues(values), columnChecker.hasColumn(config.tableName, "version"));
         if (updated == 0) {
             throw new IllegalArgumentException("记录不存在");
         }
@@ -95,7 +98,7 @@ public class LogisticsCrudService {
             if (columnChecker.hasColumn(config.tableName, "update_by")) {
                 deleteValues.put("update_by", currentUserId());
             }
-            updated = logisticsCrudMapper.logicalDelete(config.tableName, id, toFieldValues(deleteValues), columnChecker.hasColumn(config.tableName, "version"));
+            updated = logisticsCrudMapper.logicalDelete(config.tableName, id, utils.toFieldValues(deleteValues), columnChecker.hasColumn(config.tableName, "version"));
         } else {
             updated = logisticsCrudMapper.physicalDelete(config.tableName, id);
         }
@@ -147,7 +150,7 @@ public class LogisticsCrudService {
         if (current != null && String.valueOf(current).trim().length() > 0) {
             return;
         }
-        values.put(config.generatedCodeColumn, nextBusinessCode(config.tableName, config.generatedCodeColumn, config.generatedCodePrefix));
+        values.put(config.generatedCodeColumn, utils.nextBusinessCode(config.tableName, config.generatedCodeColumn, config.generatedCodePrefix));
     }
 
     private void normalizeUserCustomerBinding(String module, Map<String, Object> values, Long userId, boolean update) {
@@ -208,7 +211,7 @@ public class LogisticsCrudService {
             return existingCustomerId;
         }
         Long newCustomerId = idGenerator.nextId();
-        String customerCode = nextBusinessCode("logistics_customer", "customer_code", "CUST");
+        String customerCode = utils.nextBusinessCode("logistics_customer", "customer_code", "CUST");
         logisticsCrudMapper.insertCustomerForAccount(newCustomerId, customerCode, rawValue, new Timestamp(System.currentTimeMillis()));
         logisticsCrudMapper.updateOrderCustomerIdByName(newCustomerId, rawValue);
         return newCustomerId;
@@ -225,32 +228,8 @@ public class LogisticsCrudService {
         }
     }
 
-    private String nextBusinessCode(String tableName, String columnName, String prefix) {
-        for (int i = 0; i < 20; i++) {
-            String code = prefix + randomCode(6);
-            // 随机业务编号先查重再入库,极低概率连续冲突时再回退到雪花 ID 片段。
-            if (logisticsCrudMapper.countByBusinessCode(tableName, columnName, code) == 0) {
-                return code;
-            }
-        }
-        return prefix + String.valueOf(idGenerator.nextId()).substring(7);
-    }
 
-    private String randomCode(int length) {
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < length; i++) {
-            builder.append(BUSINESS_CODE_CHARS.charAt(RANDOM.nextInt(BUSINESS_CODE_CHARS.length())));
-        }
-        return builder.toString();
-    }
 
-    private List<CrudFieldValue> toFieldValues(Map<String, Object> values) {
-        List<CrudFieldValue> fields = new ArrayList<>();
-        for (Map.Entry<String, Object> entry : values.entrySet()) {
-            fields.add(new CrudFieldValue(entry.getKey(), entry.getValue()));
-        }
-        return fields;
-    }
 
     private void fillUpdateDefaults(CrudConfig config, Map<String, Object> values) {
         if (config.updateTimeColumn != null && columnChecker.hasColumn(config.tableName, config.updateTimeColumn)) {
