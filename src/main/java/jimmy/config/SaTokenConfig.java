@@ -107,7 +107,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
             return true;
         }
         if (uri.startsWith("/logistics/orders")) {
-            StpUtil.checkPermission("GET".equalsIgnoreCase(method) ? "order:query" : "order:create");
+            StpUtil.checkPermission("GET".equalsIgnoreCase(method) ? "logistics:order:query" : "logistics:order:create");
             return true;
         }
         if (uri.startsWith("/logistics/exceptions")) {
@@ -145,10 +145,10 @@ public class SaTokenConfig implements WebMvcConfigurer {
     private static Map<String, String> buildModulePermissionPrefixes() {
         Map<String, String> map = new HashMap<>();
         // 这里只允许已登记模块进入动态鉴权，避免前端传任意 module 绕过权限控制。
-        map.put("orders", "order");
+        map.put("orders", "logistics:order");
         map.put("customers", "customer");
         map.put("waybills", "waybill");
-        map.put("dispatches", "dispatch");
+        map.put("dispatches", "logistics:dispatch");
         map.put("tasks", "task");
         map.put("tracks", "track");
         map.put("drivers", "driver");
