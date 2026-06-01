@@ -54,7 +54,7 @@ F:\Development\Middleware\scripts\start-rabbitmq.ps1
 ```
 
 ```text
-AMQP: 127.0.0.1:5672
+AMQP: localhost:5672
 Management: http://127.0.0.1:15672
 guest / guest
 ```

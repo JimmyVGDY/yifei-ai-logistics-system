@@ -27,7 +27,7 @@
 | `REDIS_PORT` | `6379` | Redis 端口 |
 | `REDIS_PASSWORD` | 空 | Redis 密码 |
 | `REDIS_DATABASE` | `0` | Redis 数据库编号 |
-| `RABBITMQ_HOST` | `127.0.0.1` | RabbitMQ 地址 |
+| `RABBITMQ_HOST` | `localhost` | RabbitMQ 地址，Windows 本地 RabbitMQ 可能只监听 IPv6 `::1`，使用 `localhost` 兼容性更好 |
 | `RABBITMQ_PORT` | `5672` | RabbitMQ AMQP 端口 |
 | `RABBITMQ_USERNAME` | `guest` | RabbitMQ 用户名 |
 | `RABBITMQ_PASSWORD` | `guest` | RabbitMQ 密码 |
@@ -90,7 +90,7 @@ Group: DEFAULT_GROUP
 项目默认连接本机 RabbitMQ：
 
 ```text
-AMQP: 127.0.0.1:5672
+AMQP: localhost:5672
 Management: http://127.0.0.1:15672
 ```
 
