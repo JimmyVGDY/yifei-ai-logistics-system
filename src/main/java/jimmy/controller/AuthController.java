@@ -47,11 +47,13 @@ public class AuthController {
     }
 
     @PostMapping("/login-conflicts/{conflictId}/reject")
+    @OperationLog("拒绝登录冲突")
     public ApiResponse<LoginConflictResponse> rejectLoginConflict(@PathVariable String conflictId) {
         return ApiResponse.success(authService.rejectLoginConflict(conflictId));
     }
 
     @PostMapping("/login-conflicts/{conflictId}/accept")
+    @OperationLog("允许登录冲突")
     public ApiResponse<LoginConflictResponse> acceptLoginConflict(@PathVariable String conflictId) {
         return ApiResponse.success(authService.acceptLoginConflict(conflictId));
     }
