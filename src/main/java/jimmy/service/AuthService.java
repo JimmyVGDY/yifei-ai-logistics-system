@@ -91,7 +91,7 @@ public class AuthService {
         StpUtil.getSessionByLoginId(loginUser.id).set("realNameMasked", LogMaskUtils.maskName(loginUser.realName));
         StpUtil.getSessionByLoginId(loginUser.id).set("roleCode", loginUser.roleCode);
         StpUtil.getSessionByLoginId(loginUser.id).set("roleName", loginUser.roleName);
-        StpUtil.getSessionByLoginId(loginUser.id).set("customerId", loginUser.customerId);
+        StpUtil.getSessionByLoginId(loginUser.id).set("customerId", loginUser.customerId != null ? loginUser.customerId : 0L);
         StpUtil.getSessionByLoginId(loginUser.id).set("permissions", permissions);
         StpUtil.getSessionByLoginId(loginUser.id).set("menus", menus);
 
