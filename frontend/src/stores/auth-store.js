@@ -69,6 +69,10 @@ export function hasMenus() {
   return flattenMenus(authState.menus).some((menu) => Boolean(menu.path))
 }
 
+let sessionCheckedFlag = false
+export function markSessionChecked() { sessionCheckedFlag = true }
+export function resetSessionChecked() { sessionCheckedFlag = false }
+
 function normalizeSession(payload) {
   if (!payload) {
     return {}

@@ -51,7 +51,7 @@ import { onBeforeUnmount, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { fetchLoginConflictStatus, login } from '../api/auth'
-import { firstMenuPath, saveAuthToken } from '../stores/auth-store'
+import { firstMenuPath, saveAuthToken, markSessionChecked } from '../stores/auth-store'
 
 const route = useRoute()
 const router = useRouter()
@@ -79,6 +79,7 @@ async function handleLogin() {
       return
     }
     saveAuthToken(response)
+    markSessionChecked()
     ElMessage.success('登录成功')
     router.replace(route.query.redirect || firstMenuPath())
   } finally {
