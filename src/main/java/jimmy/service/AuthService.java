@@ -154,6 +154,32 @@ public class AuthService {
         return loginConflictService.reject(conflictId, userId);
     }
 
+    /** 原会话主动接受新的登录请求，立即完成登录并返回 token */
+    public LoginConflictResponse acceptLoginConflict(String conflictId) {
+        StpUtil.checkLogin();
+        Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
+        LoginConflictService.PendingLoginConflict conflict = loginConflictService.pending(conflictId);
+        if (conflict == null || !userId.equals(conflict.getUserId())) {
+            LoginConflictResponse response = loginConflictService.status(conflictId);
+            response.setLoginStatus("REJECTED");
+            response.setMessage("登录确认请求不存在或无权处理");
+            return response;
+        }
+        LoginUser loginUser = findLoginUserById(userId);
+        if (loginUser == null || loginUser.status == null || loginUser.status != 1) {
+            LoginConflictResponse response = loginConflictService.status(conflictId);
+            response.setLoginStatus("REJECTED");
+            response.setMessage("登录账号不存在或已停用");
+            return response;
+        }
+        LoginResponse loginResponse = completeLogin(loginUser);
+        loginConflictService.markTakenOver(conflictId);
+        LoginConflictResponse response = loginConflictService.status(conflictId);
+        response.setLoginStatus("TAKEN_OVER");
+        response.setLoginResponse(loginResponse);
+        return response;
+    }
+
     public void logout() {
         Object loginId = StpUtil.getLoginIdDefaultNull();
         String usernameMasked = loginId == null ? "" : String.valueOf(StpUtil.getSession().get("usernameMasked", ""));

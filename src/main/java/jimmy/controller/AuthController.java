@@ -47,6 +47,11 @@ public class AuthController {
         return ApiResponse.success(authService.rejectLoginConflict(conflictId));
     }
 
+    @PostMapping("/login-conflicts/{conflictId}/accept")
+    public ApiResponse<LoginConflictResponse> acceptLoginConflict(@PathVariable String conflictId) {
+        return ApiResponse.success(authService.acceptLoginConflict(conflictId));
+    }
+
     /** 会话恢复 —— 用于刷新页面后从 localStorage 恢复登录态 */
     @GetMapping("/session")
     public ApiResponse<LoginResponse> session() {
