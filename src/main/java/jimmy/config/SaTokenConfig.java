@@ -4,9 +4,11 @@ import cn.dev33.satoken.interceptor.SaInterceptor;
 import cn.dev33.satoken.router.SaRouter;
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.logistics.config.OperationLogInterceptor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -20,9 +22,23 @@ public class SaTokenConfig implements WebMvcConfigurer {
     private static final Map<String, String> MODULE_PERMISSION_PREFIXES = buildModulePermissionPrefixes();
 
     private final OperationLogInterceptor operationLogInterceptor;
+    /** 允许跨域的前端地址，可配环境变量 CORS_ORIGINS=地址1,地址2 */
+    private final String corsOrigins;
 
-    public SaTokenConfig(OperationLogInterceptor operationLogInterceptor) {
+    public SaTokenConfig(OperationLogInterceptor operationLogInterceptor,
+                         @Value("${app.cors.origins:http://127.0.0.1:5173}") String corsOrigins) {
         this.operationLogInterceptor = operationLogInterceptor;
+        this.corsOrigins = corsOrigins;
+    }
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedOrigins(corsOrigins.split(","))
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
     }
 
     @Override
