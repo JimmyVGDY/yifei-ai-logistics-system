@@ -24,7 +24,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -393,7 +392,11 @@ public class SystemPermissionService {
 
     private Map<String, List<String>> defaultRoleMenuPaths() {
         Map<String, List<String>> defaults = new LinkedHashMap<>();
-        defaults.put("ADMIN", standardMenus().stream().map(menu -> menu.path).collect(Collectors.toList()));
+        List<String> allPaths = new ArrayList<>();
+        for (StandardMenu menu : standardMenus()) {
+            allPaths.add(menu.path);
+        }
+        defaults.put("ADMIN", allPaths);
         defaults.put("OPERATIONS_MANAGER", Arrays.asList("/dashboard", "/orders", "/waybills", "/dispatches", "/tasks", "/tracks", "/exceptions"));
         defaults.put("ORDER_OPERATOR", Arrays.asList("/orders", "/customers", "/waybills", "/tracks"));
         defaults.put("CUSTOMER_SERVICE", Arrays.asList("/customers", "/orders", "/waybills", "/tracks"));
