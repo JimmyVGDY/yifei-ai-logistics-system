@@ -60,7 +60,7 @@ logging:
 # 调度中心地址由 XXL_JOB_ADMIN_ADDRESSES 环境变量注入
 xxl:
   job:
-    enabled: ${XXL_JOB_ENABLED:true}
+    enabled: ${XXL_JOB_ENABLED:false}
     admin:
       addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
     accessToken: ${XXL_JOB_ACCESS_TOKEN:}

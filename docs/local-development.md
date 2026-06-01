@@ -4,17 +4,18 @@
 
 - JDK 8
 - Maven 3.6+
-- Node.js 16+（前端）
+- Node.js 16+
 - MySQL 8.0+
 - Nacos 2.x
 - Sentinel Dashboard
 - Elasticsearch 7.x
 - Redis 5.x
 - RabbitMQ 3.x+
+- XXL-Job 2.4.x（需要调度任务时启动）
 
-当前项目基于 Spring Boot `2.7.18`，依赖版本通过 `pom.xml` 中的 Spring Cloud 与 Spring Cloud Alibaba BOM 统一管理。
+项目基于 Spring Boot `2.7.18`，依赖版本通过 `pom.xml` 中的 Spring Cloud 和 Spring Cloud Alibaba BOM 统一管理。
 
-## 本机中间件位置（Windows）
+## 本地中间件位置（Windows）
 
 ```text
 MySQL:        F:\Development\Database\MySQL\Server-8.4.9
@@ -24,6 +25,7 @@ RabbitMQ:     F:\Development\Middleware\rabbitmq\rabbitmq_server-4.1.8
 ES:           F:\Development\Middleware\elasticsearch\elasticsearch-7.17.29
 Sentinel:     F:\Development\Middleware\sentinel\sentinel-dashboard-1.8.8.jar
 Erlang:       F:\Development\Middleware\erlang\otp-27.3.4.10
+XXL-Job:      F:\Development\Middleware\xxl-job
 脚本目录:     F:\Development\Middleware\scripts
 ```
 
@@ -68,13 +70,13 @@ http://127.0.0.1:8848/nacos
 nacos / nacos
 ```
 
-注意：Nacos 2.x 除了 `8848`，还需要 `9848` 和 `9849` 两个 gRPC 端口可用。
+Nacos 2.x 除了 `8848`，还需要 `9848` 和 `9849` 两个 gRPC 端口可用。
 
 ### Sentinel Dashboard
 
 ```text
 java -jar sentinel-dashboard-1.8.8.jar --server.port=8858
-# http://127.0.0.1:8858
+http://127.0.0.1:8858
 ```
 
 ### Elasticsearch
@@ -83,23 +85,50 @@ java -jar sentinel-dashboard-1.8.8.jar --server.port=8858
 http://127.0.0.1:9200
 ```
 
-## IDEA 启动（推荐方式）
+### XXL-Job
 
-1. 用 JDK 8 打开项目
-2. 等待 Maven 依赖加载完成
-3. Run Configuration 添加 VM Options（默认连接本地 XXL-Job）：
+调度中心本地地址：
 
-```
--Dspring.datasource.password=你的MySQL密码 -Dnacos.register-enabled=false -Dxxl.job.admin.addresses=http://127.0.0.1:8081/xxl-job-admin -Dxxl.job.executor.port=9999
+```text
+http://127.0.0.1:8081/xxl-job-admin
 ```
 
-不需要 XXL-Job 时改为：
+后端执行器默认端口是 `9999`。如果看到 `java.net.BindException: Address already in use: bind`，说明执行器端口已经被其他进程占用，不影响 Tomcat `8080` 已启动，但调度任务回调会不可用。处理方式：
 
-```
--Dspring.datasource.password=你的MySQL密码 -Dnacos.register-enabled=false -Dxxl.job.executor.port=-1
+```powershell
+# 查看 9999 被哪个进程占用
+Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -eq 9999 }
+
+# 临时换端口启动后端
+--xxl.job.executor.port=10099
+
+# 不需要调度任务时直接关闭执行器
+--xxl.job.enabled=false
 ```
 
-4. 运行 `jimmy.DemoApplication`
+## IDEA 启动（推荐）
+
+1. 使用 JDK 8 打开项目。
+2. 等待 Maven 依赖加载完成。
+3. 运行 `jimmy.DemoApplication`。
+
+不需要 XXL-Job 调度任务时，VM Options 推荐：
+
+```text
+-Dspring.datasource.password=你的MySQL密码 -Dnacos.register-enabled=false -Dxxl.job.enabled=false
+```
+
+需要连接本地 XXL-Job 调度中心时，VM Options 推荐：
+
+```text
+-Dspring.datasource.password=你的MySQL密码 -Dnacos.register-enabled=false -Dxxl.job.enabled=true -Dxxl.job.admin.addresses=http://127.0.0.1:8081/xxl-job-admin -Dxxl.job.executor.port=9999
+```
+
+如果 `9999` 被占用，把最后一项改为：
+
+```text
+-Dxxl.job.executor.port=10099
+```
 
 ## 命令行启动
 
@@ -112,7 +141,7 @@ ops\build-check.bat
 :: 一键启动
 ops\start.bat
 
-:: 本地开发快速启动
+:: 本地开发快速启动，会自动处理 XXL-Job 执行器端口冲突
 ops\run-local.bat
 
 :: 查看状态
@@ -134,14 +163,14 @@ bash ops/build-check.sh
 # 一键启动
 bash ops/start.sh
 
-# 本地开发快速启动
+# 本地开发快速启动，会自动处理 XXL-Job 执行器端口冲突
 bash ops/run-local.sh
 
 # 查看状态
 bash ops/status.sh
 
 # 查看日志
-bash ops/logs.sh app -f    # 实时跟踪应用日志
+bash ops/logs.sh app -f
 
 # 停止
 bash ops/stop.sh
@@ -157,9 +186,9 @@ npm run dev
 
 前端地址：`http://127.0.0.1:5173`
 
-Vite 已将 `/api` 代理到后端 `http://127.0.0.1:8080`。
+Vite 会将 `/api` 代理到后端 `http://127.0.0.1:8080`。
 
-默认 `dev` 环境下，后端启动完成后会自动启动前端并打开浏览器。需要关闭时可设置：
+默认 `dev` 环境下，后端启动完成后会自动启动前端并打开浏览器。需要关闭时设置：
 
 ```text
 LOCAL_FRONTEND_AUTO_START=false
@@ -168,13 +197,13 @@ LOCAL_FRONTEND_AUTO_OPEN=false
 
 ## Maven 配置
 
-Windows 上首次使用前复制镜像配置：
+Windows 首次使用前复制镜像配置：
 
 ```cmd
 copy ops\maven-settings-windows.xml %USERPROFILE%\.m2\settings.xml
 ```
 
-Linux/WSL2 上使用腾讯云镜像（`ops/run-local.sh` 脚本已配置 `-Dmaven.repo.local`）。
+Linux/WSL2 可使用腾讯云镜像，`ops/run-local.sh` 会直接调用本机 Maven。
 
 ## 常用验证接口
 
@@ -195,14 +224,15 @@ GET  http://127.0.0.1:8080/actuator/prometheus
 ## Docker 部署（生产环境）
 
 ```bash
-cp .env.example .env          # 编辑密码
-docker compose up -d           # 启动全部 13 个服务
+cp .env.example .env
+docker compose up -d
 ```
 
 应用镜像使用多阶段 Dockerfile，`docker compose up -d` 会自动完成 Maven 打包，不需要提前在本机执行 `mvn package`。
-XXL-Job 调度中心使用独立数据库 `xxl_job`，初始化 SQL 位于 `docker/mysql/xxl-job-init.sql`。
 
-启动后可用端口：
+XXL-Job 调度中心使用独立数据库 `xxl_job`，初始化 SQL 位于 `docker/mysql/xxl-job-init.sql`。Docker Compose 场景下会显式设置 `XXL_JOB_ENABLED=true`，普通本地启动默认关闭，避免误占用执行器端口。
+
+启动后常用端口：
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
