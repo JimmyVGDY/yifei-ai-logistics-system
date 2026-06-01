@@ -67,4 +67,27 @@
           and m.status = 1
         order by m.sort_no, m.id
     </select>
+
+    <select id="selectMenusByPermissionCodes" resultMap="MenuResultMap">
+        select distinct m.id,
+               m.parent_id,
+               m.menu_name,
+               m.menu_path,
+               m.permission_code,
+               m.sort_no
+        from sys_menu m
+        where m.status = 1
+        <choose>
+            <when test="permissionCodes != null and permissionCodes.size() > 0">
+                and m.permission_code in
+                <foreach collection="permissionCodes" item="permissionCode" open="(" separator="," close=")">
+                    #{permissionCode}
+                </foreach>
+            </when>
+            <otherwise>
+                and 1 = 0
+            </otherwise>
+        </choose>
+        order by m.sort_no, m.id
+    </select>
 </mapper>

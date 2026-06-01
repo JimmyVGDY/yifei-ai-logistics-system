@@ -28,4 +28,7 @@ public interface AuthMapper {
 
     /** 按角色 ID 查询关联的菜单权限列表 */
     List<MenuVO> selectMenusByRoleId(@Param("roleId") Long roleId);
+
+    /** 根据最终权限码反查可见菜单，用于用户级特殊授权后动态补齐页面入口。 */
+    List<MenuVO> selectMenusByPermissionCodes(@Param("permissionCodes") List<String> permissionCodes);
 }

@@ -14,6 +14,54 @@
         <result property="sortNo" column="sort_no"/>
     </resultMap>
 
+    <resultMap id="PermissionResultMap" type="jimmy.model.PermissionVO">
+        <id property="id" column="id"/>
+        <result property="permissionCode" column="permission_code"/>
+        <result property="permissionName" column="permission_name"/>
+        <result property="permissionType" column="permission_type"/>
+        <result property="moduleCode" column="module_code"/>
+        <result property="actionCode" column="action_code"/>
+        <result property="menuId" column="menu_id"/>
+        <result property="sortNo" column="sort_no"/>
+    </resultMap>
+
+    <update id="createPermissionTable">
+        create table if not exists sys_permission (
+            id bigint primary key,
+            permission_code varchar(128) not null unique,
+            permission_name varchar(128) not null,
+            permission_type varchar(32) not null,
+            module_code varchar(64) not null,
+            action_code varchar(64) not null,
+            menu_id bigint null,
+            sort_no int not null,
+            status tinyint not null,
+            create_time timestamp not null,
+            update_time timestamp not null
+        )
+    </update>
+
+    <update id="createRolePermissionTable">
+        create table if not exists sys_role_permission (
+            id bigint primary key,
+            role_id bigint not null,
+            permission_id bigint not null,
+            unique (role_id, permission_id)
+        )
+    </update>
+
+    <update id="createUserPermissionTable">
+        create table if not exists sys_user_permission (
+            id bigint primary key,
+            user_id bigint not null,
+            permission_id bigint not null,
+            grant_type varchar(16) not null,
+            create_time timestamp not null,
+            update_time timestamp not null,
+            unique (user_id, permission_id)
+        )
+    </update>
+
     <!-- 权限分配页展示所有启用菜单，停用菜单不参与勾选和授权。 -->
     <select id="selectAllActiveMenus" resultMap="MenuResultMap">
         select id,
@@ -35,16 +83,117 @@
         order by menu_id
     </select>
 
+    <select id="selectAllActivePermissions" resultMap="PermissionResultMap">
+        select id,
+               permission_code,
+               permission_name,
+               permission_type,
+               module_code,
+               action_code,
+               menu_id,
+               sort_no
+        from sys_permission
+        where status = 1
+        order by sort_no, id
+    </select>
+
+    <select id="selectRolePermissionIds" resultType="long">
+        select permission_id
+        from sys_role_permission
+        where role_id = #{roleId}
+        order by permission_id
+    </select>
+
+    <select id="selectUserPermissionIds" resultType="long">
+        select permission_id
+        from sys_user_permission
+        where user_id = #{userId}
+          and grant_type = #{grantType}
+        order by permission_id
+    </select>
+
+    <select id="selectRolePermissionCodes" resultType="string">
+        select p.permission_code
+        from sys_role_permission rp
+        join sys_permission p on p.id = rp.permission_id
+        where rp.role_id = #{roleId}
+          and p.status = 1
+        order by p.sort_no, p.id
+    </select>
+
+    <select id="selectUserPermissionOverrides" resultType="map">
+        select p.permission_code as permissionCode,
+               up.grant_type as grantType
+        from sys_user_permission up
+        join sys_permission p on p.id = up.permission_id
+        where up.user_id = #{userId}
+          and p.status = 1
+        order by p.sort_no, p.id
+    </select>
+
     <select id="countRoleById" resultType="int">
         select count(1)
         from sys_role
         where id = #{roleId}
     </select>
 
+    <select id="selectAllRoleIds" resultType="long">
+        select id
+        from sys_role
+        order by id
+    </select>
+
+    <select id="selectAllRoles" resultType="map">
+        select id,
+               role_code as roleCode,
+               role_name as roleName
+        from sys_role
+        order by id
+    </select>
+
+    <select id="countRoleMenus" resultType="int">
+        select count(1)
+        from sys_role_menu
+        where role_id = #{roleId}
+    </select>
+
+    <select id="countUserById" resultType="int">
+        select count(1)
+        from sys_user
+        where id = #{userId}
+    </select>
+
     <select id="countMenuById" resultType="int">
         select count(1)
         from sys_menu
         where id = #{menuId}
+          and status = 1
+    </select>
+
+    <select id="countMenuByPath" resultType="int">
+        select count(1)
+        from sys_menu
+        where menu_path = #{menuPath}
+    </select>
+
+    <select id="selectMenuIdByPath" resultType="long">
+        select id
+        from sys_menu
+        where menu_path = #{menuPath}
+        order by id
+        limit 1
+    </select>
+
+    <select id="countPermissionByCode" resultType="int">
+        select count(1)
+        from sys_permission
+        where permission_code = #{permissionCode}
+    </select>
+
+    <select id="countPermissionById" resultType="int">
+        select count(1)
+        from sys_permission
+        where id = #{permissionId}
           and status = 1
     </select>
 
@@ -71,6 +220,48 @@
     <insert id="insertRoleMenu">
         insert into sys_role_menu (id, role_id, menu_id)
         values (#{id}, #{roleId}, #{menuId})
+    </insert>
+
+    <insert id="insertMenu">
+        insert into sys_menu (
+            id, parent_id, menu_name, menu_path, permission_code,
+            sort_no, status, create_time, update_time
+        )
+        values (
+            #{id}, #{parentId}, #{menuName}, #{menuPath}, #{permissionCode},
+            #{sortNo}, 1, #{createTime}, #{updateTime}
+        )
+    </insert>
+
+    <insert id="insertPermission" parameterType="jimmy.model.PermissionVO">
+        insert into sys_permission (
+            id, permission_code, permission_name, permission_type,
+            module_code, action_code, menu_id, sort_no, status, create_time, update_time
+        )
+        values (
+            #{id}, #{permissionCode}, #{permissionName}, #{permissionType},
+            #{moduleCode}, #{actionCode}, #{menuId}, #{sortNo}, 1, current_timestamp, current_timestamp
+        )
+    </insert>
+
+    <delete id="deleteRolePermissions">
+        delete from sys_role_permission
+        where role_id = #{roleId}
+    </delete>
+
+    <insert id="insertRolePermission">
+        insert into sys_role_permission (id, role_id, permission_id)
+        values (#{id}, #{roleId}, #{permissionId})
+    </insert>
+
+    <delete id="deleteUserPermissions">
+        delete from sys_user_permission
+        where user_id = #{userId}
+    </delete>
+
+    <insert id="insertUserPermission">
+        insert into sys_user_permission (id, user_id, permission_id, grant_type, create_time, update_time)
+        values (#{id}, #{userId}, #{permissionId}, #{grantType}, #{createTime}, #{updateTime})
     </insert>
 
     <!-- 本地库缺少权限配置菜单时自动补齐，避免系统管理页无法进入权限分配。 -->

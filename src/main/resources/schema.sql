@@ -56,6 +56,43 @@ create table if not exists sys_role_menu (
     unique key uk_sys_role_menu (role_id, menu_id)
 );
 
+create table if not exists sys_permission (
+    id bigint primary key,
+    permission_code varchar(128) not null unique,
+    permission_name varchar(128) not null,
+    permission_type varchar(32) not null,
+    module_code varchar(64) not null,
+    action_code varchar(64) not null,
+    menu_id bigint null,
+    sort_no int not null,
+    status tinyint not null,
+    create_time timestamp not null,
+    update_time timestamp not null,
+    index idx_sys_permission_menu (menu_id),
+    index idx_sys_permission_module (module_code, action_code),
+    index idx_sys_permission_status (status)
+);
+
+create table if not exists sys_role_permission (
+    id bigint primary key,
+    role_id bigint not null,
+    permission_id bigint not null,
+    unique key uk_sys_role_permission (role_id, permission_id),
+    index idx_sys_role_permission_role (role_id)
+);
+
+create table if not exists sys_user_permission (
+    id bigint primary key,
+    user_id bigint not null,
+    permission_id bigint not null,
+    grant_type varchar(16) not null,
+    create_time timestamp not null,
+    update_time timestamp not null,
+    unique key uk_sys_user_permission (user_id, permission_id),
+    index idx_sys_user_permission_user (user_id),
+    index idx_sys_user_permission_grant (grant_type)
+);
+
 create table if not exists sys_operation_log (
     id bigint primary key,
     operation_id varchar(32) null,

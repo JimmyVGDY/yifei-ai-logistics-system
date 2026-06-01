@@ -16,6 +16,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -27,9 +28,11 @@ public class AuthService {
     private static final BCryptPasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
     private final AuthMapper authMapper;
+    private final SystemPermissionService systemPermissionService;
 
-    public AuthService(AuthMapper authMapper) {
+    public AuthService(AuthMapper authMapper, SystemPermissionService systemPermissionService) {
         this.authMapper = authMapper;
+        this.systemPermissionService = systemPermissionService;
     }
 
     public LoginResponse login(LoginRequest request) {
@@ -50,9 +53,16 @@ public class AuthService {
         }
         upgradePasswordIfNecessary(loginUser, password);
 
-        // 菜单优先使用数据库配置，同时合并一份默认菜单兜底，避免本地开发库权限数据不完整时登录后无菜单。
-        List<MenuVO> menus = mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
-        List<String> permissions = collectPermissions(loginUser.roleCode, menus);
+        systemPermissionService.ensurePermissionInfrastructure();
+        List<String> permissions = systemPermissionService.effectivePermissionCodes(loginUser.id, loginUser.roleId);
+        List<MenuVO> menus = queryMenus(loginUser.roleId, permissions);
+        if (menus.isEmpty()) {
+            menus = defaultMenus(loginUser.roleCode);
+            permissions = collectPermissions(loginUser.roleCode, menus);
+        } else {
+            addRelationQueryPermissions(loginUser.roleCode, permissions);
+            permissions = permissions.stream().distinct().collect(Collectors.toList());
+        }
 
         // Sa-Token 会话中保存前端渲染菜单、接口鉴权和操作日志需要的最小身份信息。
         // 使用 getSessionByLoginId 可确保与 SaPermissionConfig 读取端一致，同时兼容 H2 内存模式。
@@ -80,8 +90,16 @@ public class AuthService {
         if (loginUser == null) {
             throw new IllegalArgumentException("登录用户不存在，请重新登录");
         }
-        List<MenuVO> menus = mergeDefaultMenus(loginUser.roleCode, queryMenus(loginUser.roleId));
-        List<String> permissions = collectPermissions(loginUser.roleCode, menus);
+        systemPermissionService.ensurePermissionInfrastructure();
+        List<String> permissions = systemPermissionService.effectivePermissionCodes(userId, loginUser.roleId);
+        List<MenuVO> menus = queryMenus(loginUser.roleId, permissions);
+        if (menus.isEmpty()) {
+            menus = defaultMenus(loginUser.roleCode);
+            permissions = collectPermissions(loginUser.roleCode, menus);
+        } else {
+            addRelationQueryPermissions(loginUser.roleCode, permissions);
+            permissions = permissions.stream().distinct().collect(Collectors.toList());
+        }
         // 与会话初始化保持一致的写入策略，确保 H2 等环境下读写同一会话域。
         StpUtil.getSessionByLoginId(userId).set("permissions", permissions);
         StpUtil.getSessionByLoginId(userId).set("menus", menus);
@@ -166,8 +184,19 @@ public class AuthService {
         return user;
     }
 
-    private List<MenuVO> queryMenus(Long roleId) {
-        List<MenuVO> rows = authMapper.selectMenusByRoleId(roleId);
+    private List<MenuVO> queryMenus(Long roleId, List<String> permissions) {
+        Map<Long, MenuVO> mergedRows = new LinkedHashMap<>();
+        for (MenuVO menu : authMapper.selectMenusByRoleId(roleId)) {
+            if (canShowMenu(menu, permissions)) {
+                mergedRows.put(menu.getId(), menu);
+            }
+        }
+        for (MenuVO menu : authMapper.selectMenusByPermissionCodes(menuLookupPermissionCodes(permissions))) {
+            if (canShowMenu(menu, permissions)) {
+                mergedRows.put(menu.getId(), menu);
+            }
+        }
+        List<MenuVO> rows = new ArrayList<>(mergedRows.values());
         Map<Long, MenuVO> byId = new LinkedHashMap<>();
         rows.forEach(menu -> byId.put(menu.getId(), menu));
         List<MenuVO> roots = new ArrayList<>();
@@ -180,6 +209,30 @@ public class AuthService {
             }
         }
         return roots;
+    }
+
+    private List<String> menuLookupPermissionCodes(List<String> permissions) {
+        LinkedHashSet<String> codes = new LinkedHashSet<>(permissions);
+        for (String permission : permissions) {
+            String module = moduleFromPermission(permission);
+            codes.add(module + ":manage");
+            codes.add(module + ":view");
+        }
+        return new ArrayList<>(codes);
+    }
+
+    private boolean canShowMenu(MenuVO menu, List<String> permissions) {
+        if (menu == null || !StringUtils.hasText(menu.getPermissionCode())) {
+            return true;
+        }
+        String module = moduleFromPermission(menu.getPermissionCode());
+        return permissions.contains(menu.getPermissionCode())
+                || permissions.stream().anyMatch(permission -> permission.startsWith(module + ":"));
+    }
+
+    private String moduleFromPermission(String permissionCode) {
+        int index = permissionCode.lastIndexOf(':');
+        return index < 0 ? permissionCode : permissionCode.substring(0, index);
     }
 
     private Long toLong(Object value) {

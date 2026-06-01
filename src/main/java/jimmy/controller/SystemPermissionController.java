@@ -3,7 +3,10 @@ package jimmy.controller;
 import jimmy.logistics.annotation.OperationLog;
 import jimmy.model.ApiResponse;
 import jimmy.model.MenuVO;
+import jimmy.model.PermissionAssignmentRequest;
+import jimmy.model.PermissionTreeNodeVO;
 import jimmy.model.RoleMenuUpdateRequest;
+import jimmy.model.UserPermissionVO;
 import jimmy.service.SystemPermissionService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,9 +32,19 @@ public class SystemPermissionController {
         return ApiResponse.success(systemPermissionService.menuTree());
     }
 
+    @GetMapping("/tree")
+    public ApiResponse<List<PermissionTreeNodeVO>> permissionTree() {
+        return ApiResponse.success(systemPermissionService.permissionTree());
+    }
+
     @GetMapping("/roles/{roleId}/menus")
     public ApiResponse<List<Long>> roleMenus(@PathVariable long roleId) {
         return ApiResponse.success(systemPermissionService.roleMenuIds(roleId));
+    }
+
+    @GetMapping("/roles/{roleId}/permissions")
+    public ApiResponse<List<Long>> rolePermissions(@PathVariable long roleId) {
+        return ApiResponse.success(systemPermissionService.rolePermissionIds(roleId));
     }
 
     @OperationLog("配置角色权限")
@@ -39,5 +52,24 @@ public class SystemPermissionController {
     public ApiResponse<List<Long>> updateRoleMenus(@PathVariable long roleId,
                                                    @RequestBody RoleMenuUpdateRequest request) {
         return ApiResponse.success(systemPermissionService.updateRoleMenus(roleId, request));
+    }
+
+    @OperationLog("配置角色细粒度权限")
+    @PostMapping("/roles/{roleId}/permissions")
+    public ApiResponse<List<Long>> updateRolePermissions(@PathVariable long roleId,
+                                                         @RequestBody PermissionAssignmentRequest request) {
+        return ApiResponse.success(systemPermissionService.updateRolePermissions(roleId, request));
+    }
+
+    @GetMapping("/users/{userId}/permissions")
+    public ApiResponse<UserPermissionVO> userPermissions(@PathVariable long userId) {
+        return ApiResponse.success(systemPermissionService.userPermissionIds(userId));
+    }
+
+    @OperationLog("配置用户特殊权限")
+    @PostMapping("/users/{userId}/permissions")
+    public ApiResponse<UserPermissionVO> updateUserPermissions(@PathVariable long userId,
+                                                               @RequestBody PermissionAssignmentRequest request) {
+        return ApiResponse.success(systemPermissionService.updateUserPermissions(userId, request));
     }
 }
