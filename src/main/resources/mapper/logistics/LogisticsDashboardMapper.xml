@@ -8,94 +8,84 @@
     <select id="countTodayOrders" resultType="long">
         select count(1)
         from logistics_order
-        where (#{customerId} is null or customer_id = #{customerId})
         where date(created_at) = current_date
+        <if test="customerId != null">and customer_id = #{customerId}</if>
     </select>
 
     <!-- 完成类状态兼容历史状态码和当前物流签收状态。 -->
     <select id="countCompletedOrders" resultType="long">
         select count(1)
         from logistics_order
-        where (#{customerId} is null or customer_id = #{customerId})
         where status in ('COMPLETED', 'SIGNED', 'DELIVERED')
+        <if test="customerId != null">and customer_id = #{customerId}</if>
     </select>
 
-    <!-- 待调度兼容 CREATED 旧状态，避免旧模拟数据在看板中被漏算。 -->
     <select id="countWaitDispatchOrders" resultType="long">
         select count(1)
         from logistics_order
-        where (#{customerId} is null or customer_id = #{customerId})
-        where status in ('WAIT_DISPATCH', 'CREATED')
+        where status = 'WAIT_DISPATCH'
+        <if test="customerId != null">and customer_id = #{customerId}</if>
     </select>
 
     <select id="countInTransitOrders" resultType="long">
         select count(1)
         from logistics_order
-        where (#{customerId} is null or customer_id = #{customerId})
-        where status = 'IN_TRANSIT'
+        where status in ('PICKED', 'IN_TRANSIT')
+        <if test="customerId != null">and customer_id = #{customerId}</if>
     </select>
 
     <select id="countOpenExceptionOrders" resultType="long">
         select count(1)
         from logistics_exception
         where exception_status != 'CLOSED'
+        <if test="customerId != null">and order_id in (select id from logistics_order where customer_id = #{customerId})</if>
     </select>
 
     <select id="sumPaidMonthIncome" resultType="java.math.BigDecimal">
-        select coalesce(sum(actual_fee), 0)
+        select coalesce(sum(payable_fee), 0)
         from logistics_fee
         where payment_status = 'PAID'
+          and date_format(payment_time, '%Y-%m') = date_format(current_date, '%Y-%m')
+        <if test="customerId != null">and order_id in (select id from logistics_order where customer_id = #{customerId})</if>
     </select>
 
-    <!-- 订单状态分布保留英文状态码，中文展示由后端 statusLabel/前端字典统一转换。 -->
     <select id="selectStatusDistribution" resultType="map">
-        select status,
-               count(1) as total
+        select status, count(1) as total
         from logistics_order
-        where (#{customerId} is null or customer_id = #{customerId})
         group by status
-        order by total desc
+        order by status
     </select>
 
-    <!-- 只取最近未关闭异常，避免看板提醒展示已经处理完成的异常。 -->
     <select id="selectRecentOpenExceptions" resultType="map">
-        select e.id,
-               o.order_no,
-               e.exception_type,
-               e.exception_status,
-               coalesce(ru.username, e.report_user) as report_user,
-               e.report_time
+        select e.id, e.order_id as order_no, e.exception_type, e.exception_desc,
+               e.exception_status, e.report_user, e.report_time
         from logistics_exception e
-        join logistics_order o on o.id = e.order_id
-        left join sys_user ru on concat('', ru.id) = e.report_user
         where e.exception_status != 'CLOSED'
+        <if test="customerId != null">and e.order_id in (select id from logistics_order where customer_id = #{customerId})</if>
         order by e.report_time desc
-        limit 5
+        limit 10
     </select>
 
-    <!-- 查询指定天数内到期的合同，用于定时任务预警。 -->
     <select id="selectExpiringContracts" resultType="map">
-        select c.id,
-               c.employee_id as employeeId,
-               c.contract_no  as contractNo,
+        select c.id, c.employee_id as employeeId, c.contract_no as contractNo,
                date_format(c.end_date, '%Y-%m-%d') as endDate
         from hr_contract c
-        where c.contract_status = 1
-          and c.end_date is not null
+        where c.contract_status = 1 and c.end_date is not null
           and c.end_date between current_date and date_add(current_date, interval #{days} day)
     </select>
 
     <select id="countLastMonthOrders" resultType="long">
         select count(1)
         from logistics_order
-        where (#{customerId} is null or customer_id = #{customerId})
         where date_format(created_at, '%Y-%m') = date_format(date_sub(current_date, interval 1 month), '%Y-%m')
+        <if test="customerId != null">and customer_id = #{customerId}</if>
     </select>
 
     <select id="countLastMonthExceptions" resultType="int">
         select count(1)
         from logistics_exception
         where date_format(report_time, '%Y-%m') = date_format(date_sub(current_date, interval 1 month), '%Y-%m')
+        <if test="customerId != null">and order_id in (select id from logistics_order where customer_id = #{customerId})</if>
     </select>
 
     <select id="countUploadedFiles" resultType="long">
