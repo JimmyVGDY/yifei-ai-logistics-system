@@ -70,6 +70,7 @@ export function hasMenus() {
 }
 
 let sessionCheckedFlag = false
+export function isSessionChecked() { return sessionCheckedFlag }
 export function markSessionChecked() { sessionCheckedFlag = true }
 export function resetSessionChecked() { sessionCheckedFlag = false }
 

@@ -79,10 +79,8 @@ async function handleLogin() {
       return
     }
     saveAuthToken(response)
-    markSessionChecked()
     ElMessage.success('登录成功')
-    // 硬跳转确保绕过路由守卫的任何残留状态
-    window.location.href = route.query.redirect || firstMenuPath()
+    router.replace(route.query.redirect || firstMenuPath())
   } finally {
     if (!conflict.waiting) {
       loading.value = false
