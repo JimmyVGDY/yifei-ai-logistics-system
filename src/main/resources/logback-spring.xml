@@ -12,7 +12,8 @@
     <!--
         JSON 文件日志（Filebeat → Elasticsearch → Kibana 链路的数据源）。
         安全注意事项：
-        - MDC 中的 userId/userCode 已在写入前通过 LogMaskUtils 脱敏。
+        - MDC 中的 userId/userCode/traceId/operationId 是审计追踪标识，保留原值用于精确检索。
+        - usernameMasked、姓名、手机号、地址、IP、UA 等展示或敏感字段由业务代码脱敏后写入。
         - 日志文件默认权限由操作系统 umask 控制，生产环境建议设置为 027（仅owner可读写）。
         - 历史日志自动 gzip 压缩，减少明文暴露面。
         - 生产环境可通过 SPRING_PROFILES_ACTIVE=prod 将根日志级别提升至 WARN，

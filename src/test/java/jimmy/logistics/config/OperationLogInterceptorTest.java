@@ -1,6 +1,7 @@
 package jimmy.logistics.config;
 
 import jimmy.common.id.CompactSnowflakeIdGenerator;
+import jimmy.config.TraceContextSupport;
 import jimmy.logistics.annotation.OperationLog;
 import jimmy.logistics.mapper.OperationLogMapper;
 import jimmy.logistics.util.ColumnExistenceChecker;
@@ -33,7 +34,7 @@ class OperationLogInterceptorTest {
         CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
         when(idGenerator.nextId()).thenReturn(260602170000001L, 260602170000002L);
 
-        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        OperationLogInterceptor interceptor = interceptor(mapper, columnChecker, idGenerator);
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/logistics/modules/orders");
         request.addHeader("X-Trace-Id", "trace-from-test");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -75,7 +76,7 @@ class OperationLogInterceptorTest {
         CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
         when(idGenerator.nextId()).thenReturn(260602190000001L, 260602190000002L);
 
-        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        OperationLogInterceptor interceptor = interceptor(mapper, columnChecker, idGenerator);
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/logistics/modules/orders/100");
         request.addHeader("X-Forwarded-For", "192.168.1.10, 10.0.0.1");
         request.addHeader("User-Agent", "JUnit Browser");
@@ -115,7 +116,7 @@ class OperationLogInterceptorTest {
         CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
         when(idGenerator.nextId()).thenReturn(260602170000003L, 260602170000004L);
 
-        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        OperationLogInterceptor interceptor = interceptor(mapper, columnChecker, idGenerator);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/logistics/modules/users");
         request.setParameter("usage", "permissionConfig");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -147,7 +148,7 @@ class OperationLogInterceptorTest {
         CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
         when(idGenerator.nextId()).thenReturn(260602180000001L);
 
-        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        OperationLogInterceptor interceptor = interceptor(mapper, columnChecker, idGenerator);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/logistics/modules/orders");
         request.setParameter("usage", "relationOptions");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -165,7 +166,7 @@ class OperationLogInterceptorTest {
         CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
         when(idGenerator.nextId()).thenReturn(260602170000005L, 260602170000006L, 260602170000007L, 260602170000008L);
 
-        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        OperationLogInterceptor interceptor = interceptor(mapper, columnChecker, idGenerator);
         MockHttpServletRequest queryRequest = new MockHttpServletRequest("GET", "/logistics/modules/customers");
         MockHttpServletResponse queryResponse = new MockHttpServletResponse();
         interceptor.preHandle(queryRequest, queryResponse, handlerMethodWithoutOperationLog());
@@ -215,7 +216,7 @@ class OperationLogInterceptorTest {
         CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
         when(idGenerator.nextId()).thenReturn(260602170000009L, 260602170000010L, 260602170000011L, 260602170000012L);
 
-        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        OperationLogInterceptor interceptor = interceptor(mapper, columnChecker, idGenerator);
         MockHttpServletRequest profileRequest = new MockHttpServletRequest("PUT", "/auth/profile");
         MockHttpServletResponse profileResponse = new MockHttpServletResponse();
         interceptor.preHandle(profileRequest, profileResponse, handlerMethodWithoutOperationLog());
@@ -265,7 +266,7 @@ class OperationLogInterceptorTest {
         CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
         when(idGenerator.nextId()).thenReturn(260602170000013L, 260602170000014L);
 
-        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        OperationLogInterceptor interceptor = interceptor(mapper, columnChecker, idGenerator);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/system/permissions/tree");
         MockHttpServletResponse response = new MockHttpServletResponse();
         interceptor.preHandle(request, response, handlerMethod());
@@ -286,6 +287,12 @@ class OperationLogInterceptorTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 eq(null)
         );
+    }
+
+    private OperationLogInterceptor interceptor(OperationLogMapper mapper,
+                                                ColumnExistenceChecker columnChecker,
+                                                CompactSnowflakeIdGenerator idGenerator) {
+        return new OperationLogInterceptor(mapper, columnChecker, idGenerator, new TraceContextSupport(idGenerator));
     }
 
     private HandlerMethod handlerMethod() throws Exception {

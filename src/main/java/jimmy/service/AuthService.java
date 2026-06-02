@@ -3,6 +3,7 @@ package jimmy.service;
 import cn.dev33.satoken.stp.SaTokenInfo;
 import cn.dev33.satoken.stp.SaLoginModel;
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.config.TraceContextSupport;
 import jimmy.mapper.AuthMapper;
 import jimmy.model.CaptchaResponse;
 import jimmy.model.LoginConflictResponse;
@@ -55,15 +56,18 @@ public class AuthService {
     private final LoginConflictService loginConflictService;
     private final FieldEncryptor fieldEncryptor;
     private final LoginSecurityService loginSecurityService;
+    private final TraceContextSupport traceContextSupport;
 
     public AuthService(AuthMapper authMapper, SystemPermissionService systemPermissionService,
                        LoginConflictService loginConflictService, FieldEncryptor fieldEncryptor,
-                       LoginSecurityService loginSecurityService) {
+                       LoginSecurityService loginSecurityService,
+                       TraceContextSupport traceContextSupport) {
         this.authMapper = authMapper;
         this.systemPermissionService = systemPermissionService;
         this.loginConflictService = loginConflictService;
         this.fieldEncryptor = fieldEncryptor;
         this.loginSecurityService = loginSecurityService;
+        this.traceContextSupport = traceContextSupport;
     }
 
     /**
@@ -108,7 +112,7 @@ public class AuthService {
                 // 未提供验证码 → 生成验证码并返回
                 CaptchaResponse captcha = loginSecurityService.generateCaptcha();
                 log.info("异常设备登录，要求验证码，userId={}, ip={}, ua={}",
-                        LogMaskUtils.maskId(String.valueOf(loginUser.id)), LogMaskUtils.maskIp(clientIp),
+                        loginUser.id, LogMaskUtils.maskIp(clientIp),
                         LogMaskUtils.maskText(userAgent));
                 loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
                         "CAPTCHA_REQUIRED", null, true);
@@ -118,7 +122,7 @@ public class AuthService {
             // 已提供验证码 → 校验
             if (!loginSecurityService.validateCaptcha(request.getCaptchaId(), request.getCaptchaCode())) {
                 log.warn("登录失败，验证码错误，userId={}, username={}",
-                        LogMaskUtils.maskId(String.valueOf(loginUser.id)), LogMaskUtils.maskAccount(username));
+                        loginUser.id, LogMaskUtils.maskAccount(username));
                 loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
                         "FAIL", "验证码错误", true);
                 throw new IllegalArgumentException("验证码错误，请刷新验证码后重新输入");
@@ -141,7 +145,7 @@ public class AuthService {
             loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
                     "PENDING", "登录冲突", !isFamiliar);
             log.info("检测到同一账号已有在线会话，创建登录冲突确认，userId={}, username={}",
-                    LogMaskUtils.maskId(String.valueOf(loginUser.id)), LogMaskUtils.maskAccount(loginUser.username));
+                    loginUser.id, LogMaskUtils.maskAccount(loginUser.username));
             return loginConflictService.create(loginUser.id, loginUser.username);
         }
         // 登录成功，记录到历史
@@ -178,6 +182,7 @@ public class AuthService {
         StpUtil.getSessionByLoginId(loginUser.id).set("realNameMasked", LogMaskUtils.maskName(loginUser.realName));
         StpUtil.getSessionByLoginId(loginUser.id).set("roleCode", loginUser.roleCode);
         StpUtil.getSessionByLoginId(loginUser.id).set("roleName", loginUser.roleName);
+        StpUtil.getSessionByLoginId(loginUser.id).set(TraceContextSupport.LOGIN_SESSION_ID, traceContextSupport.newLoginSessionId());
         if (loginUser.customerId != null && loginUser.customerId > 0) {
             StpUtil.getSessionByLoginId(loginUser.id).set("customerId", loginUser.customerId);
         }
@@ -186,7 +191,7 @@ public class AuthService {
 
         String tokenValue = StpUtil.getTokenValueByLoginId(loginUser.id);
         log.info("账号登录成功，userId={}, username={}, roleCode={}",
-                LogMaskUtils.maskId(String.valueOf(loginUser.id)), LogMaskUtils.maskAccount(loginUser.username), loginUser.roleCode);
+                loginUser.id, LogMaskUtils.maskAccount(loginUser.username), loginUser.roleCode);
         return buildResponse(loginUser, StpUtil.getTokenName(), tokenValue, permissions, menus);
     }
 
@@ -219,6 +224,7 @@ public class AuthService {
         // 与会话初始化保持一致的写入策略，确保 H2 等环境下读写同一会话域。
         StpUtil.getSessionByLoginId(userId).set("permissions", permissions);
         StpUtil.getSessionByLoginId(userId).set("menus", menus);
+        ensureLoginSessionId(userId);
         SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
         return buildResponse(loginUser, tokenInfo.getTokenName(), tokenInfo.getTokenValue(), permissions, menus);
     }
@@ -319,7 +325,7 @@ public class AuthService {
             return;
         }
         String usernameMasked = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("usernameMasked", ""));
-        log.info("账号退出登录，userId={}, username={}", LogMaskUtils.maskId(String.valueOf(loginId)), usernameMasked);
+        log.info("账号退出登录，userId={}, username={}", loginId, usernameMasked);
         // logout(loginId) 同时清除 TokenSession 和 AccountSession，防止重新登录时误判为冲突。
         StpUtil.logout(loginId);
     }
@@ -334,6 +340,7 @@ public class AuthService {
                 loginUser.id,
                 tokenName,
                 tokenValue,
+                ensureLoginSessionId(loginUser.id),
                 loginUser.id,
                 loginUser.userCode,
                 LogMaskUtils.maskAccount(loginUser.username),
@@ -343,6 +350,16 @@ public class AuthService {
                 permissions,
                 menus
         );
+    }
+
+    private String ensureLoginSessionId(Long userId) {
+        Object value = StpUtil.getSessionByLoginId(userId).get(TraceContextSupport.LOGIN_SESSION_ID, "");
+        if (value != null && StringUtils.hasText(String.valueOf(value))) {
+            return String.valueOf(value);
+        }
+        String loginSessionId = traceContextSupport.newLoginSessionId();
+        StpUtil.getSessionByLoginId(userId).set(TraceContextSupport.LOGIN_SESSION_ID, loginSessionId);
+        return loginSessionId;
     }
 
     /**
@@ -435,7 +452,7 @@ public class AuthService {
         String encoded = PASSWORD_ENCODER.encode(rawPassword);
         authMapper.updatePassword(loginUser.id, encoded);
         loginUser.password = encoded;
-        log.info("账号密码已升级为 BCrypt，userId={}, username={}", LogMaskUtils.maskId(String.valueOf(loginUser.id)), LogMaskUtils.maskAccount(loginUser.username));
+        log.info("账号密码已升级为 BCrypt，userId={}, username={}", loginUser.id, LogMaskUtils.maskAccount(loginUser.username));
     }
 
     /** 判断密码是否为 BCrypt 编码（$2a$/$2b$/$2y$ 开头） */

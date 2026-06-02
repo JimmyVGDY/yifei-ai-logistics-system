@@ -2,6 +2,7 @@ package jimmy.logistics.config;
 
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
+import jimmy.config.TraceContextSupport;
 import jimmy.logistics.annotation.OperationLog;
 import jimmy.logistics.mapper.OperationLogMapper;
 import jimmy.logistics.util.ColumnExistenceChecker;
@@ -17,7 +18,6 @@ import javax.servlet.http.HttpServletResponse;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -40,19 +40,22 @@ public class OperationLogInterceptor implements HandlerInterceptor {
     private final OperationLogMapper operationLogMapper;
     private final ColumnExistenceChecker columnChecker;
     private final CompactSnowflakeIdGenerator idGenerator;
+    private final TraceContextSupport traceContextSupport;
 
     public OperationLogInterceptor(OperationLogMapper operationLogMapper,
                                    ColumnExistenceChecker columnChecker,
-                                   CompactSnowflakeIdGenerator idGenerator) {
+                                   CompactSnowflakeIdGenerator idGenerator,
+                                   TraceContextSupport traceContextSupport) {
         this.operationLogMapper = operationLogMapper;
         this.columnChecker = columnChecker;
         this.idGenerator = idGenerator;
+        this.traceContextSupport = traceContextSupport;
     }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         String traceId = resolveTraceId(request);
-        String operationId = String.valueOf(idGenerator.nextId());
+        String operationId = resolveOperationId(request);
         String username = currentUsername();
         // 每次请求生成唯一操作 ID，并与 traceId 一起写入响应头，方便前端反馈问题时反查日志。
         request.setAttribute(TRACE_ID_ATTRIBUTE, traceId);
@@ -62,16 +65,16 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         response.setHeader("X-Trace-Id", traceId);
         response.setHeader("X-Operation-Id", operationId);
 
-        MDC.put("traceId", traceId);
-        MDC.put("operationId", operationId);
-        // MDC 字段会被 logback 写入 JSON 日志，userId 脱敏后存储，防止日志文件泄露。
-        // 真实 userId 仍保留在数据库操作日志表中，支持按用户查询。
-        MDC.put("userId", LogMaskUtils.maskId(currentUserId()));
-        MDC.put("userCode", LogMaskUtils.maskId(currentUserCode()));
-        MDC.put("usernameMasked", LogMaskUtils.maskAccount(username));
-        MDC.put("roleCode", currentRoleCode());
-        MDC.put("requestUri", request.getRequestURI());
-        MDC.put("requestMethod", request.getMethod());
+        MDC.put(TraceContextSupport.TRACE_ID, traceId);
+        MDC.put(TraceContextSupport.OPERATION_ID, operationId);
+        // userId/userCode 是内部审计追踪标识，需要保留原值用于精确检索；用户名等展示字段继续脱敏。
+        MDC.put(TraceContextSupport.USER_ID, currentUserId());
+        MDC.put(TraceContextSupport.USER_CODE, currentUserCode());
+        MDC.put(TraceContextSupport.LOGIN_SESSION_ID, currentLoginSessionId());
+        MDC.put(TraceContextSupport.USERNAME_MASKED, LogMaskUtils.maskAccount(username));
+        MDC.put(TraceContextSupport.ROLE_CODE, currentRoleCode());
+        MDC.put(TraceContextSupport.REQUEST_URI, request.getRequestURI());
+        MDC.put(TraceContextSupport.REQUEST_METHOD, request.getMethod());
         return true;
     }
 
@@ -104,21 +107,21 @@ public class OperationLogInterceptor implements HandlerInterceptor {
             String status = exception == null && response.getStatus() < 400 ? "SUCCESS" : "FAILED";
             long costMs = System.currentTimeMillis() - (Long) request.getAttribute(START_TIME_ATTRIBUTE);
             String errorMessage = exception == null ? null : sanitizeErrorMessage(exception.getMessage());
-            MDC.put("module", firstPath(request.getRequestURI()));
-            MDC.put("operation", operation);
-            MDC.put("costMs", String.valueOf(costMs));
-            MDC.put("result", status);
+            MDC.put(TraceContextSupport.MODULE, firstPath(request.getRequestURI()));
+            MDC.put(TraceContextSupport.OPERATION, operation);
+            MDC.put(TraceContextSupport.COST_MS, String.valueOf(costMs));
+            MDC.put(TraceContextSupport.RESULT, status);
 
             try {
                 // 优先写入包含 traceId、operationId、耗时、异常信息等扩展字段的新日志结构。
-                insertCompatibleOperationLog(username, operation, request, status, costMs, traceId, operationId, errorMessage);
+                insertCompatibleOperationLog(username, operation, request, status, costMs, traceId, operationId, currentLoginSessionId(), errorMessage);
                 String changeSummary = OperationChangeContext.changeSummary(request);
                 String ip = clientIp(request);
                 String targetId = targetId(request);
                 String ua = userAgent(request);
                 log.info("操作日志已记录，operationId={}, traceId={}, userId={}, username={}, operation={}, uri={}, method={}, status={}, costMs={}, ip={}, targetId={}, ua={}{}",
-                        operationId, traceId, LogMaskUtils.maskId(currentUserId()), LogMaskUtils.maskAccount(username), operation,
-                        request.getRequestURI(), request.getMethod(), status, costMs, ip,
+                        operationId, traceId, currentUserId(), LogMaskUtils.maskAccount(username), operation,
+                        request.getRequestURI(), request.getMethod(), status, costMs, LogMaskUtils.maskIp(ip),
                         targetId == null ? "-" : targetId, LogMaskUtils.maskText(ua),
                         changeSummary != null && !changeSummary.isEmpty() ? ", change=" + changeSummary : "");
             } catch (RuntimeException logException) {
@@ -133,32 +136,57 @@ public class OperationLogInterceptor implements HandlerInterceptor {
 
     private void insertCompatibleOperationLog(String username, String operation, HttpServletRequest request,
                                               String status, long costMs, String traceId, String operationId,
-                                              String errorMessage) {
+                                              String loginSessionId, String errorMessage) {
         if (!columnChecker.hasColumn("sys_operation_log", "operation_id")) {
             insertLegacyLog(username, operation, request, status);
             return;
         }
+        boolean loginSessionColumnExists = columnChecker.hasColumn("sys_operation_log", "login_session_id");
         if (columnChecker.hasColumn("sys_operation_log", "error_message")) {
             if (hasClientContextColumns()) {
-                operationLogMapper.insertOperationLogWithClientContext(
-                        idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
-                        currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs,
-                        truncate(errorMessage, MAX_LOG_TEXT_LENGTH), clientIp(request), userAgent(request),
-                        requestParams(request), targetId(request), changeSummary(request)
-                );
+                if (loginSessionColumnExists) {
+                    operationLogMapper.insertOperationLogWithClientContextAndSession(
+                            idGenerator.nextId(), operationId, traceId, loginSessionId, currentUserId(), currentUserCode(), username,
+                            currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs,
+                            truncate(errorMessage, MAX_LOG_TEXT_LENGTH), clientIp(request), userAgent(request),
+                            requestParams(request), targetId(request), changeSummary(request)
+                    );
+                } else {
+                    operationLogMapper.insertOperationLogWithClientContext(
+                            idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
+                            currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs,
+                            truncate(errorMessage, MAX_LOG_TEXT_LENGTH), clientIp(request), userAgent(request),
+                            requestParams(request), targetId(request), changeSummary(request)
+                    );
+                }
                 return;
             }
-            operationLogMapper.insertOperationLog(
-                    idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
-                    currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs,
-                    truncate(errorMessage, MAX_LOG_TEXT_LENGTH)
-            );
+            if (loginSessionColumnExists) {
+                operationLogMapper.insertOperationLogWithSession(
+                        idGenerator.nextId(), operationId, traceId, loginSessionId, currentUserId(), currentUserCode(), username,
+                        currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs,
+                        truncate(errorMessage, MAX_LOG_TEXT_LENGTH)
+                );
+            } else {
+                operationLogMapper.insertOperationLog(
+                        idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
+                        currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs,
+                        truncate(errorMessage, MAX_LOG_TEXT_LENGTH)
+                );
+            }
             return;
         }
-        operationLogMapper.insertOperationLogWithoutErrorMessage(
-                idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
-                currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs
-        );
+        if (loginSessionColumnExists) {
+            operationLogMapper.insertOperationLogWithoutErrorMessageWithSession(
+                    idGenerator.nextId(), operationId, traceId, loginSessionId, currentUserId(), currentUserCode(), username,
+                    currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs
+            );
+        } else {
+            operationLogMapper.insertOperationLogWithoutErrorMessage(
+                    idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
+                    currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs
+            );
+        }
     }
 
     private boolean hasClientContextColumns() {
@@ -533,6 +561,14 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         return String.valueOf(StpUtil.getSession().get("userCode", ""));
     }
 
+    private String currentLoginSessionId() {
+        Object loginId = currentLoginId();
+        if (loginId == null) {
+            return "";
+        }
+        return String.valueOf(StpUtil.getSessionByLoginId(loginId).get(TraceContextSupport.LOGIN_SESSION_ID, ""));
+    }
+
     private String currentRoleCode() {
         Object loginId = currentLoginId();
         if (loginId == null) {
@@ -555,24 +591,21 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         if (traceId != null && !traceId.trim().isEmpty()) {
             return traceId.trim();
         }
-        String currentTraceId = MDC.get("traceId");
+        String currentTraceId = MDC.get(TraceContextSupport.TRACE_ID);
         // 没有上游 traceId 时本服务生成一个，保证一次请求内日志可以被统一检索。
-        return currentTraceId == null || currentTraceId.trim().isEmpty() ? UUID.randomUUID().toString().replace("-", "") : currentTraceId;
+        return currentTraceId == null || currentTraceId.trim().isEmpty() ? traceContextSupport.newTraceId() : currentTraceId;
+    }
+
+    private String resolveOperationId(HttpServletRequest request) {
+        String operationId = request.getHeader("X-Operation-Id");
+        if (operationId != null && !operationId.trim().isEmpty()) {
+            return operationId.trim();
+        }
+        return traceContextSupport.newOperationId();
     }
 
     private void clearRequestMdc() {
-        MDC.remove("traceId");
-        MDC.remove("operationId");
-        MDC.remove("userId");
-        MDC.remove("userCode");
-        MDC.remove("usernameMasked");
-        MDC.remove("roleCode");
-        MDC.remove("requestUri");
-        MDC.remove("requestMethod");
-        MDC.remove("module");
-        MDC.remove("operation");
-        MDC.remove("costMs");
-        MDC.remove("result");
+        traceContextSupport.clearTraceContext();
     }
 
     private String firstPath(String uri) {

@@ -114,6 +114,7 @@
                 select id,
                        <choose><when test="operationLogExtendedExists">operation_id</when><otherwise>null</otherwise></choose> as operation_id,
                        <choose><when test="operationLogExtendedExists">trace_id</when><otherwise>null</otherwise></choose> as trace_id,
+                       <choose><when test="operationLogLoginSessionExists">login_session_id</when><otherwise>null</otherwise></choose> as login_session_id,
                        <choose><when test="operationLogExtendedExists">user_id</when><otherwise>null</otherwise></choose> as user_id,
                        <choose><when test="operationLogExtendedExists">user_code</when><otherwise>null</otherwise></choose> as user_code,
                        username,

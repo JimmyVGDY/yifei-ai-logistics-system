@@ -16,6 +16,8 @@ public class LoginResponse {
     private String tokenName;
     /** Token 值 */
     private String tokenValue;
+    /** 登录会话审计ID，用于串联一次登录期间的所有操作 */
+    private String loginSessionId;
     /** 用户ID */
     private Long userId;
     /** 用户编号 */
@@ -41,9 +43,10 @@ public class LoginResponse {
     }
 
     public LoginResponse(String username, Object loginId, String tokenName, String tokenValue,
-                         Long userId, String userCode, String usernameMasked, String realNameMasked,
+                         String loginSessionId, Long userId, String userCode, String usernameMasked, String realNameMasked,
                          String roleCode, String roleName, List<String> permissions, List<MenuVO> menus) {
         this(username, loginId, tokenName, tokenValue);
+        this.loginSessionId = loginSessionId;
         this.userId = userId;
         this.userCode = userCode;
         this.usernameMasked = usernameMasked;
@@ -68,6 +71,10 @@ public class LoginResponse {
 
     public String getTokenValue() {
         return tokenValue;
+    }
+
+    public String getLoginSessionId() {
+        return loginSessionId;
     }
 
     public Long getUserId() {

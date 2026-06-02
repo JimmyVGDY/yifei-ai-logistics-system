@@ -18,6 +18,19 @@
         )
     </insert>
 
+    <insert id="insertOperationLogWithSession">
+        insert into sys_operation_log (
+            id, operation_id, trace_id, login_session_id, user_id, user_code, username, role_code,
+            operation, request_uri, request_method, operation_status, cost_ms,
+            error_message, operation_time
+        )
+        values (
+            #{id}, #{operationId}, #{traceId}, #{loginSessionId}, #{userId}, #{userCode}, #{username}, #{roleCode},
+            #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs},
+            #{errorMessage, jdbcType=VARCHAR}, current_timestamp
+        )
+    </insert>
+
     <insert id="insertOperationLogWithoutErrorMessage">
         insert into sys_operation_log (
             id, operation_id, trace_id, user_id, user_code, username, role_code,
@@ -25,6 +38,17 @@
         )
         values (
             #{id}, #{operationId}, #{traceId}, #{userId}, #{userCode}, #{username}, #{roleCode},
+            #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs}, current_timestamp
+        )
+    </insert>
+
+    <insert id="insertOperationLogWithoutErrorMessageWithSession">
+        insert into sys_operation_log (
+            id, operation_id, trace_id, login_session_id, user_id, user_code, username, role_code,
+            operation, request_uri, request_method, operation_status, cost_ms, operation_time
+        )
+        values (
+            #{id}, #{operationId}, #{traceId}, #{loginSessionId}, #{userId}, #{userCode}, #{username}, #{roleCode},
             #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs}, current_timestamp
         )
     </insert>
@@ -37,6 +61,20 @@
         )
         values (
             #{id}, #{operationId}, #{traceId}, #{userId}, #{userCode}, #{username}, #{roleCode},
+            #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs},
+            #{errorMessage, jdbcType=VARCHAR}, #{clientIp}, #{userAgent}, #{requestParams, jdbcType=VARCHAR},
+            #{targetId}, #{changeSummary, jdbcType=VARCHAR}, current_timestamp
+        )
+    </insert>
+
+    <insert id="insertOperationLogWithClientContextAndSession">
+        insert into sys_operation_log (
+            id, operation_id, trace_id, login_session_id, user_id, user_code, username, role_code,
+            operation, request_uri, request_method, operation_status, cost_ms,
+            error_message, client_ip, user_agent, request_params, target_id, change_summary, operation_time
+        )
+        values (
+            #{id}, #{operationId}, #{traceId}, #{loginSessionId}, #{userId}, #{userCode}, #{username}, #{roleCode},
             #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs},
             #{errorMessage, jdbcType=VARCHAR}, #{clientIp}, #{userAgent}, #{requestParams, jdbcType=VARCHAR},
             #{targetId}, #{changeSummary, jdbcType=VARCHAR}, current_timestamp

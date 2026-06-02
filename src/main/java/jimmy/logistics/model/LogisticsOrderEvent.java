@@ -15,6 +15,20 @@ public class LogisticsOrderEvent {
     private String status;
     /** 事件发生时间 */
     private LocalDateTime occurredAt;
+    /** 请求链路ID：一次 HTTP 请求或业务链路共用 */
+    private String traceId;
+    /** 操作审计ID：定位单次可审计操作 */
+    private String operationId;
+    /** 登录会话ID：串联一次登录期间的全部行为 */
+    private String loginSessionId;
+    /** 当前登录用户ID，审计追踪保留原值 */
+    private String userId;
+    /** 当前登录用户业务编号，审计追踪保留原值 */
+    private String userCode;
+    /** 脱敏后的登录账号 */
+    private String usernameMasked;
+    /** 当前角色编码 */
+    private String roleCode;
 
     public LogisticsOrderEvent() {
     }
@@ -56,5 +70,61 @@ public class LogisticsOrderEvent {
 
     public void setOccurredAt(LocalDateTime occurredAt) {
         this.occurredAt = occurredAt;
+    }
+
+    public String getTraceId() {
+        return traceId;
+    }
+
+    public void setTraceId(String traceId) {
+        this.traceId = traceId;
+    }
+
+    public String getOperationId() {
+        return operationId;
+    }
+
+    public void setOperationId(String operationId) {
+        this.operationId = operationId;
+    }
+
+    public String getLoginSessionId() {
+        return loginSessionId;
+    }
+
+    public void setLoginSessionId(String loginSessionId) {
+        this.loginSessionId = loginSessionId;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+    public String getUserCode() {
+        return userCode;
+    }
+
+    public void setUserCode(String userCode) {
+        this.userCode = userCode;
+    }
+
+    public String getUsernameMasked() {
+        return usernameMasked;
+    }
+
+    public void setUsernameMasked(String usernameMasked) {
+        this.usernameMasked = usernameMasked;
+    }
+
+    public String getRoleCode() {
+        return roleCode;
+    }
+
+    public void setRoleCode(String roleCode) {
+        this.roleCode = roleCode;
     }
 }

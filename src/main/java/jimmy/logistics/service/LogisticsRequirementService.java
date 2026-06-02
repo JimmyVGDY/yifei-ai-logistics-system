@@ -123,22 +123,24 @@ public class LogisticsRequirementService {
         boolean operationLogErrorMessageExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "error_message");
         boolean operationLogClientContextExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "client_ip");
         boolean operationLogChangeSummaryExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "change_summary");
+        boolean operationLogLoginSessionExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "login_session_id");
 
         // 模块、表名和可查询字段都来自后端白名单；关键词和时间范围仍通过 MyBatis 参数绑定。
         Long total = logisticsModuleQueryMapper.countModule(module, deletedExists, userCodeExists, operationLogExtendedExists,
-                operationLogErrorMessageExists, operationLogClientContextExists, operationLogChangeSummaryExists, keyword,
+                operationLogErrorMessageExists, operationLogClientContextExists, operationLogChangeSummaryExists,
+                operationLogLoginSessionExists, keyword,
                 queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime,
                 getCurrentCustomerId());
         List<Map<String, Object>> records = logisticsModuleQueryMapper.selectModulePage(module, deletedExists,
                 userCodeExists, operationLogExtendedExists, operationLogErrorMessageExists, operationLogClientContextExists,
-                operationLogChangeSummaryExists, keyword,
+                operationLogChangeSummaryExists, operationLogLoginSessionExists, keyword,
                 queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime,
                 queryConfig.orderColumn, pageSize, (page - 1) * pageSize,
                 getCurrentCustomerId());
         // 敏感字段解密：手机号等字段从数据库读取后解密为原文
         decryptRecords(records);
         records = formatDateTimeValues(records);
-        // 操作日志查询结果脱敏：userId/clientIp 在展示层脱敏，数据库原始值保留用于后端查询过滤。
+        // 操作日志查询结果脱敏：审计追踪标识保留原值，IP 等敏感上下文在展示层脱敏。
         maskOperationLogSensitiveFields(module, records);
 
         List<ModuleRecordVO> voRecords = new ArrayList<>();
@@ -167,7 +169,8 @@ public class LogisticsRequirementService {
     }
 
     /**
-     * 操作日志查询结果脱敏：对 userId 和 clientIp 等敏感字段进行掩码处理。
+     * 操作日志查询结果脱敏：userId/userCode 是审计追踪标识，保留原值便于排障检索；
+     * clientIp 等敏感上下文仅在返回前端时脱敏展示。
      * <p>数据库原始值保留用于后端查询过滤，仅在返回前端时脱敏展示。
      * 不影响按 userId 搜索/过滤的功能（查询发生在脱敏之前）。
      */
@@ -176,14 +179,6 @@ public class LogisticsRequirementService {
             return;
         }
         for (Map<String, Object> record : records) {
-            Object userId = record.get("user_id");
-            if (userId != null) {
-                record.put("user_id", LogMaskUtils.maskId(String.valueOf(userId)));
-            }
-            Object userCode = record.get("user_code");
-            if (userCode != null && !"".equals(userCode)) {
-                record.put("user_code", LogMaskUtils.maskId(String.valueOf(userCode)));
-            }
             Object clientIp = record.get("client_ip");
             if (clientIp != null) {
                 record.put("client_ip", LogMaskUtils.maskIp(String.valueOf(clientIp)));
@@ -283,7 +278,7 @@ public class LogisticsRequirementService {
         configs.put("fees", new ModuleQueryConfig("logistics_fee", "create_time", "id", "order_no", "payment_status"));
         configs.put("users", new ModuleQueryConfig("sys_user", "create_time", "id", "user_code", "username", "real_name", "mobile", "email", "role_name"));
         configs.put("roles", new ModuleQueryConfig("sys_role", "create_time", "id", "role_code", "role_name", "status"));
-        configs.put("operationLogs", new ModuleQueryConfig("sys_operation_log", "operation_time", "id", "operation_id", "trace_id", "user_id", "user_code", "username", "role_code", "operation", "request_uri", "request_method", "operation_status", "error_message", "client_ip", "target_id", "request_params", "change_summary"));
+        configs.put("operationLogs", new ModuleQueryConfig("sys_operation_log", "operation_time", "id", "operation_id", "trace_id", "login_session_id", "user_id", "user_code", "username", "role_code", "operation", "request_uri", "request_method", "operation_status", "error_message", "client_ip", "target_id", "request_params", "change_summary"));
         configs.put("files", new ModuleQueryConfig("sys_uploaded_file", "upload_time", "id", "original_name", "relative_path", "content_type", "upload_user"));
         return configs;
     }
