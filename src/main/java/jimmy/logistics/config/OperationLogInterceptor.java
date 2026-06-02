@@ -106,9 +106,11 @@ public class OperationLogInterceptor implements HandlerInterceptor {
             try {
                 // 优先写入包含 traceId、operationId、耗时、异常信息等扩展字段的新日志结构。
                 insertCompatibleOperationLog(username, operation, request, status, costMs, traceId, operationId, errorMessage);
-                log.info("操作日志已记录，operationId={}, traceId={}, userId={}, username={}, operation={}, uri={}, method={}, status={}, costMs={}",
+                String changeSummary = OperationChangeContext.changeSummary(request);
+                log.info("操作日志已记录，operationId={}, traceId={}, userId={}, username={}, operation={}, uri={}, method={}, status={}, costMs={}{}",
                         operationId, traceId, currentUserId(), LogMaskUtils.maskAccount(username), operation,
-                        request.getRequestURI(), request.getMethod(), status, costMs);
+                        request.getRequestURI(), request.getMethod(), status, costMs,
+                        changeSummary != null && !changeSummary.isEmpty() ? ", change=" + changeSummary : "");
             } catch (RuntimeException logException) {
                 // 如果本地库还没执行增量脚本，回退到旧字段写法，保证业务接口不因审计字段缺失而失败。
                 insertLegacyLog(username, operation, request, status);

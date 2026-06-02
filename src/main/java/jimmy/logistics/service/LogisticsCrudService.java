@@ -2,7 +2,6 @@ package jimmy.logistics.service;
 
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
-import jimmy.logistics.config.OperationChangeContext;
 import jimmy.logistics.mapper.LogisticsCrudMapper;
 import jimmy.logistics.model.CrudFieldValue;
 import jimmy.logistics.model.OperationResultVO;
@@ -20,8 +19,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -32,11 +29,13 @@ public class LogisticsCrudService {
     private final LogisticsCrudMapper logisticsCrudMapper;
     private final ColumnExistenceChecker columnChecker;
     private final CrudBusinessUtils utils;
+    private final ChangeAuditService changeAudit;
     private final FieldEncryptor fieldEncryptor;
     private final CompactSnowflakeIdGenerator idGenerator;
     private final Map<String, CrudConfig> configs;
 
     public LogisticsCrudService(LogisticsCrudMapper logisticsCrudMapper,
+                                ChangeAuditService changeAudit,
                                 ColumnExistenceChecker columnChecker,
                                 CrudBusinessUtils utils,
                                 FieldEncryptor fieldEncryptor,
@@ -44,6 +43,7 @@ public class LogisticsCrudService {
         this.logisticsCrudMapper = logisticsCrudMapper;
         this.columnChecker = columnChecker;
         this.utils = utils;
+        this.changeAudit = changeAudit;
         this.fieldEncryptor = fieldEncryptor;
         this.idGenerator = idGenerator;
         this.configs = buildConfigs();
@@ -61,7 +61,7 @@ public class LogisticsCrudService {
         fillAuditDefaults(config, values, true);
         validateMobileFields(values);
         // 敏感字段加密：手机号等字段入库前加密
-        OperationChangeContext.setChangeSummary(createSummary(values));
+        changeAudit.recordCreate(values);
         encryptValues(values);
 
         logisticsCrudMapper.insertRecord(config.tableName, utils.toFieldValues(values));
@@ -88,7 +88,7 @@ public class LogisticsCrudService {
         if (updated == 0) {
             throw new IllegalArgumentException("记录不存在");
         }
-        OperationChangeContext.setChangeSummary(updateSummary(changeValues, before));
+        changeAudit.recordUpdate(changeValues, before);
         log.info("管理模块更新完成,module={}, id={}", module, id);
         return new OperationResultVO(id);
     }
@@ -113,164 +113,11 @@ public class LogisticsCrudService {
         if (updated == 0) {
             throw new IllegalArgumentException("记录不存在");
         }
-        OperationChangeContext.setChangeSummary(deleteSummary(before));
+        changeAudit.recordDelete(before);
         log.info("管理模块删除完成,module={}, id={}", module, id);
         return OperationResultVO.deleted(id);
     }
 
-    private String createSummary(Map<String, Object> values) {
-        return "新增字段：" + safeMap(values).entrySet().stream()
-                .filter(entry -> shouldAuditField(entry.getKey()))
-                .map(entry -> entry.getKey() + "=" + maskValue(entry.getKey(), entry.getValue()))
-                .collect(Collectors.joining(", "));
-    }
-
-    private String updateSummary(Map<String, Object> changeValues, Map<String, Object> before) {
-        List<String> diffs = new ArrayList<>();
-        for (Map.Entry<String, Object> entry : safeMap(changeValues).entrySet()) {
-            String column = entry.getKey();
-            if (!shouldAuditField(column)) {
-                continue;
-            }
-            Object beforeValue = beforeValue(before, column);
-            Object afterValue = entry.getValue();
-            if (sameValue(column, beforeValue, afterValue)) {
-                continue;
-            }
-            diffs.add(column + ": " + maskValue(column, beforeValue) + " -> " + maskValue(column, afterValue));
-        }
-        return diffs.isEmpty() ? "未检测到业务字段变化" : "更新字段：" + String.join("; ", diffs);
-    }
-
-    private String deleteSummary(Map<String, Object> before) {
-        if (before == null || before.isEmpty()) {
-            return "删除前记录不存在或已删除";
-        }
-        return "删除记录：" + safeMap(before).entrySet().stream()
-                .filter(entry -> shouldAuditField(entry.getKey()))
-                .limit(8)
-                .map(entry -> entry.getKey() + "=" + maskValue(entry.getKey(), entry.getValue()))
-                .collect(Collectors.joining(", "));
-    }
-
-    private Map<String, Object> safeMap(Map<String, Object> map) {
-        return map == null ? new LinkedHashMap<>() : map;
-    }
-
-    private Object beforeValue(Map<String, Object> before, String column) {
-        if (before == null) {
-            return null;
-        }
-        if (before.containsKey(column)) {
-            return before.get(column);
-        }
-        return before.get(toCamelCase(column));
-    }
-
-    private boolean sameValue(String column, Object beforeValue, Object afterValue) {
-        return Objects.equals(normalizeAuditValue(column, beforeValue), normalizeAuditValue(column, afterValue));
-    }
-
-    private String normalizeAuditValue(String column, Object value) {
-        Object normalized = value;
-        if (FieldEncryptor.isEncryptedField(column) && value instanceof String) {
-            normalized = fieldEncryptor.decrypt((String) value);
-        }
-        return normalized == null ? "" : String.valueOf(normalized).trim();
-    }
-
-    private String maskValue(String column, Object value) {
-        if (value == null) {
-            return "空";
-        }
-        String text = normalizeAuditValue(column, value);
-        if (isSecretField(column)) {
-            return "已隐藏";
-        }
-        String lower = column.toLowerCase();
-        if ("id".equals(lower) || lower.endsWith("_id") || lower.endsWith("_code") || lower.endsWith("_no")) {
-            return text;
-        }
-        if (lower.contains("phone") || lower.contains("mobile")) {
-            return maskMobile(text);
-        }
-        if (lower.contains("email")) {
-            return maskEmail(text);
-        }
-        if (lower.contains("name") || lower.contains("user") || lower.contains("customer") || lower.contains("driver") || lower.contains("operator")) {
-            return maskName(text);
-        }
-        if (lower.contains("address") || lower.contains("location") || lower.contains("site")) {
-            return maskLongText(text);
-        }
-        return text;
-    }
-
-    private boolean shouldAuditField(String column) {
-        return column != null
-                && !isSecretField(column)
-                && !"create_by".equals(column)
-                && !"update_by".equals(column)
-                && !"created_at".equals(column)
-                && !"updated_at".equals(column)
-                && !"create_time".equals(column)
-                && !"update_time".equals(column)
-                && !"version".equals(column)
-                && !"deleted".equals(column);
-    }
-
-    private boolean isSecretField(String column) {
-        String lower = column == null ? "" : column.toLowerCase();
-        return lower.contains("password")
-                || lower.contains("token")
-                || lower.contains("secret");
-    }
-
-    private String maskMobile(String value) {
-        if (value == null || value.length() < 7) {
-            return "***";
-        }
-        return value.substring(0, 3) + "****" + value.substring(value.length() - 4);
-    }
-
-    private String maskEmail(String value) {
-        int atIndex = value == null ? -1 : value.indexOf('@');
-        if (atIndex <= 1) {
-            return "***";
-        }
-        return value.charAt(0) + "***" + value.substring(atIndex);
-    }
-
-    private String maskName(String value) {
-        if (value == null || value.isEmpty()) {
-            return "";
-        }
-        if (value.length() == 1) {
-            return value + "*";
-        }
-        return value.charAt(0) + "***" + value.charAt(value.length() - 1);
-    }
-
-    private String maskLongText(String value) {
-        if (value == null || value.length() <= 6) {
-            return "***";
-        }
-        return value.substring(0, 3) + "***" + value.substring(value.length() - 3);
-    }
-
-    private String toCamelCase(String value) {
-        StringBuilder builder = new StringBuilder();
-        boolean upperNext = false;
-        for (char c : value.toCharArray()) {
-            if (c == '_') {
-                upperNext = true;
-                continue;
-            }
-            builder.append(upperNext ? Character.toUpperCase(c) : c);
-            upperNext = false;
-        }
-        return builder.toString();
-    }
 
     private Map<String, Object> filteredPayload(CrudConfig config, Map<String, Object> payload, boolean update) {
         Map<String, Object> values = new LinkedHashMap<>();
