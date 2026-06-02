@@ -46,3 +46,5 @@ docker/sentinel/*.jar
 .env
 .env.local
 ops/*.log
+F:/Development/Maven/Repository/
+F:\\Development\\Maven\\Repository/

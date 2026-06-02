@@ -20,6 +20,11 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * 操作日志拦截器 —— 自动拦截所有 Controller 请求，生成 traceId/operationId，
+ * 在请求完成后将操作人、接口、耗时、IP、变更摘要等信息写入操作日志表和日志文件。
+ * 非标注 @OperationLog 的 GET 请求不记录。
+ */
 @Slf4j
 @Component
 public class OperationLogInterceptor implements HandlerInterceptor {

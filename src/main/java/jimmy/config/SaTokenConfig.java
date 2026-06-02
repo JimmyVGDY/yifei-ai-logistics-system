@@ -16,6 +16,18 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 安全配置 —— Sa-Token 登录鉴权 + CORS 跨域 + 操作日志拦截器注册。
+ * <p>
+ * 三种权限校验策略：
+ * <ol>
+ *   <li><b>动态模块鉴权</b>（/logistics/modules/）：根据模块名 → 权限前缀 → HTTP 方法映射 action</li>
+ *   <li><b>静态路径鉴权</b>（/logistics/dashboard、/system/permissions 等）：固定权限码匹配</li>
+ *   <li><b>通用管理页</b>：GET→query，POST(一级)→create，DELETE→delete，其余 POST/PUT→update</li>
+ * </ol>
+ * <p>
+ * 模块白名单在 {@link #buildModulePermissionPrefixes()} 中维护，只有登记的模块才能进入动态鉴权。
+ */
 @Configuration
 public class SaTokenConfig implements WebMvcConfigurer {
 
@@ -31,6 +43,10 @@ public class SaTokenConfig implements WebMvcConfigurer {
         this.corsOrigins = corsOrigins;
     }
 
+    /**
+     * CORS 跨域配置，从环境变量 app.cors.origins 读取（逗号分隔多个地址）。
+     * 默认允许 http://127.0.0.1:5173（Vite 开发服务器地址）。
+     */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
@@ -41,6 +57,13 @@ public class SaTokenConfig implements WebMvcConfigurer {
                 .maxAge(3600);
     }
 
+    /**
+     * 注册两条拦截器链：
+     * <ol>
+     *   <li>SaInterceptor：全部路径（排除登录/健康检查），校验登录态 + 路由权限</li>
+     *   <li>OperationLogInterceptor：仅覆盖 /logistics、/auth、/system、/infra 等业务路径，记录操作日志</li>
+     * </ol>
+     */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new SaInterceptor(handle -> {
@@ -95,6 +118,14 @@ public class SaTokenConfig implements WebMvcConfigurer {
         return false;
     }
 
+    /**
+     * 动态权限解析：根据请求 URI 和 HTTP 方法映射到对应权限码。
+     * <p>
+     * 映射规则：module → permissionPrefix + action。
+     * 例如：GET /logistics/modules/orders → order:query
+     *
+     * @return 权限码，无法映射返回 null
+     */
     String resolveDynamicPermission(String uri, String method) {
         if (uri.startsWith("/logistics/modules/")) {
             // 通用管理页接口按模块名映射权限前缀，再按 HTTP 方法解析查询/新增/修改/删除动作。

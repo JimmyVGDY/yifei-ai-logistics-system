@@ -26,6 +26,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * 系统权限服务 —— RBAC 权限体系的核心实现。
+ * <p>
+ * 管理三大维度：菜单 → 细粒度权限 → 角色/用户的授权与禁用。
+ * <p>
+ * 权限计算规则：
+ * <ol>
+ *   <li>用户无特殊权限 → 使用角色权限（role -> role_permission）</li>
+ *   <li>用户有 GRANT 权限 → 在角色权限基础上追加</li>
+ *   <li>用户有 DENY 权限 → 从角色权限中移除对应模块所有 action</li>
+ *   <li>管理类 (manage) 展开为 6 个 action：query/create/update/delete/import/export</li>
+ *   <li>只读类 (view) 展开为 2 个 action：query/export</li>
+ * </ol>
+ */
 @Slf4j
 @Service
 public class SystemPermissionService {
@@ -44,8 +58,9 @@ public class SystemPermissionService {
     }
 
     /**
-     * 权限基础设施采用"只补齐缺失对象"的增量方式，在应用启动时一次性执行。
-     * 避免每个业务请求都执行 DDL 和权限同步，减少运行时开销。
+     * 权限基础设施自检 —— 应用启动时执行一次，创建表/菜单/权限并同步初始授权。
+     * <p>
+     * DDL 和权限同步仅首次执行（权限表无数据时），后续人工调整不被覆盖。
      */
     @PostConstruct
     public void ensurePermissionInfrastructure() {
@@ -62,10 +77,18 @@ public class SystemPermissionService {
         }
     }
 
+    /**
+     * 查询完整菜单树（含子菜单），供前端侧边栏和权限配置页使用。
+     */
     public List<MenuVO> menuTree() {
         return buildMenuTree(systemPermissionMapper.selectAllActiveMenus());
     }
 
+    /**
+     * 查询权限树 —— 菜单节点 + 附属的操作权限节点（BUTTON/PAGE）。
+     * <p>
+     * 每个菜单节点下挂载该菜单对应的细粒度按钮权限，供权限配置页 treeSelect 渲染。
+     */
     public List<PermissionTreeNodeVO> permissionTree() {
         List<MenuVO> menus = systemPermissionMapper.selectAllActiveMenus();
         Map<Long, PermissionTreeNodeVO> menuNodes = new LinkedHashMap<>();
@@ -107,14 +130,17 @@ public class SystemPermissionService {
         return roots;
     }
 
+    /** 查询角色已分配的菜单 ID 列表 */
     public List<Long> roleMenuIds(long roleId) {
         return systemPermissionMapper.selectRoleMenuIds(roleId);
     }
 
+    /** 查询角色已分配的权限 ID 列表 */
     public List<Long> rolePermissionIds(long roleId) {
         return systemPermissionMapper.selectRolePermissionIds(roleId);
     }
 
+    /** 查询用户个性化权限 ID（GRANT 和 DENY 两列） */
     public UserPermissionVO userPermissionIds(long userId) {
         return new UserPermissionVO(
                 systemPermissionMapper.selectUserPermissionIds(userId, "GRANT"),
@@ -122,6 +148,16 @@ public class SystemPermissionService {
         );
     }
 
+    /**
+     * 计算用户最终有效权限码列表。
+     * <p>
+     * 先取角色权限 → 展开 manage/view 为细粒度 action →
+     * 应用用户级 GRANT（追加）和 DENY（移除整个模块全部 action）。
+     *
+     * @param userId 用户 ID
+     * @param roleId 角色 ID
+     * @return 去重后的权限码列表
+     */
     public List<String> effectivePermissionCodes(Long userId, Long roleId) {
         LinkedHashSet<String> permissions = expandPermissionCodes(safeList(systemPermissionMapper.selectRolePermissionCodes(roleId)));
         for (Map<String, Object> row : systemPermissionMapper.selectUserPermissionOverrides(userId)) {
@@ -136,6 +172,11 @@ public class SystemPermissionService {
         return new ArrayList<>(permissions);
     }
 
+    /**
+     * 更新角色的菜单分配，同时自动同步对应权限。
+     * <p>
+     * 操作记录变更摘要到 {@link OperationChangeContext}。
+     */
     @Transactional
     public List<Long> updateRoleMenus(long roleId, RoleMenuUpdateRequest request) {
         List<Long> menuIds = request == null || request.getMenuIds() == null ? new ArrayList<>() : request.getMenuIds();
@@ -156,6 +197,11 @@ public class SystemPermissionService {
         return roleMenuIds(roleId);
     }
 
+    /**
+     * 更新角色的细粒度权限分配，同时从权限反推菜单分配。
+     * <p>
+     * 操作记录变更摘要到 {@link OperationChangeContext}。
+     */
     @Transactional
     public List<Long> updateRolePermissions(long roleId, PermissionAssignmentRequest request) {
         if (systemPermissionMapper.countRoleById(roleId) == 0) {
@@ -176,6 +222,12 @@ public class SystemPermissionService {
         return rolePermissionIds(roleId);
     }
 
+    /**
+     * 更新用户个性化权限（GRANT/DENY）。
+     * <p>
+     * 同一 ID 在 GRANT 和 DENY 中同时出现时以 DENY 为准。
+     * 操作记录变更摘要到 {@link OperationChangeContext}。
+     */
     @Transactional
     public UserPermissionVO updateUserPermissions(long userId, PermissionAssignmentRequest request) {
         if (systemPermissionMapper.countUserById(userId) == 0) {
@@ -209,6 +261,7 @@ public class SystemPermissionService {
         return userPermissionIds(userId);
     }
 
+    /** 对比前后 ID 集合变化，生成本次变更的差异摘要字符串 */
     private String diffSummary(List<Long> before, List<Long> after) {
         LinkedHashSet<Long> beforeSet = new LinkedHashSet<>(normalizedIds(before));
         LinkedHashSet<Long> afterSet = new LinkedHashSet<>(normalizedIds(after));
@@ -227,6 +280,7 @@ public class SystemPermissionService {
         return "新增=" + compactIds(added) + "，移除=" + compactIds(removed);
     }
 
+    /** 紧凑化 ID 列表展示，超过 20 项截断并标注总数 */
     private String compactIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return "无";
@@ -244,6 +298,7 @@ public class SystemPermissionService {
         systemPermissionMapper.insertUserPermission(idGenerator.nextId(), userId, permissionId, grantType, now, now);
     }
 
+    /** 从所有角色的菜单自动同步细粒度权限，确保新增权限授给已分配该菜单的角色 */
     private void syncRolePermissionsFromMenus() {
         List<PermissionVO> allPermissions = systemPermissionMapper.selectAllActivePermissions();
         // 构建 menuId → PermissionVO 的映射，只保留有 menu_id 的权限
@@ -278,6 +333,7 @@ public class SystemPermissionService {
         return total;
     }
 
+    /** 确保标准菜单记录存在于数据库，缺失则插入 */
     private void ensureStandardMenus() {
         Timestamp now = new Timestamp(System.currentTimeMillis());
         Long systemMenuId = null;
@@ -345,6 +401,7 @@ public class SystemPermissionService {
         }
     }
 
+    /** 确保每个菜单的权限目录完整（PAGE + 所有 action BUTTON），缺失则插入 */
     private void ensurePermissionCatalog() {
         List<MenuVO> menus = systemPermissionMapper.selectAllActiveMenus();
         for (MenuVO menu : menus) {
@@ -375,6 +432,7 @@ public class SystemPermissionService {
         return permission;
     }
 
+    /** 插入权限记录（幂等：code 已存在时跳过） */
     private void insertPermissionIfMissing(PermissionVO permission) {
         if (systemPermissionMapper.countPermissionByCode(permission.getPermissionCode()) > 0) {
             return;
@@ -397,6 +455,7 @@ public class SystemPermissionService {
         return systemPermissionMapper.countMenuById(menuId) > 0;
     }
 
+    /** 扁平菜单列表构建树形结构（按 parentId 嵌套） */
     private List<MenuVO> buildMenuTree(List<MenuVO> rows) {
         Map<Long, MenuVO> byId = new LinkedHashMap<>();
         rows.forEach(menu -> byId.put(menu.getId(), menu));

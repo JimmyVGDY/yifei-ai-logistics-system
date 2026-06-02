@@ -33,17 +33,34 @@ public class ChangeAuditService {
         this.fieldEncryptor = fieldEncryptor;
     }
 
-    /** 将创建操作的变更摘要写入当前请求的审计上下文 */
+    /**
+     * 生成新增操作的变更摘要并写入审计上下文。
+     * <p>
+     * 过滤时间戳/创建人/password 等非业务字段，敏感信息脱敏后展示。
+     *
+     * @param values 新增字段的建表名 → 值的映射
+     */
     public void recordCreate(Map<String, Object> values) {
         OperationChangeContext.setChangeSummary(createSummary(values));
     }
 
-    /** 将编辑操作的变更摘要写入当前请求的审计上下文 */
+    /**
+     * 生成编辑操作的变更摘要并写入审计上下文。
+     * <p>
+     * 只输出实际变化的字段，未变化的自动跳过。
+     * 加密字段在比较前先解密，确保新旧值正确对比。
+     *
+     * @param changeValues 用户提交的变更字段
+     * @param before 修改前的完整记录
+     */
     public void recordUpdate(Map<String, Object> changeValues, Map<String, Object> before) {
         OperationChangeContext.setChangeSummary(updateSummary(changeValues, before));
     }
 
-    /** 将删除操作的变更摘要写入当前请求的审计上下文 */
+    /**
+     * 生成删除操作的变更摘要并写入审计上下文。
+     * 最多输出前 8 个字段值作为身份标识记录。
+     */
     public void recordDelete(Map<String, Object> before) {
         OperationChangeContext.setChangeSummary(deleteSummary(before));
     }

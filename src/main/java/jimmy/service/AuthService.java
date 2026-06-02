@@ -25,6 +25,20 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 认证授权服务 —— 统一管理登录、登出、会话保持、权限装配和个人资料管理。
+ * <p>
+ * 核心流程：
+ * <ol>
+ *   <li><b>密码校验</b>：兼容明文（自动升级 BCrypt）与 BCrypt 编码</li>
+ *   <li><b>冲突检测</b>：同一账号已有在线会话时创建 {@link LoginConflictService} 确认流程</li>
+ *   <li><b>权限装配</b>：从 sys_role_menu + sys_user_role 查询并扁平化权限码，写入 Sa-Token 会话</li>
+ *   <li><b>菜单树构建</b>：将扁平菜单按 parentId 组装为前端侧边栏需要的树形结构</li>
+ * </ol>
+ *
+ * @see LoginConflictService 登录冲突管理
+ * @see SystemPermissionService 权限管理
+ */
 @Slf4j
 @Service
 public class AuthService {
@@ -44,6 +58,16 @@ public class AuthService {
         this.fieldEncryptor = fieldEncryptor;
     }
 
+    /**
+     * 账号密码登录，优先检测登录冲突。
+     * <p>
+     * 若同一账号已有在线会话，不立即踢人，而是创建一个待确认的登录冲突记录，
+     * 由原会话持有者选择"接受"（让新会话登入）或"拒绝"。
+     *
+     * @param request 用户名 + 密码
+     * @return 首次登录返回 {@link LoginResponse}，冲突时返回 {@link LoginConflictResponse}
+     * @throws IllegalArgumentException 账号为空 / 密码错误 / 账号已停用
+     */
     public Object login(LoginRequest request) {
         String username = request == null ? null : request.getUsername();
         String password = request == null ? null : request.getPassword();
@@ -69,6 +93,12 @@ public class AuthService {
         return completeLogin(loginUser);
     }
 
+    /**
+     * 执行实际登录：Sa-Token 登录 + 权限/菜单写入会话。
+     * <p>
+     * 设置 isConcurrent=false 确保一个账号同时只能一个会话有效。
+     * 使用 getSessionByLoginId 确保与 SaPermissionConfig 读取端一致，兼容 H2 内存模式。
+     */
     private LoginResponse completeLogin(LoginUser loginUser) {
         List<String> permissions = systemPermissionService.effectivePermissionCodes(loginUser.id, loginUser.roleId);
         List<MenuVO> menus = queryMenus(loginUser.roleId, permissions);
@@ -103,6 +133,15 @@ public class AuthService {
         return buildResponse(loginUser, StpUtil.getTokenName(), tokenValue, permissions, menus);
     }
 
+    /**
+     * 获取当前已登录用户的完整会话信息（权限 + 菜单树）。
+     * <p>
+     * 用于页面刷新后前端重建路由和侧边栏。用户被删除后 Token 可能依然有效，
+     * 此时提前抛异常避免后续 NPE。
+     *
+     * @return 包含 token、菜单、权限的登录响应
+     * @throws IllegalArgumentException 用户不存在
+     */
     public LoginResponse currentSession() {
         StpUtil.checkLogin();
         Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
@@ -127,6 +166,15 @@ public class AuthService {
         return buildResponse(loginUser, tokenInfo.getTokenName(), tokenInfo.getTokenValue(), permissions, menus);
     }
 
+    /**
+     * 新页面轮询登录冲突状态。
+     * <p>
+     * 当原会话选择"接受"（status=ACCEPTED）且未过期时，新页面调用此方法完成登录。
+     * 若审批人已接受或冲突已过期，自动完成登录并返回 TAKEN_OVER。
+     *
+     * @param conflictId 冲突 ID（由 {@link #login} 返回）
+     * @return 含登录状态（ACCEPTED/TAKEN_OVER/REJECTED/EXPIRED）的响应
+     */
     public LoginConflictResponse loginConflictStatus(String conflictId) {
         LoginConflictService.PendingLoginConflict conflict = loginConflictService.pending(conflictId);
         if (conflict == null) {
@@ -152,19 +200,37 @@ public class AuthService {
         return response;
     }
 
+    /**
+     * 查询当前登录用户的登录冲突状态。
+     * 原会话页面轮询此接口判断是否有新的登录请求等待处理。
+     */
     public LoginConflictResponse currentLoginConflict() {
         StpUtil.checkLogin();
         Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
         return loginConflictService.current(userId);
     }
 
+    /**
+     * 拒绝新的登录请求。
+     *
+     * @param conflictId 冲突 ID
+     * @return 含 REJECTED 状态的冲突响应
+     */
     public LoginConflictResponse rejectLoginConflict(String conflictId) {
         StpUtil.checkLogin();
         Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
         return loginConflictService.reject(conflictId, userId);
     }
 
-    /** 原会话主动接受新的登录请求，只标记状态，由新页面轮询完成登录 */
+    /**
+     * 原会话接受新的登录请求，只标记状态为 ACCEPTED，不在此处完成登录。
+     * <p>
+     * 这样设计是为了不破坏当前会话的 token——新页面通过轮询
+     * {@link #loginConflictStatus} 检测到 ACCEPTED 后自行完成登录。
+     *
+     * @param conflictId 冲突 ID
+     * @return 含 ACCEPTED 状态的冲突响应
+     */
     public LoginConflictResponse acceptLoginConflict(String conflictId) {
         StpUtil.checkLogin();
         Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
@@ -184,6 +250,11 @@ public class AuthService {
         return response;
     }
 
+    /**
+     * 登出当前账号。
+     * 使用 logout(loginId) 同时清除 TokenSession 和 AccountSession，
+     * 防止重新登录时误判为冲突。
+     */
     public void logout() {
         Object loginId = StpUtil.getLoginIdDefaultNull();
         if (loginId == null) {
@@ -217,7 +288,13 @@ public class AuthService {
         );
     }
 
-    /** 修改个人资料（仅限姓名/手机/邮箱） */
+    /**
+     * 修改个人资料（姓名/手机/邮箱）。
+     * <p>
+     * 手机号通过 {@link FieldEncryptor} 加密入库，至少填写一项。
+     *
+     * @throws IllegalArgumentException 格式校验不通过
+     */
     public void updateProfile(ProfileUpdateRequest request) {
         StpUtil.checkLogin();
         Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
@@ -231,7 +308,14 @@ public class AuthService {
                 fieldEncryptor.encrypt(request.getMobile()), request.getEmail());
     }
 
-    /** 修改密码（需原密码验证，改完后强制退出当前会话） */
+    /**
+     * 修改密码。
+     * <p>
+     * 需旧密码验证，新密码 BCrypt 入库后强制退出当前会话，
+     * 要求用户用新密码重新登录。
+     *
+     * @throws IllegalArgumentException 原密码错误
+     */
     public void changePassword(PasswordChangeRequest request) {
         StpUtil.checkLogin();
         Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
@@ -247,14 +331,30 @@ public class AuthService {
         StpUtil.logout(userId);
     }
 
+    /**
+     * 查找登录用户（含密码字段），兼容明文密码升级为 BCrypt。
+     * <p>
+     * 明文密码登录成功后自动调用 upgradePasswordIfNecessary 升级。
+     *
+     * @param username 登录账号
+     * @return 用户信息，不存在时 null
+     */
     private LoginUser findLoginUser(String username) {
         return mapUser(authMapper.findLoginUserByUsername(username));
     }
 
+    /** 根据 userId 查找用户信息 */
     private LoginUser findLoginUserById(Long userId) {
         return mapUser(authMapper.findLoginUserById(userId));
     }
 
+    /**
+     * 密码匹配：优先 BCrypt 编码匹配，兼容旧数据明文密码。
+     *
+     * @param rawPassword 用户输入的明文密码
+     * @param storedPassword 数据库中存储的密码（明文或 BCrypt）
+     * @return 匹配成功返回 true
+     */
     private boolean matchesPassword(String rawPassword, String storedPassword) {
         if (!StringUtils.hasText(storedPassword)) {
             return false;
@@ -266,6 +366,11 @@ public class AuthService {
         return rawPassword.equals(storedPassword);
     }
 
+    /**
+     * 如果存储的是明文密码，升级为 BCrypt 编码。
+     * <p>
+     * 升级后更新数据库并刷新内存中的 password 字段，避免后续 isBcrypt 重复判断。
+     */
     private void upgradePasswordIfNecessary(LoginUser loginUser, String rawPassword) {
         if (isBcrypt(loginUser.password)) {
             return;
@@ -276,10 +381,16 @@ public class AuthService {
         log.info("账号密码已升级为 BCrypt，userId={}, username={}", loginUser.id, LogMaskUtils.maskAccount(loginUser.username));
     }
 
+    /** 判断密码是否为 BCrypt 编码（$2a$/$2b$/$2y$ 开头） */
     private boolean isBcrypt(String password) {
         return password != null && (password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$"));
     }
 
+    /**
+     * 将数据库查询结果 Map 映射为内部 LoginUser 对象。
+     * <p>
+     * 使用 toLong/toInteger/toString 安全转换，null-safe。
+     */
     private LoginUser mapUser(Map<String, Object> row) {
         if (row == null || row.isEmpty()) {
             return null;
@@ -298,6 +409,12 @@ public class AuthService {
         return user;
     }
 
+    /**
+     * 查询并组装角色对应的菜单树。
+     * <p>
+     * 合并 sys_role_menu 直接分配的菜单和通过权限码匹配的菜单，
+     * 按 parentId 递归挂载为树结构，供前端侧边栏渲染。
+     */
     private List<MenuVO> queryMenus(Long roleId, List<String> permissions) {
         Map<Long, MenuVO> mergedRows = new LinkedHashMap<>();
         for (MenuVO menu : authMapper.selectMenusByRoleId(roleId)) {
@@ -325,6 +442,10 @@ public class AuthService {
         return roots;
     }
 
+    /**
+     * 从权限列表中提取模块前缀，生成 :manage 和 :view 两类通配权限码，
+     * 用于匹配未直接分配但模块相关的菜单。
+     */
     private List<String> menuLookupPermissionCodes(List<String> permissions) {
         LinkedHashSet<String> codes = new LinkedHashSet<>(permissions);
         for (String permission : permissions) {
@@ -335,6 +456,12 @@ public class AuthService {
         return new ArrayList<>(codes);
     }
 
+    /**
+     * 判断菜单是否应对当前用户显示。
+     * <p>
+     * 无 permissionCode 的菜单直接显示；有 permissionCode 时检查权限列表中
+     * 是否精确匹配或模块前缀匹配。
+     */
     private boolean canShowMenu(MenuVO menu, List<String> permissions) {
         if (menu == null || !StringUtils.hasText(menu.getPermissionCode())) {
             return true;
