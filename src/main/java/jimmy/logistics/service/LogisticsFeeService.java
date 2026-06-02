@@ -3,6 +3,7 @@ package jimmy.logistics.service;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.mapper.LogisticsFeeMapper;
 import jimmy.logistics.model.SimpleResultVO;
+import jimmy.logistics.config.OperationChangeContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -45,6 +46,7 @@ public class LogisticsFeeService {
             logisticsFeeMapper.insertFee(idGenerator.nextId(), orderId, baseFee, weightFee, distanceFee, additionalFee, discountFee, payableFee);
         }
         log.info("订单费用已生成，orderNo={}, payableFee={}", orderNo, payableFee);
+        OperationChangeContext.setChangeSummary("订单号=" + orderNo + ", 应收金额=¥" + payableFee);
         return new SimpleResultVO().add("orderNo", orderNo).add("payableFee", payableFee).add("paymentStatus", "UNPAID");
     }
 
@@ -55,6 +57,7 @@ public class LogisticsFeeService {
             throw new IllegalArgumentException("费用记录不存在");
         }
         log.info("费用记录已标记付款，feeId={}", feeId);
+        OperationChangeContext.setChangeSummary("付款状态: 未付款 -> 已付款");
         return new SimpleResultVO().add("feeId", feeId).add("paymentStatus", "PAID");
     }
 }

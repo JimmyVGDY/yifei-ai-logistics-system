@@ -85,8 +85,8 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                 return;
             }
             if (operation == null) {
-                // 未显式标注 @OperationLog 的写接口仍然记录，避免关键变更没有审计痕迹。
-                operation = "业务接口调用";
+                // 仅记录已标注 @OperationLog 或默认写操作的接口，GET 请求和未标注接口不审计。
+                return;
             }
 
             String username = String.valueOf(request.getAttribute(OPERATION_USERNAME_ATTRIBUTE));

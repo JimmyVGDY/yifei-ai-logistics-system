@@ -3,6 +3,7 @@ package jimmy.logistics.service;
 import com.alibaba.csp.sentinel.annotation.SentinelResource;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.entity.LogisticsOrder;
+import jimmy.logistics.config.OperationChangeContext;
 import jimmy.logistics.mapper.LogisticsOrderMapper;
 import jimmy.logistics.model.CreateLogisticsOrderRequest;
 import jimmy.util.LogMaskUtils;
@@ -70,6 +71,9 @@ public class LogisticsOrderService {
                 logisticsOrder.getOrderNo(),
                 LogMaskUtils.maskName(logisticsOrder.getCustomerName()),
                 logisticsOrder.getStatus());
+        OperationChangeContext.setChangeSummary("订单号=" + logisticsOrder.getOrderNo()
+                + ", 客户=" + LogMaskUtils.maskName(logisticsOrder.getCustomerName())
+                + ", 货物=" + logisticsOrder.getCargoName());
         return logisticsOrder;
     }
 

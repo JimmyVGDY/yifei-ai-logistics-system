@@ -6,6 +6,7 @@ import jimmy.logistics.mapper.LogisticsExceptionMapper;
 import jimmy.logistics.model.ExceptionHandleDTO;
 import jimmy.logistics.model.ExceptionReportDTO;
 import jimmy.logistics.model.SimpleResultVO;
+import jimmy.logistics.config.OperationChangeContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -39,6 +40,7 @@ public class LogisticsExceptionService {
         logisticsExceptionMapper.updateOrderStatusException(orderId);
         log.info("运输异常已上报，orderNo={}, exceptionType={}, reportUser={}",
                 request.getOrderNo(), request.getExceptionType(), reportUser);
+        OperationChangeContext.setChangeSummary("订单号=" + request.getOrderNo() + ", 异常类型=" + request.getExceptionType());
         return new SimpleResultVO().add("exceptionId", exceptionId).add("status", "WAIT_HANDLE");
     }
 
@@ -58,6 +60,7 @@ public class LogisticsExceptionService {
             throw new IllegalArgumentException("异常记录不存在");
         }
         log.info("运输异常已处理，exceptionId={}, status={}, handleUser={}", exceptionId, status, handleUser);
+        OperationChangeContext.setChangeSummary("异常状态: " + currentStatus + " -> " + status);
         return new SimpleResultVO().add("exceptionId", exceptionId).add("status", status);
     }
 
