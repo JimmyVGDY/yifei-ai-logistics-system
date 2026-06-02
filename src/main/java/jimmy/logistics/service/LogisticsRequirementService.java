@@ -186,7 +186,7 @@ public class LogisticsRequirementService {
             }
             Object clientIp = record.get("client_ip");
             if (clientIp != null) {
-                record.put("client_ip", LogMaskUtils.maskText(String.valueOf(clientIp)));
+                record.put("client_ip", LogMaskUtils.maskIp(String.valueOf(clientIp)));
             }
         }
     }

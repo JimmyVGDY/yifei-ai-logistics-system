@@ -23,17 +23,49 @@ public final class LogMaskUtils {
     }
 
     /**
-     * 对数字ID进行脱敏，保留后4位。
-     * <p>用于日志中隐藏用户ID、订单ID等数字标识，防止日志文件泄露后批量获取业务数据。
+     * 对数字/字符串ID进行脱敏，尽可能保留可辨识信息。
+     * <ul>
+     *   <li>1位：不脱敏（如 userId=1 显示为 "1"）</li>
+     *   <li>2-4位：保留后1-2位（如 "100" → "**00"）</li>
+     *   <li>5位以上：保留后4位（如 "10086" → "****10086"）</li>
+     * </ul>
+     * <p>用于日志中的用户ID、订单号、角色ID等，防止日志文件泄露后批量获取数据。
      */
     public static String maskId(String value) {
         if (value == null || value.isEmpty()) {
             return "";
         }
-        if (value.length() <= 4) {
-            return "****";
+        int len = value.length();
+        if (len == 1) {
+            // 单字符不脱敏，如 userId=1（admin）
+            return value;
         }
-        return "****" + value.substring(value.length() - 4);
+        if (len <= 3) {
+            return repeat('*', len - 1) + value.charAt(len - 1);
+        }
+        if (len <= 4) {
+            return "**" + value.substring(len - 2);
+        }
+        return "****" + value.substring(len - 4);
+    }
+
+    /**
+     * 对IP地址脱敏，保留前两段用于定位子网，后两段掩码。
+     * <p>例：192.168.1.100 → 192.168.***.***，兼顾隐私与调试定位。
+     */
+    public static String maskIp(String ip) {
+        if (ip == null || ip.isEmpty()) {
+            return "";
+        }
+        int lastDot = ip.lastIndexOf('.');
+        if (lastDot <= 0) {
+            return maskText(ip);
+        }
+        int secondLastDot = ip.lastIndexOf('.', lastDot - 1);
+        if (secondLastDot <= 0) {
+            return ip.substring(0, lastDot) + ".***";
+        }
+        return ip.substring(0, secondLastDot) + ".***.***";
     }
 
     private static String mask(String value, int prefixLength, int suffixLength) {
