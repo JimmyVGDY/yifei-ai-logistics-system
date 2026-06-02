@@ -176,6 +176,7 @@ import {
   updateModuleRecord
 } from '../api/logistics'
 import { formatDateTime, statusLabel } from '../utils/status-labels'
+import { actionPermissionFromRoutePermission } from '../utils/permission-utils'
 import { hasPermission } from '../stores/auth-store'
 import ModulePagination from '../components/ModulePagination.vue'
 import ModuleToolbar from '../components/ModuleToolbar.vue'
@@ -381,14 +382,7 @@ function canAction(action) {
 }
 
 function actionPermission(action) {
-  if (!modulePermission.value) {
-    return ''
-  }
-  const index = modulePermission.value.lastIndexOf(':')
-  if (index > 0) {
-    return `${modulePermission.value.slice(0, index)}:${action}`
-  }
-  return modulePermission.value
+  return actionPermissionFromRoutePermission(modulePermission.value, action)
 }
 
 function formatCell(prop, value) {

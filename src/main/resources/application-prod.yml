@@ -54,6 +54,7 @@ logging:
   level:
     root: WARN
     jimmy: INFO
+    jimmy.mapper: WARN
     org.springframework: WARN
 
 # XXL-Job 执行器配置（定时任务）

@@ -167,7 +167,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
     }
 
     private String currentUsername() {
-        Object loginId = StpUtil.getLoginIdDefaultNull();
+        Object loginId = currentLoginId();
         if (loginId == null) {
             return "anonymous";
         }
@@ -175,12 +175,12 @@ public class OperationLogInterceptor implements HandlerInterceptor {
     }
 
     private String currentUserId() {
-        Object loginId = StpUtil.getLoginIdDefaultNull();
+        Object loginId = currentLoginId();
         return loginId == null ? "" : String.valueOf(loginId);
     }
 
     private String currentUserCode() {
-        Object loginId = StpUtil.getLoginIdDefaultNull();
+        Object loginId = currentLoginId();
         if (loginId == null) {
             return "";
         }
@@ -188,11 +188,20 @@ public class OperationLogInterceptor implements HandlerInterceptor {
     }
 
     private String currentRoleCode() {
-        Object loginId = StpUtil.getLoginIdDefaultNull();
+        Object loginId = currentLoginId();
         if (loginId == null) {
             return "";
         }
         return String.valueOf(StpUtil.getSession().get("roleCode", ""));
+    }
+
+    private Object currentLoginId() {
+        try {
+            return StpUtil.getLoginIdDefaultNull();
+        } catch (RuntimeException exception) {
+            // 单元测试或极端非 Web 调用场景下可能没有 Sa-Token 上下文，日志按匿名请求兜底。
+            return null;
+        }
     }
 
     private String resolveTraceId(HttpServletRequest request) {

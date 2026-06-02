@@ -79,50 +79,51 @@ public class SaTokenConfig implements WebMvcConfigurer {
         }
         String uri = request.getRequestURI();
         String method = request.getMethod();
+        String permission = resolveDynamicPermission(uri, method);
+        if (permission != null) {
+            StpUtil.checkPermission(permission);
+            return true;
+        }
+        return false;
+    }
+
+    String resolveDynamicPermission(String uri, String method) {
         if (uri.startsWith("/logistics/modules/")) {
             // 通用管理页接口按模块名映射权限前缀，再按 HTTP 方法解析查询/新增/修改/删除动作。
             String[] parts = uri.substring("/logistics/modules/".length()).split("/");
             String module = parts.length == 0 ? "" : parts[0];
             String prefix = MODULE_PERMISSION_PREFIXES.get(module);
             if (prefix == null) {
-                return false;
+                return null;
             }
-            StpUtil.checkPermission(prefix + ":" + resolveModuleAction(method, parts));
-            return true;
+            return prefix + ":" + resolveModuleAction(method, parts);
         }
         if (uri.startsWith("/logistics/excel/export/")) {
             String module = uri.substring("/logistics/excel/export/".length()).split("/")[0];
             String prefix = MODULE_PERMISSION_PREFIXES.get(module);
             if (prefix != null) {
-                StpUtil.checkPermission(prefix + ":export");
-                return true;
+                return prefix + ":export";
             }
         }
         if (uri.equals("/logistics/excel/import/customers")) {
-            StpUtil.checkPermission("customer:import");
-            return true;
+            return "customer:import";
         }
         if (uri.equals("/logistics/files/upload")) {
-            StpUtil.checkPermission("file:create");
-            return true;
+            return "file:create";
         }
         if (uri.equals("/logistics/customer-accounts")) {
-            StpUtil.checkPermission("system:user:create");
-            return true;
+            return "system:user:create";
         }
         if (uri.startsWith("/logistics/orders")) {
-            StpUtil.checkPermission("GET".equalsIgnoreCase(method) ? "order:query" : "order:create");
-            return true;
+            return "GET".equalsIgnoreCase(method) ? "order:query" : "order:create";
         }
         if (uri.startsWith("/logistics/exceptions")) {
-            StpUtil.checkPermission(uri.endsWith("/handle") ? "exception:update" : "exception:create");
-            return true;
+            return uri.endsWith("/handle") ? "exception:update" : "exception:create";
         }
         if (uri.startsWith("/logistics/fees")) {
-            StpUtil.checkPermission(uri.startsWith("/logistics/fees/generate/") ? "fee:create" : "fee:update");
-            return true;
+            return uri.startsWith("/logistics/fees/generate/") ? "fee:create" : "fee:update";
         }
-        return false;
+        return null;
     }
 
     private String resolveModuleAction(String method, String[] parts) {

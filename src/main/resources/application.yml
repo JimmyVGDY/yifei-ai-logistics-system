@@ -87,7 +87,7 @@ logging:
     jimmy: ${APP_LOG_LEVEL:info}
     com.alibaba.nacos: info
     com.alibaba.csp.sentinel: info
-    jimmy.mapper: debug
+    jimmy.mapper: ${MYBATIS_SQL_LOG_LEVEL:info}
 
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml

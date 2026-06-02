@@ -35,6 +35,7 @@
 | `BLOOM_FILTER_FALSE_POSITIVE_PROBABILITY` | `0.01` | 布隆过滤器误判率 |
 | `APP_ADMIN_USERNAME` | `admin` | 后台管理员账号 |
 | `APP_ADMIN_PASSWORD` | `xlh963311213` | 后台管理员密码 |
+| `MYBATIS_SQL_LOG_LEVEL` | `info` | MyBatis Mapper 日志级别，排查 SQL 时可临时设为 `debug` |
 | `SA_TOKEN_NAME` | `satoken` | Sa-Token 请求头名称 |
 | `SA_TOKEN_TIMEOUT` | `86400` | 登录有效期，单位秒 |
 | `SA_TOKEN_ACTIVE_TIMEOUT` | `1800` | 无操作有效期，单位秒 |
@@ -113,6 +114,14 @@ mybatis:
 ```
 
 更多内容见 [MyBatis 使用说明](mybatis.md)。
+
+默认不输出 Mapper debug 日志，避免 SQL 参数里出现手机号、客户名等敏感信息。需要排查 SQL 时，可以临时设置：
+
+```bash
+set MYBATIS_SQL_LOG_LEVEL=debug
+```
+
+排查结束后恢复为 `info` 或删除该环境变量；生产环境会额外将 `jimmy.mapper` 固定为 `WARN`。
 
 ## Sa-Token 鉴权
 
