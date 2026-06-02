@@ -36,7 +36,8 @@ public interface OperationLogMapper {
                                             @Param("clientIp") String clientIp,
                                             @Param("userAgent") String userAgent,
                                             @Param("requestParams") String requestParams,
-                                            @Param("targetId") String targetId);
+                                            @Param("targetId") String targetId,
+                                            @Param("changeSummary") String changeSummary);
 
     int insertOperationLogWithoutErrorMessage(@Param("id") Long id,
                                               @Param("operationId") String operationId,

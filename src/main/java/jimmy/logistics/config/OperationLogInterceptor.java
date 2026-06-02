@@ -132,7 +132,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                         idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
                         currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs,
                         truncate(errorMessage, MAX_LOG_TEXT_LENGTH), clientIp(request), userAgent(request),
-                        requestParams(request), targetId(request)
+                        requestParams(request), targetId(request), changeSummary(request)
                 );
                 return;
             }
@@ -153,7 +153,12 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         return columnChecker.hasColumn("sys_operation_log", "client_ip")
                 && columnChecker.hasColumn("sys_operation_log", "user_agent")
                 && columnChecker.hasColumn("sys_operation_log", "request_params")
-                && columnChecker.hasColumn("sys_operation_log", "target_id");
+                && columnChecker.hasColumn("sys_operation_log", "target_id")
+                && columnChecker.hasColumn("sys_operation_log", "change_summary");
+    }
+
+    private String changeSummary(HttpServletRequest request) {
+        return truncate(OperationChangeContext.changeSummary(request), MAX_PARAM_TEXT_LENGTH);
     }
 
     private String clientIp(HttpServletRequest request) {

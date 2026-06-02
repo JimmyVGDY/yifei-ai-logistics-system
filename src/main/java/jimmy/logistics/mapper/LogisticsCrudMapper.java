@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface LogisticsCrudMapper {
@@ -24,6 +25,9 @@ public interface LogisticsCrudMapper {
 
     int physicalDelete(@Param("tableName") String tableName,
                        @Param("id") Long id);
+
+    Map<String, Object> selectRecordById(@Param("tableName") String tableName,
+                                         @Param("id") Long id);
 
     int countByBusinessCode(@Param("tableName") String tableName,
                             @Param("columnName") String columnName,

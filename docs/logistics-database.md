@@ -49,6 +49,7 @@ password: 空（按实际配置）
 - `client_ip`、`user_agent`：客户端来源和浏览器标识
 - `request_params`：安全请求参数摘要，密码、token 等敏感参数不会记录
 - `target_id`：操作对象 ID，例如记录 ID、角色 ID、订单号
+- `change_summary`：脱敏后的操作前后变化摘要，密码/token 不记录，姓名、手机号、邮箱、地址等敏感信息只记录掩码值
 - `create_by`、`update_by`、`deleted`、`version`：通用审计字段
 
 ## 模拟数据规模
@@ -79,4 +80,10 @@ mysql -uroot logistics_management < scripts/sql/20260531_cleanup_structured_log_
 
 ```bash
 mysql -uroot logistics_management < scripts/sql/20260602_incremental_operation_log_context.sql
+```
+
+如果需要记录脱敏后的操作前后变化摘要，可继续执行：
+
+```bash
+mysql -uroot logistics_management < scripts/sql/20260602_incremental_operation_log_change_summary.sql
 ```

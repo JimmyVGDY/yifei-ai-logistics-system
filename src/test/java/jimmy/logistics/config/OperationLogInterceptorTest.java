@@ -103,7 +103,8 @@ class OperationLogInterceptorTest {
                 eq("192.168.1.10"),
                 eq("JUnit Browser"),
                 eq("keyword=测试订单"),
-                eq("100")
+                eq("100"),
+                eq(null)
         );
     }
 
@@ -318,7 +319,7 @@ class OperationLogInterceptorTest {
         );
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
-            statement.execute("create table if not exists sys_operation_log (id bigint, operation_id varchar(64), error_message varchar(255), client_ip varchar(45), user_agent varchar(255), request_params varchar(1000), target_id varchar(64))");
+            statement.execute("create table if not exists sys_operation_log (id bigint, operation_id varchar(64), error_message varchar(255), client_ip varchar(45), user_agent varchar(255), request_params varchar(1000), target_id varchar(64), change_summary varchar(1000))");
         }
         return new ColumnExistenceChecker(dataSource);
     }

@@ -2,6 +2,7 @@ package jimmy.service;
 
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
+import jimmy.logistics.config.OperationChangeContext;
 import jimmy.mapper.SystemPermissionMapper;
 import jimmy.model.MenuVO;
 import jimmy.model.PermissionAssignmentRequest;
@@ -141,6 +142,7 @@ public class SystemPermissionService {
         if (systemPermissionMapper.countRoleById(roleId) == 0) {
             throw new IllegalArgumentException("角色不存在");
         }
+        List<Long> beforeMenuIds = roleMenuIds(roleId);
         systemPermissionMapper.deleteRoleMenus(roleId);
         for (Long menuId : menuIds) {
             if (menuId == null || !menuExists(menuId)) {
@@ -149,6 +151,7 @@ public class SystemPermissionService {
             systemPermissionMapper.insertRoleMenu(idGenerator.nextId(), roleId, menuId);
         }
         syncRolePermissionsFromMenus();
+        OperationChangeContext.setChangeSummary("角色菜单变更，roleId=" + roleId + "，" + diffSummary(beforeMenuIds, menuIds));
         log.info("角色菜单权限已更新,roleId={}, menuCount={}, operator={}", roleId, menuIds.size(), StpUtil.getLoginIdDefaultNull());
         return roleMenuIds(roleId);
     }
@@ -158,6 +161,7 @@ public class SystemPermissionService {
         if (systemPermissionMapper.countRoleById(roleId) == 0) {
             throw new IllegalArgumentException("角色不存在");
         }
+        List<Long> beforePermissionIds = rolePermissionIds(roleId);
         List<Long> permissionIds = normalizedIds(request == null ? null : request.getPermissionIds());
         systemPermissionMapper.deleteRolePermissions(roleId);
         for (Long permissionId : permissionIds) {
@@ -167,6 +171,7 @@ public class SystemPermissionService {
             systemPermissionMapper.insertRolePermission(idGenerator.nextId(), roleId, permissionId);
         }
         syncRoleMenusFromPermissions(roleId, permissionIds);
+        OperationChangeContext.setChangeSummary("角色权限变更，roleId=" + roleId + "，" + diffSummary(beforePermissionIds, permissionIds));
         log.info("角色细粒度权限已更新,roleId={}, permissionCount={}, operator={}", roleId, permissionIds.size(), StpUtil.getLoginIdDefaultNull());
         return rolePermissionIds(roleId);
     }
@@ -176,6 +181,8 @@ public class SystemPermissionService {
         if (systemPermissionMapper.countUserById(userId) == 0) {
             throw new IllegalArgumentException("用户不存在");
         }
+        List<Long> beforeGrantIds = systemPermissionMapper.selectUserPermissionIds(userId, "GRANT");
+        List<Long> beforeDenyIds = systemPermissionMapper.selectUserPermissionIds(userId, "DENY");
         List<Long> grantIds = normalizedIds(request == null ? null : request.getGrantPermissionIds());
         List<Long> denyIds = normalizedIds(request == null ? null : request.getDenyPermissionIds());
         Set<Long> denySet = new LinkedHashSet<>(denyIds);
@@ -194,9 +201,40 @@ public class SystemPermissionService {
         for (Long permissionId : denyIds) {
             insertUserPermissionIfValid(userId, permissionId, "DENY", now);
         }
+        OperationChangeContext.setChangeSummary("用户特殊权限变更，userId=" + userId
+                + "，授权" + diffSummary(beforeGrantIds, filteredGrantIds)
+                + "，禁用" + diffSummary(beforeDenyIds, denyIds));
         log.info("用户特殊权限已更新,userId={}, grantCount={}, denyCount={}, operator={}",
                 userId, filteredGrantIds.size(), denyIds.size(), StpUtil.getLoginIdDefaultNull());
         return userPermissionIds(userId);
+    }
+
+    private String diffSummary(List<Long> before, List<Long> after) {
+        LinkedHashSet<Long> beforeSet = new LinkedHashSet<>(normalizedIds(before));
+        LinkedHashSet<Long> afterSet = new LinkedHashSet<>(normalizedIds(after));
+        List<Long> added = new ArrayList<>();
+        for (Long id : afterSet) {
+            if (!beforeSet.contains(id)) {
+                added.add(id);
+            }
+        }
+        List<Long> removed = new ArrayList<>();
+        for (Long id : beforeSet) {
+            if (!afterSet.contains(id)) {
+                removed.add(id);
+            }
+        }
+        return "新增=" + compactIds(added) + "，移除=" + compactIds(removed);
+    }
+
+    private String compactIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return "无";
+        }
+        if (ids.size() <= 20) {
+            return ids.toString();
+        }
+        return ids.subList(0, 20) + "...共" + ids.size() + "项";
     }
 
     private void insertUserPermissionIfValid(Long userId, Long permissionId, String grantType, Timestamp now) {

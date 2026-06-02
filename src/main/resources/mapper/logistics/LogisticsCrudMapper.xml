@@ -59,6 +59,14 @@
         where id = #{id}
     </delete>
 
+    <!-- 变更审计读取更新/删除前快照。tableName 仍来自 Service 白名单，不接收前端任意表名。 -->
+    <select id="selectRecordById" resultType="map">
+        select *
+        from ${tableName}
+        where id = #{id}
+        limit 1
+    </select>
+
     <!-- 生成客户、司机、用户、角色等业务编号前先查重，降低随机编号冲突风险。 -->
     <select id="countByBusinessCode" resultType="int">
         select count(1)

@@ -33,13 +33,13 @@
         insert into sys_operation_log (
             id, operation_id, trace_id, user_id, user_code, username, role_code,
             operation, request_uri, request_method, operation_status, cost_ms,
-            error_message, client_ip, user_agent, request_params, target_id, operation_time
+            error_message, client_ip, user_agent, request_params, target_id, change_summary, operation_time
         )
         values (
             #{id}, #{operationId}, #{traceId}, #{userId}, #{userCode}, #{username}, #{roleCode},
             #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs},
             #{errorMessage, jdbcType=VARCHAR}, #{clientIp}, #{userAgent}, #{requestParams, jdbcType=VARCHAR},
-            #{targetId}, current_timestamp
+            #{targetId}, #{changeSummary, jdbcType=VARCHAR}, current_timestamp
         )
     </insert>
 

@@ -115,6 +115,7 @@ create table if not exists sys_operation_log (
     user_agent varchar(255) null comment '浏览器或客户端标识',
     request_params text null comment '安全请求参数摘要，不记录密码和 token',
     target_id varchar(64) null comment '操作对象 ID，例如记录 ID、角色 ID、订单号',
+    change_summary text null comment '脱敏后的操作前后变化摘要',
     operation_time timestamp not null,
     index idx_operation_log_operation_id (operation_id),
     index idx_operation_log_trace_id (trace_id),

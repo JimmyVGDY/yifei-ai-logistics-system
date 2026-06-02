@@ -125,6 +125,7 @@
                        <choose><when test="operationLogClientContextExists">user_agent</when><otherwise>null</otherwise></choose> as user_agent,
                        <choose><when test="operationLogClientContextExists">request_params</when><otherwise>null</otherwise></choose> as request_params,
                        <choose><when test="operationLogClientContextExists">target_id</when><otherwise>null</otherwise></choose> as target_id,
+                       <choose><when test="operationLogChangeSummaryExists">change_summary</when><otherwise>null</otherwise></choose> as change_summary,
                        operation_time,
                        0 as deleted_marker
                 from sys_operation_log
