@@ -27,6 +27,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 物流看板与通用列表查询服务 —— 运营看板统计 + 模块列表分页查询 + 客户数据隔离。
+ * <p>
+ * 看板指标：今日订单/待派送/运输中/异常单/月收入/合同到期预警/上月汇总。
+ * 列表查询：按模块白名单 {@link ModuleQueryConfig} 动态拼表名/列名/关键词，支持分页和时间筛选。
+ * 客户角色自动注入 customerId 过滤条件，实现数据权限隔离。
+ */
 @Slf4j
 @Service
 public class LogisticsRequirementService {
@@ -50,6 +57,12 @@ public class LogisticsRequirementService {
         this.moduleQueryConfigs = buildModuleQueryConfigs();
     }
 
+    /**
+     * 运营看板摘要统计。
+     * <p>
+     * 聚合今日/完成/待派送/运输中/异常订单数 + 本月收入 + 状态分布 + 合同到期预警 + 上月汇总。
+     * 客户角色自动注入 customerId 过滤条件。
+     */
     public LogisticsDashboardSummary dashboardSummary() {
         log.info("开始查询物流运营看板统计数据");
         LogisticsDashboardSummary summary = new LogisticsDashboardSummary();
@@ -73,16 +86,24 @@ public class LogisticsRequirementService {
         return summary;
     }
 
+    /** 查询模块全量记录列表（为导出等功能提供原始 Map 数据） */
     public List<Map<String, Object>> moduleRecords(String module, int limit) {
         PageResult<ModuleRecordVO> page = modulePage(module, query(1, limit, null, null, null));
         return new ArrayList<Map<String, Object>>(page.getRecords());
     }
 
+    /** 查询模块记录列表（支持关键词/时间范围过滤） */
     public List<Map<String, Object>> moduleRecords(String module, int limit, String keyword, String startTime, String endTime) {
         PageResult<ModuleRecordVO> page = modulePage(module, query(1, limit, keyword, startTime, endTime));
         return new ArrayList<Map<String, Object>>(page.getRecords());
     }
 
+    /**
+     * 模块列表分页查询。
+     * <p>
+     * 按模块白名单 {@link ModuleQueryConfig} 动态拼表名/列名/关键词/排序/分页。
+     * 查询结果自动解密敏感字段 + 格式化时间戳 + 挂载 statusLabel。
+     */
     public PageResult<ModuleRecordVO> modulePage(String module, ModuleQueryDTO query) {
         ModuleQueryConfig queryConfig = moduleQueryConfigs.get(module);
         if (queryConfig == null) {

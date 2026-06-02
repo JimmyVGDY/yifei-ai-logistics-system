@@ -20,6 +20,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * 物流订单 ES 搜索服务 —— 订单信息写入 Elasticsearch 并支持多字段全文检索。
+ * <p>
+ * 索引失败不会阻断主流程（ES 作为辅助搜索渠道，数据库仍为主数据源）。
+ */
 @Slf4j
 @Service
 public class LogisticsOrderSearchService {

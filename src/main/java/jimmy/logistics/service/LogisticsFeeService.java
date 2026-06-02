@@ -10,6 +10,12 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.Map;
 
+/**
+ * 物流费用服务 —— 订单费用生成与收款确认。
+ * <p>
+ * 计费模型（练习版）：基础运费 ¥120 + 重量×¥2.50 + 固定里程费 ¥80
+ * 重复生成时更新原账单避免多条重复记录，收款时将实收同步为应收。
+ */
 @Slf4j
 @Service
 public class LogisticsFeeService {
@@ -23,6 +29,13 @@ public class LogisticsFeeService {
         this.idGenerator = idGenerator;
     }
 
+    /**
+     * 生成订单费用。
+     * <p>
+     * 计费公式：¥120 + cargoWeight×¥2.50 + ¥80。
+     * 重复生成时更新原账单，避免同一订单出现多条费用记录。
+     * 金额计算使用 BigDecimal，精度设为 2 位小数（ROUND_HALF_UP）。
+     */
     public SimpleResultVO generateFee(String orderNo) {
         Map<String, Object> order = logisticsFeeMapper.findOrderFeeBaseByOrderNo(orderNo);
         // 防御性校验：订单不存在或缺少必要字段时提前报错，避免后续 NPE。
@@ -50,6 +63,7 @@ public class LogisticsFeeService {
         return new SimpleResultVO().add("orderNo", orderNo).add("payableFee", payableFee).add("paymentStatus", "UNPAID");
     }
 
+    /** 标记费用已付款，实收金额同步为应收 */
     public SimpleResultVO markFeePaid(long feeId) {
         // 收款操作将实收金额同步为应收金额；后续接入部分收款时可在这里扩展收款流水。
         int updated = logisticsFeeMapper.markPaid(feeId);

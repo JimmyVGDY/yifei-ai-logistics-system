@@ -7,6 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
+/**
+ * 物流订单事件监听器 —— 消费 ORDER_CREATED 消息，初始化物流轨迹。
+ */
 @Slf4j
 @Component
 public class LogisticsOrderEventListener {
@@ -20,6 +23,7 @@ public class LogisticsOrderEventListener {
         this.trackInitializeService = trackInitializeService;
     }
 
+    /** 消费订单创建事件，查询订单详情并初始化首条物流轨迹记录 */
     @RabbitListener(queues = "${app.logistics.mq.order-created-queue:logistics.order.created.queue}")
     public void handleOrderCreated(LogisticsOrderEvent event) {
         if (event == null || !"ORDER_CREATED".equals(event.getEventType())) {

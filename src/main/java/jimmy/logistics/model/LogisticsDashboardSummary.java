@@ -4,6 +4,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 运营看板汇总对象 —— 包含今日/历史订单数、收入、状态分布、合同预警等全部看板指标。
+ */
 public class LogisticsDashboardSummary {
 
     private long todayOrders;

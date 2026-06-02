@@ -16,6 +16,15 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 物流订单服务 —— 订单创建、查询、缓存/索引同步、MQ 事件发布的核心编排层。
+ * <p>
+ * 创建流程：参数校验 → 生成订单号 → 落库 → 布隆过滤器标记 → 缓存回填 → ES 索引 → RabbitMQ 事件
+ * <p>
+ * 查询流程：布隆过滤器预判 → Redis 缓存 → 数据库回源 → 缓存回填（Cache-Aside 模式）
+ * <p>
+ * 限流保护：{@code @SentinelResource} 对创建和查询分别配置 fallback 兜底。
+ */
 @Slf4j
 @Service
 public class LogisticsOrderService {
@@ -40,6 +49,13 @@ public class LogisticsOrderService {
         this.orderMessageService = orderMessageService;
     }
 
+    /**
+     * 创建物流订单（带 Sentinel 限流保护）。
+     * <p>
+     * 订单号由后端统一生成（格式 LO+14 位时间戳+8 位随机码），
+     * 落库后同步更新布隆过滤器、Redis 缓存、ES 搜索索引，并发布 MQ 事件。
+     * 变更摘要写入 OperationChangeContext 供审计拦截器采集。
+     */
     @SentinelResource(value = "logisticsOrderCreate", fallback = "createFallback")
     public LogisticsOrder create(CreateLogisticsOrderRequest request) {
         log.info("开始创建物流订单，customerName={}, cargoName={}",
@@ -77,6 +93,12 @@ public class LogisticsOrderService {
         return logisticsOrder;
     }
 
+    /**
+     * 按订单号查询（带 Sentinel 限流保护）。
+     * <p>
+     * 布隆过滤器预判 → Redis 缓存 → 数据库回源 → 缓存回填。
+     * 布隆过滤器未命中时仍会查询数据库以避免重启后旧数据的误判。
+     */
     @SentinelResource(value = "logisticsOrderQuery", fallback = "findByOrderNoFallback")
     public LogisticsOrder findByOrderNo(String orderNo) {
         log.info("查询物流订单详情，orderNo={}", orderNo);
@@ -101,6 +123,7 @@ public class LogisticsOrderService {
         return logisticsOrder;
     }
 
+    /** 查询最近 N 条订单（上限 100，防止前端传过大 limit 压库） */
     public List<LogisticsOrder> findRecent(int limit) {
         // 限制单次查询数量，避免前端误传过大 limit 压垮数据库。
         int safeLimit = Math.max(1, Math.min(limit, 100));
@@ -109,6 +132,7 @@ public class LogisticsOrderService {
         return orders;
     }
 
+    /** Sentinel 创建订单的 fallback —— 返回 BLOCKED 状态标记，调用方可据此提示稍后重试 */
     public LogisticsOrder createFallback(CreateLogisticsOrderRequest request, Throwable throwable) {
         log.warn("创建物流订单触发 Sentinel 兜底，customerName={}, reason={}",
                 request == null ? null : LogMaskUtils.maskName(request.getCustomerName()),

@@ -7,6 +7,11 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 通用 CRUD Mapper —— 动态表名/列名操作，通过 MyBatis XML 的 ${} 实现通用增删改查。
+ * <p>
+ * 同时也承载跨模块查询：客户查找/创建、角色查找、账号唯一性校验等辅助查询。
+ */
 @Mapper
 public interface LogisticsCrudMapper {
 

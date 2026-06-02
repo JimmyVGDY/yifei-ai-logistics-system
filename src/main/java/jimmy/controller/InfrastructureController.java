@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 基础设施巡检控制器 —— 运行时检测 Nacos/Sentinel/ES/Redis/RabbitMQ 连通性。
+ */
 @RestController
 @RequestMapping("/infra")
 public class InfrastructureController {

@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 运营看板与模块列表查询控制器 —— 看板统计、模块分页列表。
+ */
 @RestController
 @RequestMapping("/logistics")
 public class LogisticsRequirementController {

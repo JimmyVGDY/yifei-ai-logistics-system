@@ -6,6 +6,11 @@ import jimmy.logistics.mapper.LogisticsTrackMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+/**
+ * 物流轨迹初始化服务 —— 订单创建后自动写入首条"订单创建"轨迹。
+ * <p>
+ * 幂等保护：已存在相同描述的轨迹则跳过不重复写入。
+ */
 @Slf4j
 @Service
 public class LogisticsTrackInitializeService {

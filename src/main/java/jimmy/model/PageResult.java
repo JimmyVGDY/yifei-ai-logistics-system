@@ -2,6 +2,9 @@ package jimmy.model;
 
 import java.util.List;
 
+/**
+ * 分页结果封装 —— 包含当前页记录列表 + 分页元信息。
+ */
 public class PageResult<T> {
 
     private List<T> records;

@@ -17,6 +17,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 系统权限控制器 —— 菜单树/权限树查看、角色菜单/权限分配、用户特殊授权管理。
+ * <p>
+ * 所有写操作标注 {@link OperationLog} 记入审计日志。
+ */
 @RestController
 @RequestMapping("/system/permissions")
 public class SystemPermissionController {

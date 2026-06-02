@@ -9,6 +9,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 物流订单缓存服务 —— 布隆过滤器预判 + Redis 缓存（Cache-Aside 模式）。
+ * <p>
+ * 布隆过滤器加速不存在判断，Redis 缓存订单详情（TTL 可配置），减少数据库查询。
+ */
 @Slf4j
 @Service
 public class LogisticsOrderCacheService {

@@ -9,6 +9,12 @@ import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 系统权限 Mapper —— RBAC 权限体系的三表管理（菜单/角色-权限/用户-权限）。
+ * <p>
+ * 提供菜单 CRUD、角色-菜单关联、角色-权限关联、用户特殊授权（GRANT/DENY）、
+ * DDL 建表、权限初始化等完整数据操作。
+ */
 @Mapper
 public interface SystemPermissionMapper {
 

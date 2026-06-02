@@ -35,6 +35,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import javax.validation.Valid;
 
+/**
+ * 物流业务统一控制器 —— 客户账号、通用 CRUD、异常/费用、统计、文件上传、Excel 导入导出。
+ * <p>
+ * 所有写操作均标注 {@link OperationLog}，由拦截器自动记入审计日志。
+ */
 @RestController
 @RequestMapping("/logistics")
 public class LogisticsV2Controller {

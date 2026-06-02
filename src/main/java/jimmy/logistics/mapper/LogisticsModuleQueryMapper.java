@@ -6,6 +6,12 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 模块列表查询 Mapper —— 支持动态模块/表名/列名拼接的通用分页查询。
+ * <p>
+ * 通过判断字段是否存在（如 deleted/user_code/client_ip 等）动态选择 SQL 版本，
+ * 兼容增量迁移期间不同表结构。
+ */
 @Mapper
 public interface LogisticsModuleQueryMapper {
 

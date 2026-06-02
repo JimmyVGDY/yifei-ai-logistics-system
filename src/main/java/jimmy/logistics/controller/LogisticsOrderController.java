@@ -20,6 +20,9 @@ import javax.validation.Valid;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 物流订单控制器 —— 订单创建、详情查询、列表查询、ES 搜索。
+ */
 @RestController
 @RequestMapping("/logistics/orders")
 public class LogisticsOrderController {

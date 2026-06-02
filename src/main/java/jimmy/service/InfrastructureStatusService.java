@@ -11,6 +11,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * 基础设施状态服务 —— 运行时检测各中间件连通性（Nacos/Sentinel/Elasticsearch/Redis/RabbitMQ）。
+ * <p>
+ * 提供配置信息展示和各中间件 health check 接口，方便运维排查。
+ */
 @Service
 public class InfrastructureStatusService {
 
@@ -47,6 +52,7 @@ public class InfrastructureStatusService {
         this.rabbitmqPort = rabbitmqPort;
     }
 
+    /** 汇总输出所有中间件配置信息 */
     public InfrastructureStatus status() {
         return InfrastructureStatus.of("infrastructure", "configured")
                 .detail("applicationName", applicationName)
@@ -58,6 +64,7 @@ public class InfrastructureStatusService {
                 .detail("rabbitmqPort", rabbitmqPort);
     }
 
+    /** 查询 Nacos 注册的服务列表 */
     public List<String> services() {
         return discoveryClient.getServices();
     }

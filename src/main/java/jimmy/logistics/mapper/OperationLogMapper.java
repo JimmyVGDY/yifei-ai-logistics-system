@@ -3,6 +3,11 @@ package jimmy.logistics.mapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+/**
+ * 操作日志 Mapper —— 兼容三种表结构版本（完整字段/含客户端上下文字段/旧版精简字段）的日志写入。
+ * <p>
+ * 运行时通过 ColumnExistenceChecker 判断字段是否存在，自动选择对应 SQL 版本。
+ */
 @Mapper
 public interface OperationLogMapper {
 

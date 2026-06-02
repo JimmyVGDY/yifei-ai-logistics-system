@@ -1,5 +1,10 @@
 package jimmy.model;
 
+/**
+ * 统一 API 响应封装 —— 所有接口均通过此类返回标准 {@code {code, message, data}} 结构。
+ * <p>
+ * 200=success, 400=参数错误, 401=未登录, 403=无权限, 500=系统异常。
+ */
 public class ApiResponse<T> {
 
     private int code;

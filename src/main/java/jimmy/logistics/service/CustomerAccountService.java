@@ -22,6 +22,19 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 客户账号创建服务 —— 独立的客户注册流程，支持个人/企业两种主体类型。
+ * <p>
+ * 规则：
+ * <ul>
+ *   <li>个人客户只能创建 1 个账号</li>
+ *   <li>企业客户允许多个子账号，首账号标记为 MAIN</li>
+ *   <li>企业客户只能有 1 个主账号</li>
+ *   <li>自动查找或创建客户记录（按名称匹配，无匹配则新建）</li>
+ *   <li>密码 BCrypt 加密存储</li>
+ *   <li>手机号入库前加密</li>
+ * </ul>
+ */
 @Slf4j
 @Service
 public class CustomerAccountService {
@@ -49,6 +62,7 @@ public class CustomerAccountService {
         this.columnChecker = columnChecker;
     }
 
+    /** 创建客户账号，校验唯一性后写入 sys_user */
     public OperationResultVO createCustomerAccount(CreateCustomerAccountRequest request) {
         String subjectType = CrudBusinessUtils.trim(request.getCustomerSubjectType()).toUpperCase();
         String mobile = CrudBusinessUtils.trim(request.getMobile());

@@ -29,6 +29,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * 物流 V2 服务 —— 文件上传、Excel 导入导出等辅助操作。
+ * <p>
+ * 文件上传：存储到本地指定目录，路径安全校验防止目录穿越，记录上传日志。
+ * Excel 导出：根据模块名动态查询数据并生成 .xlsx 工作簿。
+ * 客户导入：解析 Excel 逐行写入 logistics_customer 表。
+ */
 @Slf4j
 @Service
 public class LogisticsV2Service {
@@ -54,6 +61,12 @@ public class LogisticsV2Service {
         this.uploadRoot = Paths.get(uploadRoot).toAbsolutePath().normalize();
     }
 
+    /**
+     * 文件上传。
+     * <p>
+     * 存储到 app.upload.root-directory 目录（默认 uploads），文件名格式 yyyyMMddHHmmss-uuid.后缀。
+     * 路径校验防止 ../ 目录穿越攻击。
+     */
     public Map<String, Object> uploadFile(MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请选择需要上传的文件");
@@ -78,6 +91,7 @@ public class LogisticsV2Service {
         return record("originalName", originalName, "relativePath", relativePath, "fileSize", file.getSize());
     }
 
+    /** 按模块名导出全量数据为 .xlsx 字节数组 */
     public byte[] exportModule(String module, int limit) throws IOException {
         List<Map<String, Object>> records = logisticsRequirementService.moduleRecords(module, limit);
         Workbook workbook = new XSSFWorkbook();
@@ -105,6 +119,7 @@ public class LogisticsV2Service {
         return outputStream.toByteArray();
     }
 
+    /** 从 Excel 批量导入客户数据，逐行解析写入 logistics_customer */
     public Map<String, Object> importCustomers(MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请选择客户 Excel 文件");

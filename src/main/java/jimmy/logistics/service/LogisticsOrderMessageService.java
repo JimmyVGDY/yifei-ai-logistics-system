@@ -12,6 +12,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
+/**
+ * 物流订单消息服务 —— 订单创建后向 RabbitMQ 发布事件。
+ * <p>
+ * 消息持久化（MessageDeliveryMode.PERSISTENT），RabbitMQ 重启后不丢失。
+ */
 @Slf4j
 @Service
 public class LogisticsOrderMessageService {
@@ -25,6 +30,7 @@ public class LogisticsOrderMessageService {
         this.logisticsProperties = logisticsProperties;
     }
 
+    /** 发布 ORDER_CREATED 事件到指定 exchange，消息持久化 */
     public void publishOrderCreated(LogisticsOrder logisticsOrder) {
         LogisticsOrderEvent event = new LogisticsOrderEvent(
                 "ORDER_CREATED",

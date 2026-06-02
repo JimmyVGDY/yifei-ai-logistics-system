@@ -14,6 +14,12 @@ import org.springframework.util.StringUtils;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * 运输异常服务 —— 异常上报与状态流转处理。
+ * <p>
+ * 状态机：WAIT_HANDLE → PROCESSING → CLOSED（上报后待处理 → 处理中 → 已关闭）
+ * 每个状态流转节点均做合法性校验，防止越权或重复操作。
+ */
 @Slf4j
 @Service
 public class LogisticsExceptionService {
@@ -29,6 +35,7 @@ public class LogisticsExceptionService {
         this.idGenerator = idGenerator;
     }
 
+    /** 上报运输异常 —— 通过订单号反查内部 ID，记录异常后同步更新订单状态 */
     public SimpleResultVO reportException(ExceptionReportDTO request) {
         // 上报时通过订单号反查内部 ID，前端展示业务单号，数据库仍保持稳定的主键关联。
         Long orderId = findOrderId(request.getOrderNo());
@@ -44,6 +51,10 @@ public class LogisticsExceptionService {
         return new SimpleResultVO().add("exceptionId", exceptionId).add("status", "WAIT_HANDLE");
     }
 
+    /**
+     * 处理异常 —— 推进状态流转（WAIT_HANDLE→PROCESSING→CLOSED）。
+     * 已关闭异常禁止重复操作，跳状态操作拒绝。
+     */
     public SimpleResultVO handleException(long exceptionId, ExceptionHandleDTO request) {
         String status = request == null || !StringUtils.hasText(request.getExceptionStatus())
                 ? "CLOSED"

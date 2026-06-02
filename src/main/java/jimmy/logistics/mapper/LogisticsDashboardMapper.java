@@ -6,6 +6,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 运营看板 Mapper —— 聚合查询今日/历史订单、合同到期预警、月度收入等运营指标。
+ */
 @Mapper
 public interface LogisticsDashboardMapper {
 

@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * RabbitMQ 演示消息控制器 —— 发送测试消息验证消息队列连通性。
+ */
 @RestController
 @RequestMapping("/rabbitmq")
 public class RabbitMessageController {

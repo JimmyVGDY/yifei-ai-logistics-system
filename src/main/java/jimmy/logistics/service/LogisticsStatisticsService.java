@@ -9,6 +9,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 物流统计服务 —— 订单趋势和收入趋势的聚合查询。
+ */
 @Service
 public class LogisticsStatisticsService {
 
@@ -18,6 +21,7 @@ public class LogisticsStatisticsService {
         this.logisticsStatisticsMapper = logisticsStatisticsMapper;
     }
 
+    /** 查询订单数量趋势（天数上限 30） */
     public List<TrendPointVO> orderTrend(int days) {
         int safeDays = Math.max(1, Math.min(days, 30));
         List<Map<String, Object>> rows = logisticsStatisticsMapper.selectOrderTrend(-safeDays);
@@ -28,6 +32,7 @@ public class LogisticsStatisticsService {
         return result;
     }
 
+    /** 查询收入金额趋势（月数上限 12） */
     public List<TrendPointVO> incomeTrend(int months) {
         int safeMonths = Math.max(1, Math.min(months, 12));
         List<Map<String, Object>> rows = logisticsStatisticsMapper.selectIncomeTrend(-safeMonths);
