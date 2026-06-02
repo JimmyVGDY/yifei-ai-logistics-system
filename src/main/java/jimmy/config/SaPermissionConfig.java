@@ -7,6 +7,9 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Sa-Token 权限加载器 —— 从当前登录 Session 提取权限码列表和角色列表。
+ */
 @Component
 public class SaPermissionConfig implements StpInterface {
 

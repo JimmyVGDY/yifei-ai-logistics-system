@@ -2,6 +2,9 @@ package jimmy.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/**
+ * 物流模块配置属性 —— 绑定 {@code app.logistics} 前缀，包含缓存 TTL 和 MQ 子配置。
+ */
 @ConfigurationProperties(prefix = "app.logistics")
 public class LogisticsProperties {
 

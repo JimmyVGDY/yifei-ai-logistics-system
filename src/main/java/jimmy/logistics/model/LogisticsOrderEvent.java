@@ -2,6 +2,9 @@ package jimmy.logistics.model;
 
 import java.time.LocalDateTime;
 
+/**
+ * 物流订单生命周期事件 —— 订单创建/状态变更后通过 RabbitMQ 广播。
+ */
 public class LogisticsOrderEvent {
 
     private String eventType;

@@ -2,6 +2,9 @@ package jimmy.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/**
+ * 本地前端开发服务配置属性 —— 绑定 {@code app.local-frontend} 前缀。
+ */
 @ConfigurationProperties(prefix = "app.local-frontend")
 public class LocalFrontendProperties {
 

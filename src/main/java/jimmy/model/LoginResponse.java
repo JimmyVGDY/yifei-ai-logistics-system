@@ -3,6 +3,9 @@ package jimmy.model;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 登录成功响应 —— 包含 Sa-Token 令牌、用户基本信息、权限码列表、菜单树。
+ */
 public class LoginResponse {
 
     private String username;

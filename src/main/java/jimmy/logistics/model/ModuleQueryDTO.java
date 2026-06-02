@@ -1,5 +1,8 @@
 package jimmy.logistics.model;
 
+/**
+ * 模块列表查询参数 —— 分页 + 关键词 + 时间范围筛选。
+ */
 public class ModuleQueryDTO {
 
     private int page = 1;

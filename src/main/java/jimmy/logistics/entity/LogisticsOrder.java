@@ -3,6 +3,9 @@ package jimmy.logistics.entity;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * 物流订单实体 —— 核心业务表 {@code logistics_order} 的行映射。
+ */
 public class LogisticsOrder {
 
     private Long id;

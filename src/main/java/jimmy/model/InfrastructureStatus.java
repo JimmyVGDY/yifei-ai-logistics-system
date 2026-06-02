@@ -3,6 +3,9 @@ package jimmy.model;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * 基础设施健康状态 —— 组件名 + 状态 + 详细信息，支持链式 {@code .detail()} 构建。
+ */
 public class InfrastructureStatus {
 
     private String component;

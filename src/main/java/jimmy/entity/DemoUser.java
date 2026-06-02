@@ -2,6 +2,9 @@ package jimmy.entity;
 
 import java.time.LocalDateTime;
 
+/**
+ * 演示用户实体 —— 最简单的用户表映射，用于基础设施连通性验证。
+ */
 public class DemoUser {
 
     private Long id;

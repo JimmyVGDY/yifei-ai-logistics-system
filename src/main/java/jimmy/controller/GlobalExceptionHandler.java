@@ -13,6 +13,12 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MultipartException;
 
+/**
+ * 全局异常处理器 —— 统一将异常转换为 {@link ApiResponse} 标准 JSON 响应。
+ * <p>
+ * 覆盖认证(401)、鉴权(403)、参数校验(400)、数据库(500)、未知(500)异常，
+ * 保证前端永远不会收到 HTML 错误页。
+ */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {

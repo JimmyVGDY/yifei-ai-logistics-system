@@ -15,6 +15,11 @@ import java.net.URI;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 本地前端自动启动器 —— dev 环境下自动启动 Vite 前端并打开浏览器。
+ * <p>
+ * 仅 {@code @Profile("dev")} 激活，启动失败不阻塞后端。
+ */
 @Slf4j
 @Configuration
 @Profile("dev")

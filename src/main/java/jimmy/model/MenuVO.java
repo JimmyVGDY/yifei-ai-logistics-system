@@ -3,6 +3,9 @@ package jimmy.model;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 菜单树节点 —— 支持父子嵌套，前端构建左侧侧边栏菜单。
+ */
 public class MenuVO {
 
     private Long id;

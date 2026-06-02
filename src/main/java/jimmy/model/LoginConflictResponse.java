@@ -1,5 +1,8 @@
 package jimmy.model;
 
+/**
+ * 登录冲突响应 —— 包含冲突状态(PENDING/ACCEPTED/REJECTED/EXPIRED)和等待时长。
+ */
 public class LoginConflictResponse {
 
     private String loginStatus;

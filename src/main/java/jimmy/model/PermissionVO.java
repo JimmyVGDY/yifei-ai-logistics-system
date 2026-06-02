@@ -1,5 +1,8 @@
 package jimmy.model;
 
+/**
+ * 权限码扁平视图 —— 用于角色/用户权限列表展示。
+ */
 public class PermissionVO {
 
     private Long id;

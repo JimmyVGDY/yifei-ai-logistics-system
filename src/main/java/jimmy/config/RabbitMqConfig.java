@@ -12,6 +12,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * RabbitMQ 演示消息配置 —— 声明演示 Exchange/Queue/Binding + JSON 消息转换器。
+ */
 @Configuration
 @EnableConfigurationProperties(RabbitMqProperties.class)
 public class RabbitMqConfig {

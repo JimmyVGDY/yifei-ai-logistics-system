@@ -1,5 +1,8 @@
 package jimmy.logistics.model;
 
+/**
+ * 通用 CRUD 操作结果 —— 包含操作 ID、是否删除、新状态。
+ */
 public class OperationResultVO {
 
     private Long id;

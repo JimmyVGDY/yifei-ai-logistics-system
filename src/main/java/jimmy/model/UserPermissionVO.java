@@ -3,6 +3,9 @@ package jimmy.model;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 用户特殊权限视图 —— 独立的授权列表(grantPermissionIds)和拒绝列表(denyPermissionIds)。
+ */
 public class UserPermissionVO {
 
     private List<Long> grantPermissionIds = new ArrayList<>();

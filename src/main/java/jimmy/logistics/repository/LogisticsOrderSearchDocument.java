@@ -7,6 +7,9 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 
 import java.math.BigDecimal;
 
+/**
+ * ES 物流订单索引文档 —— Elasticsearch {@code @Document} 映射实体。
+ */
 @Document(indexName = "logistics_order")
 public class LogisticsOrderSearchDocument {
 

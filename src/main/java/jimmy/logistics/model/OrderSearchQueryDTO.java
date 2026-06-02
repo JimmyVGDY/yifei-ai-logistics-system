@@ -1,5 +1,8 @@
 package jimmy.logistics.model;
 
+/**
+ * ES 订单搜索查询参数 —— 分页 + 关键词模糊搜索。
+ */
 public class OrderSearchQueryDTO {
 
     private int page = 1;

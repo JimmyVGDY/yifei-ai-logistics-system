@@ -2,6 +2,9 @@ package jimmy.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/**
+ * 布隆过滤器配置属性 —— 绑定 {@code app.bloom-filter} 前缀，期望插入量和误判率。
+ */
 @ConfigurationProperties(prefix = "app.bloom-filter")
 public class BloomFilterProperties {
 

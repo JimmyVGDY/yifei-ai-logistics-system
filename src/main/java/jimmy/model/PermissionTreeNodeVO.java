@@ -3,6 +3,9 @@ package jimmy.model;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 权限树节点 —— 含菜单分组 + 细粒度权限项，用于前端权限配置页面树形展示。
+ */
 public class PermissionTreeNodeVO {
 
     private Long id;

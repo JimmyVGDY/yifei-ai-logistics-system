@@ -2,6 +2,9 @@ package jimmy.util;
 
 import org.springframework.util.StringUtils;
 
+/**
+ * 日志脱敏工具 —— 对姓名/账号/文本进行前后保留、中间星号替换。
+ */
 public final class LogMaskUtils {
 
     private LogMaskUtils() {

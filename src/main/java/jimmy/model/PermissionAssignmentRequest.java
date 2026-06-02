@@ -3,6 +3,9 @@ package jimmy.model;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 权限分配请求 —— 支持三种模式：全量覆盖(permissionIds)、授权(grantPermissionIds)、拒绝(denyPermissionIds)。
+ */
 public class PermissionAssignmentRequest {
 
     private List<Long> permissionIds = new ArrayList<>();

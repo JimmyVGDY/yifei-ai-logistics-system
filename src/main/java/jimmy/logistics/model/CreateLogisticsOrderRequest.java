@@ -3,6 +3,9 @@ package jimmy.logistics.model;
 import java.math.BigDecimal;
 import javax.validation.constraints.NotBlank;
 
+/**
+ * 物流订单创建请求 —— 客户/地址/货物信息，JSR-303 校验。
+ */
 public class CreateLogisticsOrderRequest {
 
     @NotBlank(message = "客户名称不能为空")
