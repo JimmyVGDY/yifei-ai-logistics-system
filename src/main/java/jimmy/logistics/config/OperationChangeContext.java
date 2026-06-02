@@ -5,6 +5,13 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
 
+/**
+ * 操作变更审计上下文 —— 线程安全的请求级别上下文容器。
+ * <p>
+ * 写操作在 Service 层通过 {@link #setChangeSummary} 写入变更摘要，
+ * OperationLogInterceptor 在请求完成后通过 {@link #changeSummary} 取出并记入审计日志。
+ * 数据存储在 HttpServletRequest attribute 中，天然线程安全。
+ */
 public final class OperationChangeContext {
 
     private static final String CHANGE_SUMMARY_ATTRIBUTE = "operationLogChangeSummary";

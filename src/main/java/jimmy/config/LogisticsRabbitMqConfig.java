@@ -9,6 +9,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * 物流订单 RabbitMQ 配置 —— 声明 Exchange/Queue/Binding，消息持久化。
+ */
 @Configuration
 @EnableConfigurationProperties(LogisticsProperties.class)
 public class LogisticsRabbitMqConfig {

@@ -12,6 +12,12 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.UUID;
 
+/**
+ * TraceId 过滤器 —— 为每个 HTTP 请求注入链路追踪 ID。
+ * <p>
+ * 优先从请求头 X-Trace-Id 读取（兼容上游传入），否则生成 UUID。
+ * 同时将登录用户信息写入 MDC，供日志框架自动包含在所有日志输出中。
+ */
 @Component
 public class TraceIdFilter extends OncePerRequestFilter {
 

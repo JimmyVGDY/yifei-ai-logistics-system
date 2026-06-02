@@ -5,6 +5,11 @@ import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 
+/**
+ * 客户账号创建请求 —— 支持个人(PERSONAL)和企业(ENTERPRISE)两种主体类型。
+ * <p>
+ * 参数校验由 JSR-303 Bean Validation 注解完成，Controller 层统一拦截返回 400。
+ */
 public class CreateCustomerAccountRequest {
 
     @NotBlank(message = "客户账号类型不能为空")

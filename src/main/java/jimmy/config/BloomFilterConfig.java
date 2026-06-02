@@ -8,6 +8,11 @@ import org.springframework.context.annotation.Configuration;
 
 import java.nio.charset.Charset;
 
+/**
+ * 布隆过滤器配置 —— Guava 内存实现，用于订单号快速判存（防缓存穿透）。
+ * <p>
+ * 期望插入量和误判率通过 {@link BloomFilterProperties} 配置。
+ */
 @Configuration
 @EnableConfigurationProperties(BloomFilterProperties.class)
 public class BloomFilterConfig {

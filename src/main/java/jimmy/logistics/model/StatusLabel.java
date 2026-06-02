@@ -3,6 +3,11 @@ package jimmy.logistics.model;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 状态码 → 中文标签转换工具。
+ * <p>
+ * 内置 50+ 业务状态码的中文映射，未匹配的状态码返回 "未知状态(code)"。
+ */
 public final class StatusLabel {
 
     private static final Map<String, String> LABELS = buildLabels();
