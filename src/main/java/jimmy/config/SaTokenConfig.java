@@ -76,6 +76,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
                         "/error",
                         "/favicon.ico",
                         "/auth/login",
+                        "/auth/captcha",
                         "/auth/login-conflicts/*/status",
                         "/actuator/health"
                 );

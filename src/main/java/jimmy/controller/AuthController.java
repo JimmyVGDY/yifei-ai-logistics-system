@@ -2,12 +2,14 @@ package jimmy.controller;
 
 import jimmy.logistics.annotation.OperationLog;
 import jimmy.model.ApiResponse;
+import jimmy.model.CaptchaResponse;
 import jimmy.model.LoginConflictResponse;
 import jimmy.model.LoginRequest;
 import jimmy.model.LoginResponse;
 import jimmy.model.PasswordChangeRequest;
 import jimmy.model.ProfileUpdateRequest;
 import jimmy.service.AuthService;
+import jimmy.service.LoginSecurityService;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
@@ -24,9 +26,21 @@ import javax.validation.Valid;
 public class AuthController {
 
     private final AuthService authService;
+    private final LoginSecurityService loginSecurityService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, LoginSecurityService loginSecurityService) {
         this.authService = authService;
+        this.loginSecurityService = loginSecurityService;
+    }
+
+    /**
+     * 获取图形验证码。
+     * <p>生成数学算式验证码图片（Base64），答案存储在 Redis 中（5分钟TTL）。
+     * 前端可将此图片展示给用户，登录时回传 captchaId + captchaCode。
+     */
+    @GetMapping("/captcha")
+    public ApiResponse<CaptchaResponse> captcha() {
+        return ApiResponse.success(loginSecurityService.generateCaptcha());
     }
 
     /** 用户登录 —— 返回 token、权限码列表和菜单树 */

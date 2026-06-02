@@ -207,6 +207,30 @@ body {
   width: 100%;
 }
 
+/* 图形验证码行：输入框 + 图片并排 */
+.captcha-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.captcha-input {
+  flex: 1;
+}
+
+.captcha-image {
+  height: 40px;
+  width: auto;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.captcha-image:hover {
+  border-color: #409EFF;
+}
+
 @media (max-width: 800px) {
   .sidebar {
     display: none;

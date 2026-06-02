@@ -28,6 +28,10 @@ export function acceptLoginConflict(conflictId) {
   return http.post(`/auth/login-conflicts/${conflictId}/accept`)
 }
 
+export function fetchCaptcha() {
+  return http.get('/auth/captcha')
+}
+
 export function updateProfile(data) {
   return http.put('/auth/profile', data)
 }

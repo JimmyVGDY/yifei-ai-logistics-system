@@ -12,6 +12,10 @@ public class LoginRequest {
     private String username;
     /** 登录密码（明文传入，服务端BCrypt校验） */
     private String password;
+    /** 图形验证码ID（可选，异常设备登录时必填） */
+    private String captchaId;
+    /** 图形验证码答案（可选，异常设备登录时必填） */
+    private String captchaCode;
 
     public String getUsername() { return username; }
 
@@ -20,4 +24,10 @@ public class LoginRequest {
     public String getPassword() { return password; }
 
     public void setPassword(String password) { this.password = password; }
+
+    public String getCaptchaId() { return captchaId; }
+    public void setCaptchaId(String captchaId) { this.captchaId = captchaId; }
+
+    public String getCaptchaCode() { return captchaCode; }
+    public void setCaptchaCode(String captchaCode) { this.captchaCode = captchaCode; }
 }

@@ -370,3 +370,18 @@ create table if not exists logistics_freight_bill (
     index idx_freight_order_no (order_no),
     index idx_freight_pay_status (pay_status)
 );
+
+-- 登录历史表 — 记录每次登录尝试的 IP/UA，支撑异常设备检测和验证码触发
+create table if not exists sys_login_history (
+    id bigint primary key,
+    user_id bigint not null comment '登录用户ID',
+    username varchar(64) not null comment '登录用户名',
+    login_ip varchar(64) not null comment '客户端IP地址',
+    user_agent varchar(512) null comment '客户端User-Agent标识',
+    login_result varchar(20) not null comment '登录结果：SUCCESS/FAIL/CAPTCHA_REQUIRED',
+    fail_reason varchar(128) null comment '失败原因',
+    require_captcha tinyint default 0 comment '是否需要验证码',
+    login_time timestamp not null comment '登录时间',
+    index idx_login_history_user_time (user_id, login_time),
+    index idx_login_history_ip (login_ip)
+);

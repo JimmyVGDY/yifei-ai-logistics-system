@@ -4,19 +4,24 @@ import cn.dev33.satoken.stp.SaTokenInfo;
 import cn.dev33.satoken.stp.SaLoginModel;
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.mapper.AuthMapper;
+import jimmy.model.CaptchaResponse;
 import jimmy.model.LoginConflictResponse;
 import jimmy.model.LoginRequest;
 import jimmy.model.LoginResponse;
 import jimmy.model.MenuVO;
 import jimmy.model.PasswordChangeRequest;
 import jimmy.model.ProfileUpdateRequest;
+import jimmy.model.RequireCaptchaResponse;
 import jimmy.util.FieldEncryptor;
 import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import javax.servlet.http.HttpServletRequest;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,24 +54,32 @@ public class AuthService {
     private final SystemPermissionService systemPermissionService;
     private final LoginConflictService loginConflictService;
     private final FieldEncryptor fieldEncryptor;
+    private final LoginSecurityService loginSecurityService;
 
     public AuthService(AuthMapper authMapper, SystemPermissionService systemPermissionService,
-                       LoginConflictService loginConflictService, FieldEncryptor fieldEncryptor) {
+                       LoginConflictService loginConflictService, FieldEncryptor fieldEncryptor,
+                       LoginSecurityService loginSecurityService) {
         this.authMapper = authMapper;
         this.systemPermissionService = systemPermissionService;
         this.loginConflictService = loginConflictService;
         this.fieldEncryptor = fieldEncryptor;
+        this.loginSecurityService = loginSecurityService;
     }
 
     /**
-     * 账号密码登录，优先检测登录冲突。
+     * 账号密码登录，优先检测登录冲突和异常设备。
+     * <p>
+     * 异常设备检测：查询用户最近 30 天成功登录记录，
+     * 若当前 IP 和 User-Agent 均不在历史记录中（出现 &lt;3 次），
+     * 则要求输入图形验证码。验证通过后继续密码校验。
      * <p>
      * 若同一账号已有在线会话，不立即踢人，而是创建一个待确认的登录冲突记录，
      * 由原会话持有者选择"接受"（让新会话登入）或"拒绝"。
      *
-     * @param request 用户名 + 密码
-     * @return 首次登录返回 {@link LoginResponse}，冲突时返回 {@link LoginConflictResponse}
-     * @throws IllegalArgumentException 账号为空 / 密码错误 / 账号已停用
+     * @param request 用户名 + 密码 + 可选验证码
+     * @return 首次登录返回 {@link LoginResponse}，冲突时返回 {@link LoginConflictResponse}，
+     *         异常设备且未提供验证码时返回 {@link RequireCaptchaResponse}
+     * @throws IllegalArgumentException 账号为空 / 密码错误 / 账号已停用 / 验证码错误
      */
     public Object login(LoginRequest request) {
         String username = request == null ? null : request.getUsername();
@@ -76,20 +89,64 @@ public class AuthService {
             throw new IllegalArgumentException("账号和密码不能为空");
         }
 
+        // 提取客户端 IP 和 User-Agent，用于异常设备检测
+        HttpServletRequest httpRequest = currentRequest();
+        String clientIp = extractClientIp(httpRequest);
+        String userAgent = httpRequest != null ? httpRequest.getHeader("User-Agent") : null;
+
         LoginUser loginUser = findLoginUser(username);
-        if (loginUser == null || !matchesPassword(password, loginUser.password)) {
+        if (loginUser == null) {
             log.warn("登录失败，账号或密码错误，username={}", LogMaskUtils.maskAccount(username));
             throw new IllegalArgumentException("账号或密码错误");
         }
+
+        // 异常设备检测：从不常用 IP/UA 登录时要求图形验证码。
+        // 验证码在密码校验之前执行，防止暴力破解绕过。
+        boolean isFamiliar = loginSecurityService.isFamiliarDevice(loginUser.id, clientIp, userAgent);
+        if (!isFamiliar) {
+            if (!StringUtils.hasText(request.getCaptchaId()) || !StringUtils.hasText(request.getCaptchaCode())) {
+                // 未提供验证码 → 生成验证码并返回
+                CaptchaResponse captcha = loginSecurityService.generateCaptcha();
+                log.info("异常设备登录，要求验证码，userId={}, ip={}, ua={}",
+                        LogMaskUtils.maskId(String.valueOf(loginUser.id)), LogMaskUtils.maskIp(clientIp),
+                        LogMaskUtils.maskText(userAgent));
+                loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
+                        "CAPTCHA_REQUIRED", null, true);
+                return new RequireCaptchaResponse(captcha.getCaptchaId(), captcha.getCaptchaImage(),
+                        "检测到异常登录设备，请完成图形验证码验证");
+            }
+            // 已提供验证码 → 校验
+            if (!loginSecurityService.validateCaptcha(request.getCaptchaId(), request.getCaptchaCode())) {
+                log.warn("登录失败，验证码错误，userId={}, username={}",
+                        LogMaskUtils.maskId(String.valueOf(loginUser.id)), LogMaskUtils.maskAccount(username));
+                loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
+                        "FAIL", "验证码错误", true);
+                throw new IllegalArgumentException("验证码错误，请刷新验证码后重新输入");
+            }
+        }
+
+        if (!matchesPassword(password, loginUser.password)) {
+            log.warn("登录失败，账号或密码错误，username={}", LogMaskUtils.maskAccount(username));
+            loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
+                    "FAIL", "密码错误", !isFamiliar);
+            throw new IllegalArgumentException("账号或密码错误");
+        }
         if (loginUser.status == null || loginUser.status != 1) {
+            loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
+                    "FAIL", "账号已停用", !isFamiliar);
             throw new IllegalArgumentException("账号已停用");
         }
         upgradePasswordIfNecessary(loginUser, password);
         if (StpUtil.isLogin(loginUser.id)) {
+            loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
+                    "PENDING", "登录冲突", !isFamiliar);
             log.info("检测到同一账号已有在线会话，创建登录冲突确认，userId={}, username={}",
                     LogMaskUtils.maskId(String.valueOf(loginUser.id)), LogMaskUtils.maskAccount(loginUser.username));
             return loginConflictService.create(loginUser.id, loginUser.username);
         }
+        // 登录成功，记录到历史
+        loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
+                "SUCCESS", null, !isFamiliar);
         return completeLogin(loginUser);
     }
 
@@ -677,6 +734,36 @@ public class AuthService {
             }
         }
         return result;
+    }
+
+    /**
+     * 从当前请求中获取 HttpServletRequest。
+     * <p>用于提取客户端 IP 和 User-Agent，供异常设备检测使用。
+     */
+    private HttpServletRequest currentRequest() {
+        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes)) {
+            return null;
+        }
+        return ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+    }
+
+    /**
+     * 提取客户端真实 IP（优先代理头，兜底 RemoteAddr）。
+     * <p>与 OperationLogInterceptor 保持一致的多级代理穿透逻辑。
+     */
+    private String extractClientIp(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.trim().isEmpty()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.trim().isEmpty()) {
+            return realIp.trim();
+        }
+        return request.getRemoteAddr();
     }
 
     private Map<String, MenuVO> allDefaultMenus() {
