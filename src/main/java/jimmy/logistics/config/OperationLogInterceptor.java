@@ -263,19 +263,20 @@ public class OperationLogInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * 对异常消息进行安全清洗：移除手机号、邮箱等敏感信息，再截断存储。
+     * 对异常消息进行安全清洗：脱敏手机号、邮箱、身份证号，保留头尾以支持问题定位。
      * <p>防止业务代码抛出带用户数据的异常时，敏感信息被写入日志文件和数据库。
+     * 脱敏后仍可通过部分信息辅助排查（如 "138****5678不存在" 可定位到特定用户）。
      */
     private String sanitizeErrorMessage(String message) {
         if (message == null) {
             return null;
         }
-        // 移除中国大陆 11 位手机号（1[3-9]xxxxxxxxx）
-        String sanitized = message.replaceAll("1[3-9]\\d{9}", "***");
-        // 移除邮箱地址
-        sanitized = sanitized.replaceAll("[\\w.+-]+@[\\w.-]+\\.[a-zA-Z]{2,}", "***@***");
-        // 移除 18 位身份证号
-        sanitized = sanitized.replaceAll("\\d{17}[\\dXx]", "***");
+        // 中国大陆 11 位手机号脱敏：保留前3位和后4位 → 138****5678
+        String sanitized = message.replaceAll("(1[3-9]\\d)\\d{4}(\\d{4})", "$1****$2");
+        // 邮箱地址脱敏：只保留 @ 前后各1位字符 → t***@e***.com
+        sanitized = sanitized.replaceAll("([\\w.+-])[\\w.+-]*@([\\w.-])[\\w.-]*(\\.[a-zA-Z]{2,})", "$1***@$2***$3");
+        // 18 位身份证号脱敏：只保留前3后4位 → 310***********1234
+        sanitized = sanitized.replaceAll("\\b(\\d{3})\\d{11}(\\d{4})\\b", "$1***********$2");
         return truncate(sanitized, MAX_LOG_TEXT_LENGTH);
     }
 
