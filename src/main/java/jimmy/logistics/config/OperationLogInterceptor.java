@@ -119,8 +119,9 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                 String ip = clientIp(request);
                 String targetId = targetId(request);
                 String ua = userAgent(request);
-                log.info("操作日志已记录，operationId={}, traceId={}, userId={}, username={}, operation={}, uri={}, method={}, status={}, costMs={}, ip={}, targetId={}, ua={}{}",
-                        operationId, traceId, currentUserId(), LogMaskUtils.maskAccount(username), operation,
+                String loginSessionId = currentLoginSessionId();
+                log.info("操作日志已记录，operationId={}, traceId={}, loginSessionId={}, userId={}, username={}, operation={}, uri={}, method={}, status={}, costMs={}, ip={}, targetId={}, ua={}{}",
+                        operationId, traceId, loginSessionId, currentUserId(), LogMaskUtils.maskAccount(username), operation,
                         request.getRequestURI(), request.getMethod(), status, costMs, LogMaskUtils.maskIp(ip),
                         targetId == null ? "-" : targetId, LogMaskUtils.maskText(ua),
                         changeSummary != null && !changeSummary.isEmpty() ? ", change=" + changeSummary : "");
