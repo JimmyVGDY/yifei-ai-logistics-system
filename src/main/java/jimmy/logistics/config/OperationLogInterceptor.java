@@ -164,6 +164,19 @@ public class OperationLogInterceptor implements HandlerInterceptor {
     private String resolveRequestOperation(HttpServletRequest request) {
         String uri = request.getRequestURI();
         String usage = request.getParameter("usage");
+        String method = request.getMethod();
+        String authOperation = resolveAuthOperation(uri, method);
+        if (authOperation != null) {
+            return authOperation;
+        }
+        String infrastructureOperation = resolveInfrastructureOperation(uri);
+        if (infrastructureOperation != null) {
+            return infrastructureOperation;
+        }
+        String toolOperation = resolveToolOperation(uri, method);
+        if (toolOperation != null) {
+            return toolOperation;
+        }
         if (uri.startsWith("/logistics/modules/")) {
             String[] parts = uri.substring("/logistics/modules/".length()).split("/");
             String module = parts.length == 0 ? "" : parts[0];
@@ -175,7 +188,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                     return "权限配置-加载角色候选列表";
                 }
             }
-            return moduleName(module) + "-" + moduleActionName(request.getMethod(), parts);
+            return moduleName(module) + "-" + moduleActionName(method, parts);
         }
         if (uri.startsWith("/logistics/excel/export/")) {
             String module = uri.substring("/logistics/excel/export/".length()).split("/")[0];
@@ -196,11 +209,80 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         if (uri.equals("/logistics/orders/search")) {
             return "运单管理-搜索订单";
         }
-        if (uri.matches("/logistics/orders/[^/]+") && "GET".equalsIgnoreCase(request.getMethod())) {
+        if (uri.matches("/logistics/orders/[^/]+") && "GET".equalsIgnoreCase(method)) {
             return "运单管理-查看订单详情";
         }
-        if (uri.equals("/logistics/orders") && "GET".equalsIgnoreCase(request.getMethod())) {
+        if (uri.equals("/logistics/orders") && "GET".equalsIgnoreCase(method)) {
             return "运单管理-查询近期订单";
+        }
+        return null;
+    }
+
+    private String resolveAuthOperation(String uri, String method) {
+        if (uri.equals("/auth/login") && "POST".equalsIgnoreCase(method)) {
+            return "用户登录";
+        }
+        if (uri.equals("/auth/logout") && "POST".equalsIgnoreCase(method)) {
+            return "用户退出";
+        }
+        if (uri.equals("/auth/profile") && "PUT".equalsIgnoreCase(method)) {
+            return "个人设置-修改资料";
+        }
+        if (uri.equals("/auth/password") && "PUT".equalsIgnoreCase(method)) {
+            return "个人设置-修改密码";
+        }
+        if (uri.matches("/auth/login-conflicts/[^/]+/reject") && "POST".equalsIgnoreCase(method)) {
+            return "登录冲突-保持当前会话";
+        }
+        if (uri.matches("/auth/login-conflicts/[^/]+/accept") && "POST".equalsIgnoreCase(method)) {
+            return "登录冲突-允许新会话";
+        }
+        return null;
+    }
+
+    private String resolveInfrastructureOperation(String uri) {
+        if (uri.equals("/infra/status")) {
+            return "资源中心-查看中间件状态";
+        }
+        if (uri.equals("/infra/nacos/services")) {
+            return "资源中心-查看Nacos服务";
+        }
+        if (uri.equals("/infra/nacos/instances")) {
+            return "资源中心-查看Nacos实例";
+        }
+        if (uri.equals("/infra/sentinel/ping")) {
+            return "资源中心-测试Sentinel";
+        }
+        if (uri.equals("/infra/elasticsearch/client")) {
+            return "资源中心-测试Elasticsearch";
+        }
+        if (uri.equals("/infra/redis/client")) {
+            return "资源中心-测试Redis";
+        }
+        if (uri.equals("/infra/rabbitmq/client")) {
+            return "资源中心-测试RabbitMQ";
+        }
+        return null;
+    }
+
+    private String resolveToolOperation(String uri, String method) {
+        if (uri.equals("/demo-users") && "GET".equalsIgnoreCase(method)) {
+            return "练习用户-查询列表";
+        }
+        if (uri.equals("/demo-users/detail") && "GET".equalsIgnoreCase(method)) {
+            return "练习用户-查看详情";
+        }
+        if (uri.equals("/demo-users") && "POST".equalsIgnoreCase(method)) {
+            return "练习用户-新增记录";
+        }
+        if (uri.equals("/bloom-filter/items") && "GET".equalsIgnoreCase(method)) {
+            return "布隆过滤器-检查元素";
+        }
+        if (uri.equals("/bloom-filter/items") && "POST".equalsIgnoreCase(method)) {
+            return "布隆过滤器-写入元素";
+        }
+        if (uri.equals("/rabbitmq/messages") && "POST".equalsIgnoreCase(method)) {
+            return "RabbitMQ-发送测试消息";
         }
         return null;
     }
@@ -244,11 +326,21 @@ public class OperationLogInterceptor implements HandlerInterceptor {
     private boolean isBusinessWrite(HttpServletRequest request) {
         String method = request.getMethod();
         String uri = request.getRequestURI();
-        return uri.startsWith("/logistics/")
+        return isAuditedBusinessPath(uri)
                 && ("POST".equalsIgnoreCase(method)
                 || "PUT".equalsIgnoreCase(method)
                 || "PATCH".equalsIgnoreCase(method)
                 || "DELETE".equalsIgnoreCase(method));
+    }
+
+    private boolean isAuditedBusinessPath(String uri) {
+        return uri.startsWith("/logistics/")
+                || uri.startsWith("/auth/")
+                || uri.startsWith("/system/")
+                || uri.startsWith("/infra/")
+                || uri.startsWith("/demo-users")
+                || uri.startsWith("/bloom-filter/")
+                || uri.startsWith("/rabbitmq/");
     }
 
     private String currentUsername() {

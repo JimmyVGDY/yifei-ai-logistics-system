@@ -149,6 +149,86 @@ class OperationLogInterceptorTest {
         );
     }
 
+    @Test
+    void shouldRecordNonLogisticsUserClicksWithReadableBusinessOperation() throws Exception {
+        OperationLogMapper mapper = mock(OperationLogMapper.class);
+        ColumnExistenceChecker columnChecker = columnCheckerWithOperationLogColumns();
+        CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
+        when(idGenerator.nextId()).thenReturn(260602170000009L, 260602170000010L, 260602170000011L, 260602170000012L);
+
+        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        MockHttpServletRequest profileRequest = new MockHttpServletRequest("PUT", "/auth/profile");
+        MockHttpServletResponse profileResponse = new MockHttpServletResponse();
+        interceptor.preHandle(profileRequest, profileResponse, handlerMethodWithoutOperationLog());
+        interceptor.afterCompletion(profileRequest, profileResponse, handlerMethodWithoutOperationLog(), null);
+
+        MockHttpServletRequest infraRequest = new MockHttpServletRequest("GET", "/infra/status");
+        MockHttpServletResponse infraResponse = new MockHttpServletResponse();
+        interceptor.preHandle(infraRequest, infraResponse, handlerMethodWithoutOperationLog());
+        interceptor.afterCompletion(infraRequest, infraResponse, handlerMethodWithoutOperationLog(), null);
+
+        verify(mapper).insertOperationLog(
+                anyLong(),
+                eq("260602170000009"),
+                eq(profileResponse.getHeader("X-Trace-Id")),
+                eq(""),
+                eq(""),
+                eq("anonymous"),
+                eq(""),
+                eq("个人设置-修改资料"),
+                eq("/auth/profile"),
+                eq("PUT"),
+                eq("SUCCESS"),
+                org.mockito.ArgumentMatchers.anyLong(),
+                eq(null)
+        );
+        verify(mapper).insertOperationLog(
+                anyLong(),
+                eq("260602170000011"),
+                eq(infraResponse.getHeader("X-Trace-Id")),
+                eq(""),
+                eq(""),
+                eq("anonymous"),
+                eq(""),
+                eq("资源中心-查看中间件状态"),
+                eq("/infra/status"),
+                eq("GET"),
+                eq("SUCCESS"),
+                org.mockito.ArgumentMatchers.anyLong(),
+                eq(null)
+        );
+    }
+
+    @Test
+    void shouldRecordSystemPermissionClickByAnnotation() throws Exception {
+        OperationLogMapper mapper = mock(OperationLogMapper.class);
+        ColumnExistenceChecker columnChecker = columnCheckerWithOperationLogColumns();
+        CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
+        when(idGenerator.nextId()).thenReturn(260602170000013L, 260602170000014L);
+
+        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/system/permissions/tree");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        interceptor.preHandle(request, response, handlerMethod());
+        interceptor.afterCompletion(request, response, handlerMethod(), null);
+
+        verify(mapper).insertOperationLog(
+                anyLong(),
+                eq("260602170000013"),
+                eq(response.getHeader("X-Trace-Id")),
+                eq(""),
+                eq(""),
+                eq("anonymous"),
+                eq(""),
+                eq("测试操作"),
+                eq("/system/permissions/tree"),
+                eq("GET"),
+                eq("SUCCESS"),
+                org.mockito.ArgumentMatchers.anyLong(),
+                eq(null)
+        );
+    }
+
     private HandlerMethod handlerMethod() throws Exception {
         Method method = DummyController.class.getDeclaredMethod("createOrder");
         return new HandlerMethod(new DummyController(), method);

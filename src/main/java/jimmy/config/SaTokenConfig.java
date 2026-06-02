@@ -57,7 +57,15 @@ public class SaTokenConfig implements WebMvcConfigurer {
                         "/actuator/health"
                 );
         registry.addInterceptor(operationLogInterceptor)
-                .addPathPatterns("/logistics/**", "/auth/**");
+                .addPathPatterns(
+                        "/logistics/**",
+                        "/auth/**",
+                        "/system/**",
+                        "/infra/**",
+                        "/demo-users/**",
+                        "/bloom-filter/**",
+                        "/rabbitmq/**"
+                );
     }
 
     private void checkRoutePermission() {
