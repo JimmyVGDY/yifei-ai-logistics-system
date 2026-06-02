@@ -8,13 +8,18 @@ import javax.validation.constraints.NotBlank;
  */
 public class CreateLogisticsOrderRequest {
 
+    /** 客户名称 */
     @NotBlank(message = "客户名称不能为空")
     private String customerName;
+    /** 发货地址 */
     @NotBlank(message = "发货地址不能为空")
     private String senderAddress;
+    /** 收货地址 */
     @NotBlank(message = "收货地址不能为空")
     private String receiverAddress;
+    /** 货物名称 */
     private String cargoName;
+    /** 货物重量（千克） */
     private BigDecimal cargoWeight;
 
     public String getCustomerName() {

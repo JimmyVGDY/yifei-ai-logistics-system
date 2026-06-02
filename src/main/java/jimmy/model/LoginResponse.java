@@ -8,17 +8,29 @@ import java.util.List;
  */
 public class LoginResponse {
 
+    /** 用户名 */
     private String username;
+    /** Sa-Token 登录ID */
     private Object loginId;
+    /** Token 名称（Sa-Token tokenName） */
     private String tokenName;
+    /** Token 值 */
     private String tokenValue;
+    /** 用户ID */
     private Long userId;
+    /** 用户编号 */
     private String userCode;
+    /** 脱敏后的用户名 */
     private String usernameMasked;
+    /** 脱敏后的真实姓名 */
     private String realNameMasked;
+    /** 角色编码 */
     private String roleCode;
+    /** 角色名称 */
     private String roleName;
+    /** 权限码列表 */
     private List<String> permissions = new ArrayList<>();
+    /** 菜单树 */
     private List<MenuVO> menus = new ArrayList<>();
 
     public LoginResponse(String username, Object loginId, String tokenName, String tokenValue) {

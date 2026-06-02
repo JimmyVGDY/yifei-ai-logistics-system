@@ -7,8 +7,11 @@ package jimmy.model;
  */
 public class ApiResponse<T> {
 
+    /** HTTP 状态码（200=成功, 400=参数错误, 401=未登录, 403=无权限, 500=系统异常） */
     private int code;
+    /** 提示信息 */
     private String message;
+    /** 响应数据体 */
     private T data;
 
     public ApiResponse() {

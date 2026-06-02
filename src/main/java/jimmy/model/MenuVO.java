@@ -8,12 +8,19 @@ import java.util.List;
  */
 public class MenuVO {
 
+    /** 菜单ID */
     private Long id;
+    /** 父菜单ID（0=顶级菜单） */
     private Long parentId;
+    /** 菜单名称 */
     private String name;
+    /** 前端路由路径 */
     private String path;
+    /** 关联的权限码 */
     private String permissionCode;
+    /** 排序序号 */
     private Integer sortNo;
+    /** 子菜单列表 */
     private List<MenuVO> children = new ArrayList<>();
 
     public Long getId() {

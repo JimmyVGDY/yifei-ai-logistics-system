@@ -8,8 +8,11 @@ import java.util.Map;
  */
 public class InfrastructureStatus {
 
+    /** 组件名称（MySQL/Redis/RabbitMQ/ES） */
     private String component;
+    /** 健康状态（UP/DOWN/UNKNOWN） */
     private String status;
+    /** 详细信息（版本/连接数/延迟等） */
     private Map<String, Object> details = new LinkedHashMap<String, Object>();
 
     public InfrastructureStatus() {

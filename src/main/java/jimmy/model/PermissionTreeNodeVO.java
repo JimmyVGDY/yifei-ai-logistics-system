@@ -8,12 +8,19 @@ import java.util.List;
  */
 public class PermissionTreeNodeVO {
 
+    /** 节点ID（菜单ID或权限ID） */
     private Long id;
+    /** 节点显示名称 */
     private String label;
+    /** 节点类型（MENU=菜单分组 / PERMISSION=权限项） */
     private String nodeType;
+    /** 权限码 */
     private String permissionCode;
+    /** 权限ID（仅 PERMISSION 类型） */
     private Long permissionId;
+    /** 菜单ID（仅 MENU 类型） */
     private Long menuId;
+    /** 子节点列表 */
     private List<PermissionTreeNodeVO> children = new ArrayList<>();
 
     public Long getId() { return id; }

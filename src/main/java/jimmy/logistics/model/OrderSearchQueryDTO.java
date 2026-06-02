@@ -7,6 +7,7 @@ public class OrderSearchQueryDTO {
 
     private int page = 1;
     private int pageSize = 20;
+    /** 关键词（模糊搜索客户名/地址/货物名） */
     private String keyword;
 
     public int getPage() {

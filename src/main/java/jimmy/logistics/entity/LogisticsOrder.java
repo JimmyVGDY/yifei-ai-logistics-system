@@ -8,15 +8,25 @@ import java.time.LocalDateTime;
  */
 public class LogisticsOrder {
 
+    /** 主键ID */
     private Long id;
+    /** 订单号（服务端生成的唯一业务编号） */
     private String orderNo;
+    /** 客户名称 */
     private String customerName;
+    /** 发货地址 */
     private String senderAddress;
+    /** 收货地址 */
     private String receiverAddress;
+    /** 货物名称 */
     private String cargoName;
+    /** 货物重量（千克） */
     private BigDecimal cargoWeight;
+    /** 订单状态（英文状态码） */
     private String status;
+    /** 创建时间 */
     private LocalDateTime createdAt;
+    /** 更新时间 */
     private LocalDateTime updatedAt;
 
     public Long getId() {

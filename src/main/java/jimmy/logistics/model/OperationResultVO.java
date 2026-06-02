@@ -5,8 +5,11 @@ package jimmy.logistics.model;
  */
 public class OperationResultVO {
 
+    /** 操作结果ID */
     private Long id;
+    /** 是否软删除 */
     private Boolean deleted;
+    /** 操作后状态 */
     private String status;
 
     public OperationResultVO(Long id) {

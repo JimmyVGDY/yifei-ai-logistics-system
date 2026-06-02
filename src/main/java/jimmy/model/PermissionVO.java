@@ -5,13 +5,21 @@ package jimmy.model;
  */
 public class PermissionVO {
 
+    /** 权限ID */
     private Long id;
+    /** 权限码（如 logistics:order:create） */
     private String permissionCode;
+    /** 权限名称 */
     private String permissionName;
+    /** 权限类型（API/BUTTON/MENU） */
     private String permissionType;
+    /** 模块编码 */
     private String moduleCode;
+    /** 操作编码（view/create/update/delete 等） */
     private String actionCode;
+    /** 关联菜单ID */
     private Long menuId;
+    /** 排序序号 */
     private Integer sortNo;
 
     public Long getId() { return id; }

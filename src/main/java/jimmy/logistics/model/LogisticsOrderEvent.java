@@ -7,9 +7,13 @@ import java.time.LocalDateTime;
  */
 public class LogisticsOrderEvent {
 
+    /** 订单事件类型（CREATED/UPDATED/STATUS_CHANGED） */
     private String eventType;
+    /** 订单号 */
     private String orderNo;
+    /** 事件发生时的订单状态 */
     private String status;
+    /** 事件发生时间 */
     private LocalDateTime occurredAt;
 
     public LogisticsOrderEvent() {

@@ -7,9 +7,13 @@ import java.time.LocalDateTime;
  */
 public class DemoUser {
 
+    /** 主键ID */
     private Long id;
+    /** 用户名 */
     private String username;
+    /** 显示名称 */
     private String displayName;
+    /** 创建时间 */
     private LocalDateTime createdAt;
 
     public Long getId() {

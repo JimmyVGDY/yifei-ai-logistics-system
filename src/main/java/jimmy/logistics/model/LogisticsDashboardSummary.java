@@ -9,13 +9,21 @@ import java.util.Map;
  */
 public class LogisticsDashboardSummary {
 
+    /** 今日订单数 */
     private long todayOrders;
+    /** 已完成订单总数 */
     private long completedOrders;
+    /** 待调度订单数 */
     private long waitDispatchOrders;
+    /** 运输中订单数 */
     private long inTransitOrders;
+    /** 异常订单数 */
     private long exceptionOrders;
+    /** 本月收入（元） */
     private BigDecimal monthIncome;
+    /** 订单状态分布（饼图数据） */
     private List<Map<String, Object>> statusDistribution;
+    /** 近期异常订单列表 */
     private List<Map<String, Object>> recentExceptions;
     /** 30 天内到期合同 */
     private List<Map<String, Object>> expiringContracts;

@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
  */
 public class LogisticsOrderVO {
 
+    /** 主键ID */
     private Long id;
     /** 订单号（服务端生成的唯一业务编号） */
     private String orderNo;

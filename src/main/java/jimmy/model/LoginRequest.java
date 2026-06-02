@@ -8,7 +8,9 @@ package jimmy.model;
  */
 public class LoginRequest {
 
+    /** 登录用户名 */
     private String username;
+    /** 登录密码（明文传入，服务端BCrypt校验） */
     private String password;
 
     public String getUsername() { return username; }
