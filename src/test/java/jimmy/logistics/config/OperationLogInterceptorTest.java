@@ -69,6 +69,45 @@ class OperationLogInterceptorTest {
     }
 
     @Test
+    void shouldWriteClientContextAndFilterSensitiveParamsWhenColumnsExist() throws Exception {
+        OperationLogMapper mapper = mock(OperationLogMapper.class);
+        ColumnExistenceChecker columnChecker = columnCheckerWithClientContextColumns();
+        CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
+        when(idGenerator.nextId()).thenReturn(260602190000001L, 260602190000002L);
+
+        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/logistics/modules/orders/100");
+        request.addHeader("X-Forwarded-For", "192.168.1.10, 10.0.0.1");
+        request.addHeader("User-Agent", "JUnit Browser");
+        request.setParameter("keyword", "测试订单");
+        request.setParameter("password", "123456");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        interceptor.preHandle(request, response, handlerMethodWithoutOperationLog());
+        interceptor.afterCompletion(request, response, handlerMethodWithoutOperationLog(), null);
+
+        verify(mapper).insertOperationLogWithClientContext(
+                anyLong(),
+                eq("260602190000001"),
+                eq(response.getHeader("X-Trace-Id")),
+                eq(""),
+                eq(""),
+                eq("anonymous"),
+                eq(""),
+                eq("运单管理-编辑记录"),
+                eq("/logistics/modules/orders/100"),
+                eq("POST"),
+                eq("SUCCESS"),
+                org.mockito.ArgumentMatchers.anyLong(),
+                eq(null),
+                eq("192.168.1.10"),
+                eq("JUnit Browser"),
+                eq("keyword=测试订单"),
+                eq("100")
+        );
+    }
+
+    @Test
     void shouldRecordPermissionConfigCandidateListAsBusinessOperation() throws Exception {
         OperationLogMapper mapper = mock(OperationLogMapper.class);
         ColumnExistenceChecker columnChecker = columnCheckerWithOperationLogColumns();
@@ -267,6 +306,19 @@ class OperationLogInterceptorTest {
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
             statement.execute("create table if not exists sys_operation_log (id bigint, operation_id varchar(64), error_message varchar(255))");
+        }
+        return new ColumnExistenceChecker(dataSource);
+    }
+
+    private ColumnExistenceChecker columnCheckerWithClientContextColumns() throws Exception {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource(
+                "jdbc:h2:mem:operation_log_context_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                "sa",
+                ""
+        );
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.execute("create table if not exists sys_operation_log (id bigint, operation_id varchar(64), error_message varchar(255), client_ip varchar(45), user_agent varchar(255), request_params varchar(1000), target_id varchar(64))");
         }
         return new ColumnExistenceChecker(dataSource);
     }

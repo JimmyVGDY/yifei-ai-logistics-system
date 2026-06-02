@@ -14,7 +14,11 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -24,6 +28,8 @@ public class OperationLogInterceptor implements HandlerInterceptor {
     private static final String START_TIME_ATTRIBUTE = "operationLogStartTime";
     private static final String OPERATION_ID_ATTRIBUTE = "operationLogOperationId";
     private static final String TRACE_ID_ATTRIBUTE = "operationLogTraceId";
+    private static final int MAX_LOG_TEXT_LENGTH = 255;
+    private static final int MAX_PARAM_TEXT_LENGTH = 1000;
     private static final java.util.Map<String, String> MODULE_NAMES = buildModuleNames();
 
     private final OperationLogMapper operationLogMapper;
@@ -121,9 +127,19 @@ public class OperationLogInterceptor implements HandlerInterceptor {
             return;
         }
         if (columnChecker.hasColumn("sys_operation_log", "error_message")) {
+            if (hasClientContextColumns()) {
+                operationLogMapper.insertOperationLogWithClientContext(
+                        idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
+                        currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs,
+                        truncate(errorMessage, MAX_LOG_TEXT_LENGTH), clientIp(request), userAgent(request),
+                        requestParams(request), targetId(request)
+                );
+                return;
+            }
             operationLogMapper.insertOperationLog(
                     idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
-                    currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs, errorMessage
+                    currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs,
+                    truncate(errorMessage, MAX_LOG_TEXT_LENGTH)
             );
             return;
         }
@@ -131,6 +147,107 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                 idGenerator.nextId(), operationId, traceId, currentUserId(), currentUserCode(), username,
                 currentRoleCode(), operation, request.getRequestURI(), request.getMethod(), status, costMs
         );
+    }
+
+    private boolean hasClientContextColumns() {
+        return columnChecker.hasColumn("sys_operation_log", "client_ip")
+                && columnChecker.hasColumn("sys_operation_log", "user_agent")
+                && columnChecker.hasColumn("sys_operation_log", "request_params")
+                && columnChecker.hasColumn("sys_operation_log", "target_id");
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        String forwardedFor = firstHeaderValue(request.getHeader("X-Forwarded-For"));
+        if (notBlank(forwardedFor)) {
+            return truncate(forwardedFor, 45);
+        }
+        String realIp = firstHeaderValue(request.getHeader("X-Real-IP"));
+        if (notBlank(realIp)) {
+            return truncate(realIp, 45);
+        }
+        return truncate(request.getRemoteAddr(), 45);
+    }
+
+    private String userAgent(HttpServletRequest request) {
+        return truncate(request.getHeader("User-Agent"), MAX_LOG_TEXT_LENGTH);
+    }
+
+    private String requestParams(HttpServletRequest request) {
+        Map<String, String[]> parameterMap = request.getParameterMap();
+        if (parameterMap == null || parameterMap.isEmpty()) {
+            return null;
+        }
+        Map<String, String> safeParams = new LinkedHashMap<>();
+        for (Map.Entry<String, String[]> entry : parameterMap.entrySet()) {
+            String key = entry.getKey();
+            if (!notBlank(key) || isSensitiveParam(key)) {
+                continue;
+            }
+            String value = Arrays.stream(entry.getValue() == null ? new String[0] : entry.getValue())
+                    .map(item -> truncate(item, 80))
+                    .collect(Collectors.joining(","));
+            safeParams.put(key, value);
+        }
+        if (safeParams.isEmpty()) {
+            return null;
+        }
+        String text = safeParams.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining("&"));
+        return truncate(text, MAX_PARAM_TEXT_LENGTH);
+    }
+
+    private String targetId(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        if (uri.startsWith("/logistics/modules/")) {
+            String[] parts = uri.substring("/logistics/modules/".length()).split("/");
+            return parts.length >= 2 ? truncate(parts[1], 64) : null;
+        }
+        if (uri.matches("/system/permissions/(roles|users)/[^/]+/.*")) {
+            String[] parts = uri.substring("/system/permissions/".length()).split("/");
+            return parts.length >= 2 ? truncate(parts[0] + ":" + parts[1], 64) : null;
+        }
+        if (uri.matches("/logistics/exceptions/[^/]+/handle")) {
+            return truncate(uri.substring("/logistics/exceptions/".length()).split("/")[0], 64);
+        }
+        if (uri.matches("/logistics/fees/[^/]+/pay")) {
+            return truncate(uri.substring("/logistics/fees/".length()).split("/")[0], 64);
+        }
+        if (uri.matches("/logistics/fees/generate/[^/]+")) {
+            return truncate(uri.substring("/logistics/fees/generate/".length()), 64);
+        }
+        if (uri.matches("/logistics/orders/[^/]+")) {
+            return truncate(uri.substring("/logistics/orders/".length()), 64);
+        }
+        return null;
+    }
+
+    private boolean isSensitiveParam(String key) {
+        String lowerKey = key.toLowerCase();
+        return lowerKey.contains("password")
+                || lowerKey.contains("token")
+                || lowerKey.contains("secret")
+                || lowerKey.contains("credential")
+                || lowerKey.contains("authorization");
+    }
+
+    private String firstHeaderValue(String value) {
+        if (!notBlank(value)) {
+            return null;
+        }
+        return value.split(",")[0].trim();
+    }
+
+    private boolean notBlank(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength);
     }
 
     private void insertLegacyLog(String username, String operation, HttpServletRequest request, String status) {

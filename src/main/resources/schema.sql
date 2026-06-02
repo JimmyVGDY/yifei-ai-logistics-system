@@ -111,10 +111,15 @@ create table if not exists sys_operation_log (
     operation_status varchar(32) not null,
     cost_ms bigint null,
     error_message text null comment '异常信息，操作失败时记录异常原因便于排障',
+    client_ip varchar(45) null comment '客户端 IP，优先取代理头中的真实 IP',
+    user_agent varchar(255) null comment '浏览器或客户端标识',
+    request_params text null comment '安全请求参数摘要，不记录密码和 token',
+    target_id varchar(64) null comment '操作对象 ID，例如记录 ID、角色 ID、订单号',
     operation_time timestamp not null,
     index idx_operation_log_operation_id (operation_id),
     index idx_operation_log_trace_id (trace_id),
     index idx_operation_log_user_code (user_code),
+    index idx_operation_log_target (target_id),
     index idx_operation_log_user (username),
     index idx_operation_log_time (operation_time)
 );

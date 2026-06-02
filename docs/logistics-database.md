@@ -46,6 +46,9 @@ password: 空（按实际配置）
 - `user_id`、`user_code`、`role_code`：操作人身份
 - `cost_ms`：接口耗时
 - `error_message`：异常信息（接口报错时自动记录异常原因）
+- `client_ip`、`user_agent`：客户端来源和浏览器标识
+- `request_params`：安全请求参数摘要，密码、token 等敏感参数不会记录
+- `target_id`：操作对象 ID，例如记录 ID、角色 ID、订单号
 - `create_by`、`update_by`、`deleted`、`version`：通用审计字段
 
 ## 模拟数据规模
@@ -70,4 +73,10 @@ mysql -uroot logistics_management < scripts/sql/refresh-logistics-readable-names
 
 ```bash
 mysql -uroot logistics_management < scripts/sql/20260531_cleanup_structured_log_and_operation_log.sql
+```
+
+如果需要增强操作日志审计上下文，可继续执行：
+
+```bash
+mysql -uroot logistics_management < scripts/sql/20260602_incremental_operation_log_context.sql
 ```

@@ -29,6 +29,20 @@
         )
     </insert>
 
+    <insert id="insertOperationLogWithClientContext">
+        insert into sys_operation_log (
+            id, operation_id, trace_id, user_id, user_code, username, role_code,
+            operation, request_uri, request_method, operation_status, cost_ms,
+            error_message, client_ip, user_agent, request_params, target_id, operation_time
+        )
+        values (
+            #{id}, #{operationId}, #{traceId}, #{userId}, #{userCode}, #{username}, #{roleCode},
+            #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs},
+            #{errorMessage, jdbcType=VARCHAR}, #{clientIp}, #{userAgent}, #{requestParams, jdbcType=VARCHAR},
+            #{targetId}, current_timestamp
+        )
+    </insert>
+
     <!-- 兼容旧库结构：增量脚本未执行时仍能写入基础审计字段，不影响业务请求完成。 -->
     <insert id="insertLegacyOperationLog">
         insert into sys_operation_log (

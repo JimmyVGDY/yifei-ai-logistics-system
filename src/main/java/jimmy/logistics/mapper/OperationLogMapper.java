@@ -20,6 +20,24 @@ public interface OperationLogMapper {
                            @Param("costMs") Long costMs,
                            @Param("errorMessage") String errorMessage);
 
+    int insertOperationLogWithClientContext(@Param("id") Long id,
+                                            @Param("operationId") String operationId,
+                                            @Param("traceId") String traceId,
+                                            @Param("userId") String userId,
+                                            @Param("userCode") String userCode,
+                                            @Param("username") String username,
+                                            @Param("roleCode") String roleCode,
+                                            @Param("operation") String operation,
+                                            @Param("requestUri") String requestUri,
+                                            @Param("requestMethod") String requestMethod,
+                                            @Param("operationStatus") String operationStatus,
+                                            @Param("costMs") Long costMs,
+                                            @Param("errorMessage") String errorMessage,
+                                            @Param("clientIp") String clientIp,
+                                            @Param("userAgent") String userAgent,
+                                            @Param("requestParams") String requestParams,
+                                            @Param("targetId") String targetId);
+
     int insertOperationLogWithoutErrorMessage(@Param("id") Long id,
                                               @Param("operationId") String operationId,
                                               @Param("traceId") String traceId,

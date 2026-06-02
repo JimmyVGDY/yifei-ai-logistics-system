@@ -121,6 +121,10 @@
                        operation, request_uri, request_method, operation_status,
                        <choose><when test="operationLogExtendedExists">cost_ms</when><otherwise>null</otherwise></choose> as cost_ms,
                        <choose><when test="operationLogErrorMessageExists">error_message</when><otherwise>null</otherwise></choose> as error_message,
+                       <choose><when test="operationLogClientContextExists">client_ip</when><otherwise>null</otherwise></choose> as client_ip,
+                       <choose><when test="operationLogClientContextExists">user_agent</when><otherwise>null</otherwise></choose> as user_agent,
+                       <choose><when test="operationLogClientContextExists">request_params</when><otherwise>null</otherwise></choose> as request_params,
+                       <choose><when test="operationLogClientContextExists">target_id</when><otherwise>null</otherwise></choose> as target_id,
                        operation_time,
                        0 as deleted_marker
                 from sys_operation_log
