@@ -97,10 +97,10 @@ public class AuthService {
         StpUtil.getSessionByLoginId(loginUser.id).set("permissions", permissions);
         StpUtil.getSessionByLoginId(loginUser.id).set("menus", menus);
 
-        SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
+        String tokenValue = StpUtil.getTokenValueByLoginId(loginUser.id);
         log.info("账号登录成功，userId={}, username={}, roleCode={}",
                 loginUser.id, LogMaskUtils.maskAccount(loginUser.username), loginUser.roleCode);
-        return buildResponse(loginUser, tokenInfo, permissions, menus);
+        return buildResponse(loginUser, StpUtil.getTokenName(), tokenValue, permissions, menus);
     }
 
     public LoginResponse currentSession() {
@@ -123,7 +123,8 @@ public class AuthService {
         // 与会话初始化保持一致的写入策略，确保 H2 等环境下读写同一会话域。
         StpUtil.getSessionByLoginId(userId).set("permissions", permissions);
         StpUtil.getSessionByLoginId(userId).set("menus", menus);
-        return buildResponse(loginUser, StpUtil.getTokenInfo(), permissions, menus);
+        SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
+        return buildResponse(loginUser, tokenInfo.getTokenName(), tokenInfo.getTokenValue(), permissions, menus);
     }
 
     public LoginConflictResponse loginConflictStatus(String conflictId) {
@@ -195,7 +196,7 @@ public class AuthService {
         StpUtil.logout(loginId);
     }
 
-    private LoginResponse buildResponse(LoginUser loginUser, SaTokenInfo tokenInfo,
+    private LoginResponse buildResponse(LoginUser loginUser, String tokenName, String tokenValue,
                                         List<String> permissions, List<MenuVO> menus) {
         if (loginUser == null) {
             throw new IllegalArgumentException("登录用户不存在");
@@ -203,8 +204,8 @@ public class AuthService {
         return new LoginResponse(
                 loginUser.username,
                 loginUser.id,
-                tokenInfo.getTokenName(),
-                tokenInfo.getTokenValue(),
+                tokenName,
+                tokenValue,
                 loginUser.id,
                 loginUser.userCode,
                 LogMaskUtils.maskAccount(loginUser.username),

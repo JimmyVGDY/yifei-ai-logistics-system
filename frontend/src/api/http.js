@@ -9,7 +9,8 @@ const http = axios.create({
 
 http.interceptors.request.use((config) => {
   const { tokenName, tokenValue } = getAuthToken()
-  if (tokenName && tokenValue) {
+  const isLoginRequest = config.url === '/auth/login'
+  if (!isLoginRequest && tokenName && tokenValue) {
     config.headers[tokenName] = tokenValue
   }
   return config
