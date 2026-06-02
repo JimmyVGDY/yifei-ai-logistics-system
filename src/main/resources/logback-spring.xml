@@ -9,11 +9,22 @@
         </encoder>
     </appender>
 
+    <!--
+        JSON 文件日志（Filebeat → Elasticsearch → Kibana 链路的数据源）。
+        安全注意事项：
+        - MDC 中的 userId/userCode 已在写入前通过 LogMaskUtils 脱敏。
+        - 日志文件默认权限由操作系统 umask 控制，生产环境建议设置为 027（仅owner可读写）。
+        - 历史日志自动 gzip 压缩，减少明文暴露面。
+        - 生产环境可通过 SPRING_PROFILES_ACTIVE=prod 将根日志级别提升至 WARN，
+          只保留 jimmy 业务包 INFO 级别，进一步降低敏感数据写入量。
+    -->
     <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_FILE}</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/logistics-management.%d{yyyy-MM-dd}.json</fileNamePattern>
+            <fileNamePattern>logs/logistics-management.%d{yyyy-MM-dd}.json.gz</fileNamePattern>
             <maxHistory>14</maxHistory>
+            <!-- 当日志总量超过 2GB 时自动清理最旧的归档文件 -->
+            <totalSizeCap>2GB</totalSizeCap>
         </rollingPolicy>
         <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
             <providers>

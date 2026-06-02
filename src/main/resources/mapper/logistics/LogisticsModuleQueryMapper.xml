@@ -167,6 +167,9 @@
                 <when test="module == 'tracks'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
                 <when test="module == 'exceptions'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
                 <when test="module == 'fees'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
+                <!-- 操作日志数据隔离：客户角色只能看到同客户下用户的操作日志 -->
+                <when test="module == 'operationLogs' and operationLogExtendedExists">and user_id in (select u.id from sys_user u where u.customer_id = #{customerId})</when>
+                <when test="module == 'operationLogs'"><!-- user_id字段不存在时不应用隔离，避免全部过滤掉 --></when>
             </choose>
         </if>
     </sql>
