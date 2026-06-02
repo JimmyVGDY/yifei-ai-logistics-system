@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.mapper.LogisticsCrudMapper;
 import jimmy.logistics.model.CreateCustomerAccountRequest;
+import jimmy.logistics.config.OperationChangeContext;
 import jimmy.logistics.model.CrudFieldValue;
 import jimmy.logistics.model.OperationResultVO;
 import jimmy.logistics.util.ColumnExistenceChecker;
@@ -91,6 +92,7 @@ public class CustomerAccountService {
         }
 
         logisticsCrudMapper.insertRecord("sys_user", utils.toFieldValues(values));
+        OperationChangeContext.setChangeSummary("账号=" + request.getUsername() + ", 姓名=" + request.getRealName() + ", 类型=" + subjectType + ", 角色=" + accountType);
         log.info("客户账号创建完成，userId={}, customerId={}, subjectType={}, accountType={}",
                 userId, customerId, subjectType, accountType);
         return new OperationResultVO(userId);

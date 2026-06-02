@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.mapper.LogisticsCustomerImportMapper;
 import jimmy.logistics.mapper.LogisticsFileMapper;
+import jimmy.logistics.config.OperationChangeContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -73,6 +74,7 @@ public class LogisticsV2Service {
         String relativePath = uploadRoot.getFileName() + "/" + storedName;
         logisticsFileMapper.insertUploadedFile(idGenerator.nextId(), originalName, storedName, relativePath, file.getSize(), file.getContentType(), currentUser());
         log.info("文件上传完成，originalName={}, size={}", originalName, file.getSize());
+        OperationChangeContext.setChangeSummary("文件=" + originalName + ", 大小=" + file.getSize() + "B");
         return record("originalName", originalName, "relativePath", relativePath, "fileSize", file.getSize());
     }
 
@@ -130,6 +132,7 @@ public class LogisticsV2Service {
         }
         workbook.close();
         log.info("客户 Excel 导入完成，imported={}", imported);
+        OperationChangeContext.setChangeSummary("导入客户数=" + imported);
         return record("imported", imported);
     }
 
