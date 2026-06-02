@@ -13,8 +13,9 @@ import java.util.concurrent.ThreadLocalRandom;
  *   <tr><td>maskName</td><td>首字 + 末字</td><td>3 ~ 6</td><td>张***丰 / 张*****丰</td></tr>
  *   <tr><td>maskAccount</td><td>首字 + 末字</td><td>3 ~ 6</td><td>a***s / a*****s</td></tr>
  *   <tr><td>maskText</td><td>前2 + 后2字</td><td>4 ~ 8</td><td>Mo****36 / Mo*******36</td></tr>
- *   <tr><td>maskId（短 ≤4位）</td><td>末1位</td><td>3 ~ 6</td><td>***1 / *****1</td></tr>
- *   <tr><td>maskId（长 ≥5位）</td><td>末4位</td><td>4 ~ 8</td><td>****0086 / ********0086</td></tr>
+ *   <tr><td>maskId（短 2~4位）</td><td>首1位 + 末1位</td><td>3 ~ 6</td><td>8***6 / 8******6</td></tr>
+ *   <tr><td>maskId（长 ≥5位）</td><td>前2位 + 后4位</td><td>4 ~ 8</td><td>10****0086 / 10**********0086</td></tr>
+ *   <tr><td>maskId（1位）</td><td>—</td><td>1</td><td>*</td></tr>
  *   <tr><td>maskIp</td><td>前两段子网</td><td>格式固定</td><td>192.168.***.***</td></tr>
  * </table>
  *
@@ -64,12 +65,12 @@ public final class LogMaskUtils {
     }
 
     /**
-     * ID脱敏：短ID（≤4位）随机3~6星+末1位；长ID（≥5位）随机4~8星+末4位。
-     * <p>两块星号范围重叠（3~6 与 4~8），采集再多样本也无法区分是短ID还是长ID。</p>
+     * ID脱敏：1位→*；短ID（2~4位）首尾各留1位；长ID（≥5位）首留2位尾留4位。
+     * <p>短/长星号范围重叠，采集再多样本也无法区分是短ID还是长ID。</p>
      * <ul>
-     *   <li>1 → ***1 / ****1 / ******1</li>
-     *   <li>86 → ***6 / *****6</li>
-     *   <li>10086 → ****0086 / ********0086</li>
+     *   <li>1 → *</li>
+     *   <li>86 → 8***6 / 8*******6</li>
+     *   <li>10086 → 10****0086 / 10**********0086</li>
      * </ul>
      */
     public static String maskId(String value) {
@@ -77,12 +78,18 @@ public final class LogMaskUtils {
             return "";
         }
         int len = value.length();
-        if (len <= 4) {
-            // 短ID：随机3~6星 + 末1位
-            return randomStars(ID_SHORT_MIN, ID_SHORT_MAX) + value.charAt(len - 1);
+        if (len == 1) {
+            // 1位ID：仅显示1个星号，无头尾可留
+            return "*";
         }
-        // 长ID：随机4~8星 + 末4位
-        return randomStars(ID_LONG_MIN, ID_LONG_MAX) + value.substring(len - 4);
+        if (len <= 4) {
+            // 短ID(2~4位)：前后各留1位 + 随机3~6星
+            return mask(value, 1, 1, ID_SHORT_MIN, ID_SHORT_MAX);
+        }
+        // 长ID(≥5位)：前留2位 + 随机4~8星 + 后留4位，不经过mask()避免短字符串截断
+        String prefix = value.substring(0, 2);
+        String suffix = value.substring(len - 4);
+        return prefix + randomStars(ID_LONG_MIN, ID_LONG_MAX) + suffix;
     }
 
     /**
@@ -127,9 +134,9 @@ public final class LogMaskUtils {
         if (length == 1) {
             return "*";
         }
-        // 2字符：显示首字符 + 随机星号
+        // 2字符：显示首字符 + 随机星号 + 末字符（首末可能不同，如ID "86"）
         if (length == 2) {
-            return trimmed.charAt(0) + randomStars(minStars, maxStars);
+            return trimmed.charAt(0) + randomStars(minStars, maxStars) + trimmed.charAt(1);
         }
         // 短字符串（≤ 保留位之和）：仅展示首尾各1字符 + 随机星号
         if (length <= prefixLength + suffixLength) {
