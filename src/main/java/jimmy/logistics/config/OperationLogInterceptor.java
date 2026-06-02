@@ -108,9 +108,12 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                 insertCompatibleOperationLog(username, operation, request, status, costMs, traceId, operationId, errorMessage);
                 String changeSummary = OperationChangeContext.changeSummary(request);
                 String ip = clientIp(request);
-                log.info("操作日志已记录，operationId={}, traceId={}, userId={}, username={}, operation={}, uri={}, method={}, status={}, costMs={}, ip={}{}",
+                String targetId = targetId(request);
+                String ua = userAgent(request);
+                log.info("操作日志已记录，operationId={}, traceId={}, userId={}, username={}, operation={}, uri={}, method={}, status={}, costMs={}, ip={}, targetId={}, ua={}{}",
                         operationId, traceId, currentUserId(), LogMaskUtils.maskAccount(username), operation,
                         request.getRequestURI(), request.getMethod(), status, costMs, ip,
+                        targetId == null ? "-" : targetId, ua == null ? "-" : ua,
                         changeSummary != null && !changeSummary.isEmpty() ? ", change=" + changeSummary : "");
             } catch (RuntimeException logException) {
                 // 如果本地库还没执行增量脚本，回退到旧字段写法，保证业务接口不因审计字段缺失而失败。
