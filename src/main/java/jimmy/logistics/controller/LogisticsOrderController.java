@@ -39,11 +39,13 @@ public class LogisticsOrderController {
         return ApiResponse.success(LogisticsOrderVO.from(logisticsOrderService.create(request)));
     }
 
+    @OperationLog("运单管理-查看订单详情")
     @GetMapping("/{orderNo}")
     public ApiResponse<LogisticsOrderVO> findByOrderNo(@PathVariable String orderNo) {
         return ApiResponse.success(LogisticsOrderVO.from(logisticsOrderService.findByOrderNo(orderNo)));
     }
 
+    @OperationLog("运单管理-查询近期订单")
     @GetMapping
     public ApiResponse<List<LogisticsOrderVO>> findRecent(@RequestParam(defaultValue = "20") int limit) {
         List<LogisticsOrderVO> records = new ArrayList<>();
@@ -51,6 +53,7 @@ public class LogisticsOrderController {
         return ApiResponse.success(records);
     }
 
+    @OperationLog("运单管理-搜索订单")
     @GetMapping("/search")
     public ApiResponse<PageResult<LogisticsOrderVO>> search(OrderSearchQueryDTO query) {
         return ApiResponse.success(logisticsOrderSearchService.search(query));

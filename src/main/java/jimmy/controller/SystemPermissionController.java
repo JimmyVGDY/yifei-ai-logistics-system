@@ -27,21 +27,25 @@ public class SystemPermissionController {
         this.systemPermissionService = systemPermissionService;
     }
 
+    @OperationLog("权限配置-加载菜单树")
     @GetMapping("/menus")
     public ApiResponse<List<MenuVO>> menus() {
         return ApiResponse.success(systemPermissionService.menuTree());
     }
 
+    @OperationLog("权限配置-加载权限树")
     @GetMapping("/tree")
     public ApiResponse<List<PermissionTreeNodeVO>> permissionTree() {
         return ApiResponse.success(systemPermissionService.permissionTree());
     }
 
+    @OperationLog("权限配置-查看角色菜单")
     @GetMapping("/roles/{roleId}/menus")
     public ApiResponse<List<Long>> roleMenus(@PathVariable long roleId) {
         return ApiResponse.success(systemPermissionService.roleMenuIds(roleId));
     }
 
+    @OperationLog("权限配置-查看角色权限")
     @GetMapping("/roles/{roleId}/permissions")
     public ApiResponse<List<Long>> rolePermissions(@PathVariable long roleId) {
         return ApiResponse.success(systemPermissionService.rolePermissionIds(roleId));
@@ -61,6 +65,7 @@ public class SystemPermissionController {
         return ApiResponse.success(systemPermissionService.updateRolePermissions(roleId, request));
     }
 
+    @OperationLog("权限配置-查看用户特殊权限")
     @GetMapping("/users/{userId}/permissions")
     public ApiResponse<UserPermissionVO> userPermissions(@PathVariable long userId) {
         return ApiResponse.success(systemPermissionService.userPermissionIds(userId));

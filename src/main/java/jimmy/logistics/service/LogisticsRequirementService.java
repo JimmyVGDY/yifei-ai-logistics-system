@@ -118,8 +118,8 @@ public class LogisticsRequirementService {
         for (Map<String, Object> record : records) {
             voRecords.add(new ModuleRecordVO(record));
         }
-        log.info("查询物流模块分页完成，module={}, page={}, pageSize={}, total={}, keyword={}, startTime={}, endTime={}",
-                module, page, pageSize, total, LogMaskUtils.maskText(keyword), startTime, endTime);
+        log.info("查询{}列表完成，module={}, page={}, pageSize={}, total={}, keyword={}, startTime={}, endTime={}",
+                moduleDisplayName(module), module, page, pageSize, total, LogMaskUtils.maskText(keyword), startTime, endTime);
         return new PageResult<>(voRecords, page, pageSize, total == null ? 0 : total);
     }
 
@@ -229,6 +229,25 @@ public class LogisticsRequirementService {
         configs.put("operationLogs", new ModuleQueryConfig("sys_operation_log", "operation_time", "id", "operation_id", "trace_id", "user_id", "user_code", "username", "role_code", "operation", "request_uri", "request_method", "operation_status", "error_message"));
         configs.put("files", new ModuleQueryConfig("sys_uploaded_file", "upload_time", "id", "original_name", "relative_path", "content_type", "upload_user"));
         return configs;
+    }
+
+    private String moduleDisplayName(String module) {
+        Map<String, String> names = new HashMap<>();
+        names.put("customers", "客户管理");
+        names.put("orders", "运单管理");
+        names.put("waybills", "运单中心");
+        names.put("dispatches", "调度管理");
+        names.put("tasks", "运输任务");
+        names.put("tracks", "物流轨迹");
+        names.put("drivers", "司机管理");
+        names.put("vehicles", "车辆管理");
+        names.put("exceptions", "异常管理");
+        names.put("fees", "费用结算");
+        names.put("users", "用户管理");
+        names.put("roles", "角色管理");
+        names.put("operationLogs", "操作日志");
+        names.put("files", "上传文件");
+        return names.getOrDefault(module, module);
     }
 
     private static class ModuleQueryConfig {

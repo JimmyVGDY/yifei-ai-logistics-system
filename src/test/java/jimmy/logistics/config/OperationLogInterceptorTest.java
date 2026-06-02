@@ -56,7 +56,7 @@ class OperationLogInterceptorTest {
                 eq(""),
                 eq("anonymous"),
                 eq(""),
-                eq("测试操作"),
+                eq("运单管理-新增记录"),
                 eq("/logistics/modules/orders"),
                 eq("POST"),
                 eq("SUCCESS"),
@@ -67,8 +67,95 @@ class OperationLogInterceptorTest {
         assertThat(MDC.get("traceId")).isNull();
     }
 
+    @Test
+    void shouldRecordPermissionConfigCandidateListAsBusinessOperation() throws Exception {
+        OperationLogMapper mapper = mock(OperationLogMapper.class);
+        ColumnExistenceChecker columnChecker = columnCheckerWithOperationLogColumns();
+        CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
+        when(idGenerator.nextId()).thenReturn(260602170000003L, 260602170000004L);
+
+        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/logistics/modules/users");
+        request.setParameter("usage", "permissionConfig");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        interceptor.preHandle(request, response, handlerMethodWithoutOperationLog());
+        interceptor.afterCompletion(request, response, handlerMethodWithoutOperationLog(), null);
+
+        verify(mapper).insertOperationLog(
+                anyLong(),
+                eq("260602170000003"),
+                eq(response.getHeader("X-Trace-Id")),
+                eq(""),
+                eq(""),
+                eq("anonymous"),
+                eq(""),
+                eq("权限配置-加载用户候选列表"),
+                eq("/logistics/modules/users"),
+                eq("GET"),
+                eq("SUCCESS"),
+                org.mockito.ArgumentMatchers.anyLong(),
+                eq(null)
+        );
+    }
+
+    @Test
+    void shouldRecordGenericModuleQueryAndMutationAsReadableBusinessOperation() throws Exception {
+        OperationLogMapper mapper = mock(OperationLogMapper.class);
+        ColumnExistenceChecker columnChecker = columnCheckerWithOperationLogColumns();
+        CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
+        when(idGenerator.nextId()).thenReturn(260602170000005L, 260602170000006L, 260602170000007L, 260602170000008L);
+
+        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        MockHttpServletRequest queryRequest = new MockHttpServletRequest("GET", "/logistics/modules/customers");
+        MockHttpServletResponse queryResponse = new MockHttpServletResponse();
+        interceptor.preHandle(queryRequest, queryResponse, handlerMethodWithoutOperationLog());
+        interceptor.afterCompletion(queryRequest, queryResponse, handlerMethodWithoutOperationLog(), null);
+
+        MockHttpServletRequest deleteRequest = new MockHttpServletRequest("POST", "/logistics/modules/orders/100/delete");
+        MockHttpServletResponse deleteResponse = new MockHttpServletResponse();
+        interceptor.preHandle(deleteRequest, deleteResponse, handlerMethodWithoutOperationLog());
+        interceptor.afterCompletion(deleteRequest, deleteResponse, handlerMethodWithoutOperationLog(), null);
+
+        verify(mapper).insertOperationLog(
+                anyLong(),
+                eq("260602170000005"),
+                eq(queryResponse.getHeader("X-Trace-Id")),
+                eq(""),
+                eq(""),
+                eq("anonymous"),
+                eq(""),
+                eq("客户管理-查询列表"),
+                eq("/logistics/modules/customers"),
+                eq("GET"),
+                eq("SUCCESS"),
+                org.mockito.ArgumentMatchers.anyLong(),
+                eq(null)
+        );
+        verify(mapper).insertOperationLog(
+                anyLong(),
+                eq("260602170000007"),
+                eq(deleteResponse.getHeader("X-Trace-Id")),
+                eq(""),
+                eq(""),
+                eq("anonymous"),
+                eq(""),
+                eq("运单管理-删除记录"),
+                eq("/logistics/modules/orders/100/delete"),
+                eq("POST"),
+                eq("SUCCESS"),
+                org.mockito.ArgumentMatchers.anyLong(),
+                eq(null)
+        );
+    }
+
     private HandlerMethod handlerMethod() throws Exception {
         Method method = DummyController.class.getDeclaredMethod("createOrder");
+        return new HandlerMethod(new DummyController(), method);
+    }
+
+    private HandlerMethod handlerMethodWithoutOperationLog() throws Exception {
+        Method method = DummyController.class.getDeclaredMethod("queryUsers");
         return new HandlerMethod(new DummyController(), method);
     }
 
@@ -80,7 +167,7 @@ class OperationLogInterceptorTest {
         );
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
-            statement.execute("create table sys_operation_log (id bigint, operation_id varchar(64), error_message varchar(255))");
+            statement.execute("create table if not exists sys_operation_log (id bigint, operation_id varchar(64), error_message varchar(255))");
         }
         return new ColumnExistenceChecker(dataSource);
     }
@@ -88,6 +175,9 @@ class OperationLogInterceptorTest {
     private static class DummyController {
         @OperationLog("测试操作")
         public void createOrder() {
+        }
+
+        public void queryUsers() {
         }
     }
 }

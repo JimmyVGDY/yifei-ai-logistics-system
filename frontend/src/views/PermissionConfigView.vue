@@ -159,8 +159,8 @@ async function loadAll() {
   loading.value = true
   try {
     const [rolePage, userPage, tree] = await Promise.all([
-      fetchModuleRecords('roles', { page: 1, pageSize: 200 }),
-      fetchModuleRecords('users', { page: 1, pageSize: 200 }),
+      fetchModuleRecords('roles', { page: 1, pageSize: 200, usage: 'permissionConfig' }),
+      fetchModuleRecords('users', { page: 1, pageSize: 200, usage: 'permissionConfig' }),
       fetchPermissionTree()
     ])
     roles.value = normalizeRows(rolePage).map((row) => ({

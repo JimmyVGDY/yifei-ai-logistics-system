@@ -113,11 +113,13 @@ public class LogisticsV2Controller {
         return ApiResponse.success(logisticsFeeService.markFeePaid(feeId));
     }
 
+    @OperationLog("运营看板-查询订单趋势")
     @GetMapping("/statistics/order-trend")
     public ApiResponse<List<TrendPointVO>> orderTrend(@RequestParam(defaultValue = "7") int days) {
         return ApiResponse.success(logisticsStatisticsService.orderTrend(days));
     }
 
+    @OperationLog("运营看板-查询收入趋势")
     @GetMapping("/statistics/income-trend")
     public ApiResponse<List<TrendPointVO>> incomeTrend(@RequestParam(defaultValue = "6") int months) {
         return ApiResponse.success(logisticsStatisticsService.incomeTrend(months));

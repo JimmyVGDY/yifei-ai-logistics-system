@@ -24,6 +24,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
     private static final String START_TIME_ATTRIBUTE = "operationLogStartTime";
     private static final String OPERATION_ID_ATTRIBUTE = "operationLogOperationId";
     private static final String TRACE_ID_ATTRIBUTE = "operationLogTraceId";
+    private static final java.util.Map<String, String> MODULE_NAMES = buildModuleNames();
 
     private final OperationLogMapper operationLogMapper;
     private final ColumnExistenceChecker columnChecker;
@@ -73,7 +74,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
             }
 
             HandlerMethod handlerMethod = (HandlerMethod) handler;
-            String operation = resolveOperation(handlerMethod);
+            String operation = resolveOperation(handlerMethod, request);
             if (operation == null && !isBusinessWrite(request)) {
                 return;
             }
@@ -147,13 +148,97 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         }
     }
 
-    private String resolveOperation(HandlerMethod handlerMethod) {
+    private String resolveOperation(HandlerMethod handlerMethod, HttpServletRequest request) {
+        String requestOperation = resolveRequestOperation(request);
+        if (requestOperation != null) {
+            return requestOperation;
+        }
         OperationLog methodLog = handlerMethod.getMethodAnnotation(OperationLog.class);
         if (methodLog != null) {
             return methodLog.value();
         }
         OperationLog typeLog = handlerMethod.getBeanType().getAnnotation(OperationLog.class);
         return typeLog == null ? null : typeLog.value();
+    }
+
+    private String resolveRequestOperation(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        String usage = request.getParameter("usage");
+        if (uri.startsWith("/logistics/modules/")) {
+            String[] parts = uri.substring("/logistics/modules/".length()).split("/");
+            String module = parts.length == 0 ? "" : parts[0];
+            if ("permissionConfig".equals(usage)) {
+                if ("users".equals(module)) {
+                    return "权限配置-加载用户候选列表";
+                }
+                if ("roles".equals(module)) {
+                    return "权限配置-加载角色候选列表";
+                }
+            }
+            return moduleName(module) + "-" + moduleActionName(request.getMethod(), parts);
+        }
+        if (uri.startsWith("/logistics/excel/export/")) {
+            String module = uri.substring("/logistics/excel/export/".length()).split("/")[0];
+            return moduleName(module) + "-导出Excel";
+        }
+        if (uri.equals("/logistics/excel/import/customers")) {
+            return "客户管理-导入Excel";
+        }
+        if (uri.equals("/logistics/dashboard")) {
+            return "运营看板-查询统计";
+        }
+        if (uri.equals("/logistics/statistics/order-trend")) {
+            return "运营看板-查询订单趋势";
+        }
+        if (uri.equals("/logistics/statistics/income-trend")) {
+            return "运营看板-查询收入趋势";
+        }
+        if (uri.equals("/logistics/orders/search")) {
+            return "运单管理-搜索订单";
+        }
+        if (uri.matches("/logistics/orders/[^/]+") && "GET".equalsIgnoreCase(request.getMethod())) {
+            return "运单管理-查看订单详情";
+        }
+        if (uri.equals("/logistics/orders") && "GET".equalsIgnoreCase(request.getMethod())) {
+            return "运单管理-查询近期订单";
+        }
+        return null;
+    }
+
+    private String moduleActionName(String method, String[] parts) {
+        if ("GET".equalsIgnoreCase(method)) {
+            return "查询列表";
+        }
+        if (parts.length >= 3 && "delete".equals(parts[2])) {
+            return "删除记录";
+        }
+        if ("POST".equalsIgnoreCase(method) && parts.length == 1) {
+            return "新增记录";
+        }
+        return "编辑记录";
+    }
+
+    private String moduleName(String module) {
+        return MODULE_NAMES.getOrDefault(module, module);
+    }
+
+    private static java.util.Map<String, String> buildModuleNames() {
+        java.util.Map<String, String> map = new java.util.LinkedHashMap<>();
+        map.put("orders", "运单管理");
+        map.put("customers", "客户管理");
+        map.put("waybills", "运单中心");
+        map.put("dispatches", "调度管理");
+        map.put("tasks", "运输任务");
+        map.put("tracks", "物流轨迹");
+        map.put("drivers", "司机管理");
+        map.put("vehicles", "车辆管理");
+        map.put("exceptions", "异常管理");
+        map.put("fees", "费用结算");
+        map.put("users", "用户管理");
+        map.put("roles", "角色管理");
+        map.put("operationLogs", "操作日志");
+        map.put("files", "上传文件");
+        return map;
     }
 
     private boolean isBusinessWrite(HttpServletRequest request) {

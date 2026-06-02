@@ -3,6 +3,7 @@ package jimmy.logistics.controller;
 import jimmy.logistics.model.LogisticsDashboardSummary;
 import jimmy.logistics.model.ModuleQueryDTO;
 import jimmy.logistics.model.ModuleRecordVO;
+import jimmy.logistics.annotation.OperationLog;
 import jimmy.logistics.service.LogisticsRequirementService;
 import jimmy.model.ApiResponse;
 import jimmy.model.PageResult;
@@ -22,6 +23,7 @@ public class LogisticsRequirementController {
         this.logisticsRequirementService = logisticsRequirementService;
     }
 
+    @OperationLog("运营看板-查询统计")
     @GetMapping("/dashboard")
     public ApiResponse<LogisticsDashboardSummary> dashboard() {
         return ApiResponse.success(logisticsRequirementService.dashboardSummary());
