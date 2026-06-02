@@ -95,6 +95,7 @@ public class LogisticsRequirementService {
         String keyword = trimToNull(query == null ? null : query.getKeyword());
         String startTime = trimToNull(query == null ? null : query.getStartTime());
         String endTime = trimToNull(query == null ? null : query.getEndTime());
+        String usage = trimToNull(query == null ? null : query.getUsage());
         boolean deletedExists = columnChecker.hasColumn(queryConfig.tableName, "deleted");
         boolean userCodeExists = "users".equals(module) && columnChecker.hasColumn("sys_user", "user_code");
         boolean operationLogExtendedExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "operation_id");
@@ -118,8 +119,13 @@ public class LogisticsRequirementService {
         for (Map<String, Object> record : records) {
             voRecords.add(new ModuleRecordVO(record));
         }
-        log.info("查询{}列表完成，module={}, page={}, pageSize={}, total={}, keyword={}, startTime={}, endTime={}",
-                moduleDisplayName(module), module, page, pageSize, total, LogMaskUtils.maskText(keyword), startTime, endTime);
+        if ("relationOptions".equals(usage)) {
+            log.debug("加载{}关联下拉备选完成，module={}, page={}, pageSize={}, total={}",
+                    moduleDisplayName(module), module, page, pageSize, total);
+        } else {
+            log.info("查询{}列表完成，module={}, page={}, pageSize={}, total={}, keyword={}, startTime={}, endTime={}",
+                    moduleDisplayName(module), module, page, pageSize, total, LogMaskUtils.maskText(keyword), startTime, endTime);
+        }
         return new PageResult<>(voRecords, page, pageSize, total == null ? 0 : total);
     }
 

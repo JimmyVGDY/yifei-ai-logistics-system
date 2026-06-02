@@ -36,13 +36,15 @@ public class LogisticsRequirementController {
                                                                  @RequestParam(required = false) Integer limit,
                                                                  @RequestParam(required = false) String keyword,
                                                                  @RequestParam(required = false) String startTime,
-                                                                 @RequestParam(required = false) String endTime) {
+                                                                 @RequestParam(required = false) String endTime,
+                                                                 @RequestParam(required = false) String usage) {
         ModuleQueryDTO query = new ModuleQueryDTO();
         query.setPage(page);
         query.setPageSize(limit == null ? pageSize : limit);
         query.setKeyword(keyword);
         query.setStartTime(startTime);
         query.setEndTime(endTime);
+        query.setUsage(usage);
         return ApiResponse.success(logisticsRequirementService.modulePage(module, query));
     }
 }

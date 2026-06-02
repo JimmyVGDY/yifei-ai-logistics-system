@@ -165,6 +165,9 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         String uri = request.getRequestURI();
         String usage = request.getParameter("usage");
         String method = request.getMethod();
+        if ("relationOptions".equals(usage)) {
+            return null;
+        }
         String authOperation = resolveAuthOperation(uri, method);
         if (authOperation != null) {
             return authOperation;

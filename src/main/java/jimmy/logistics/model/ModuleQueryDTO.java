@@ -7,6 +7,7 @@ public class ModuleQueryDTO {
     private String keyword;
     private String startTime;
     private String endTime;
+    private String usage;
 
     public int getPage() {
         return page;
@@ -46,5 +47,13 @@ public class ModuleQueryDTO {
 
     public void setEndTime(String endTime) {
         this.endTime = endTime;
+    }
+
+    public String getUsage() {
+        return usage;
+    }
+
+    public void setUsage(String usage) {
+        this.usage = usage;
     }
 }

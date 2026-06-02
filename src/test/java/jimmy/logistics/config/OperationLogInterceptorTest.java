@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -97,6 +98,24 @@ class OperationLogInterceptorTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 eq(null)
         );
+    }
+
+    @Test
+    void shouldNotRecordRelationOptionPreloadAsUserOperation() throws Exception {
+        OperationLogMapper mapper = mock(OperationLogMapper.class);
+        ColumnExistenceChecker columnChecker = columnCheckerWithOperationLogColumns();
+        CompactSnowflakeIdGenerator idGenerator = mock(CompactSnowflakeIdGenerator.class);
+        when(idGenerator.nextId()).thenReturn(260602180000001L);
+
+        OperationLogInterceptor interceptor = new OperationLogInterceptor(mapper, columnChecker, idGenerator);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/logistics/modules/orders");
+        request.setParameter("usage", "relationOptions");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        interceptor.preHandle(request, response, handlerMethodWithoutOperationLog());
+        interceptor.afterCompletion(request, response, handlerMethodWithoutOperationLog(), null);
+
+        verifyNoInteractions(mapper);
     }
 
     @Test

@@ -438,7 +438,7 @@ async function loadRelationOptions(source) {
   if (source === 'orderCustomers') {
     const customerMap = new Map()
     if (hasPermission('order:query')) {
-      const orderResult = await fetchModuleRecords('orders', { page: 1, pageSize: 200 })
+      const orderResult = await fetchModuleRecords('orders', relationQueryParams(200))
       const orderRows = Array.isArray(orderResult) ? orderResult : (orderResult.records || [])
       orderRows.forEach((row) => {
         const customerName = row.customer_name || row.customerName
@@ -454,7 +454,7 @@ async function loadRelationOptions(source) {
       })
     }
     if (hasPermission('customer:query')) {
-      const customerResult = await fetchModuleRecords('customers', { page: 1, pageSize: 200 })
+      const customerResult = await fetchModuleRecords('customers', relationQueryParams(200))
       const customerRows = Array.isArray(customerResult) ? customerResult : (customerResult.records || [])
       customerRows.forEach((row) => {
         const customerName = row.customer_name || row.customerName
@@ -478,7 +478,7 @@ async function loadRelationOptions(source) {
     }
     return
   }
-  const result = await fetchModuleRecords(source, { page: 1, pageSize: 100 })
+  const result = await fetchModuleRecords(source, relationQueryParams(100))
   const rows = Array.isArray(result) ? result : (result.records || [])
   if (source === 'orders') {
     relationRows.orders = rows
@@ -503,6 +503,10 @@ function sourceQueryPermission(source) {
     orderCustomers: 'order'
   }
   return `${prefixes[source] || source}:query`
+}
+
+function relationQueryParams(pageSize) {
+  return { page: 1, pageSize, usage: 'relationOptions' }
 }
 
 function relationLabel(source, row) {
