@@ -2,6 +2,7 @@ package jimmy.logistics.service;
 
 import jimmy.logistics.config.OperationChangeContext;
 import jimmy.util.FieldEncryptor;
+import jimmy.util.LogMaskUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -135,8 +136,10 @@ public class ChangeAuditService {
             return "已隐藏";
         }
         String lower = column.toLowerCase();
+        // ID/编号字段脱敏后展示，防止日志文件泄露后批量获取业务数据。
+        // 数据库仍存储原始 targetId 用于精确追踪。
         if ("id".equals(lower) || lower.endsWith("_id") || lower.endsWith("_code") || lower.endsWith("_no")) {
-            return text;
+            return LogMaskUtils.maskId(text);
         }
         if (lower.contains("phone") || lower.contains("mobile")) {
             return maskMobile(text);

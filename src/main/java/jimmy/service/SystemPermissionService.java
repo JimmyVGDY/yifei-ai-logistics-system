@@ -10,6 +10,7 @@ import jimmy.model.PermissionTreeNodeVO;
 import jimmy.model.PermissionVO;
 import jimmy.model.RoleMenuUpdateRequest;
 import jimmy.model.UserPermissionVO;
+import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -193,7 +194,7 @@ public class SystemPermissionService {
         }
         syncRolePermissionsFromMenus();
         OperationChangeContext.setChangeSummary("角色菜单变更，roleId=" + roleId + "，" + diffSummary(beforeMenuIds, menuIds));
-        log.info("角色菜单权限已更新,roleId={}, menuCount={}, operator={}", roleId, menuIds.size(), StpUtil.getLoginIdDefaultNull());
+        log.info("角色菜单权限已更新,roleId={}, menuCount={}, operator={}", roleId, menuIds.size(), LogMaskUtils.maskId(String.valueOf(StpUtil.getLoginIdDefaultNull())));
         return roleMenuIds(roleId);
     }
 
@@ -218,7 +219,7 @@ public class SystemPermissionService {
         }
         syncRoleMenusFromPermissions(roleId, permissionIds);
         OperationChangeContext.setChangeSummary("角色权限变更，roleId=" + roleId + "，" + diffSummary(beforePermissionIds, permissionIds));
-        log.info("角色细粒度权限已更新,roleId={}, permissionCount={}, operator={}", roleId, permissionIds.size(), StpUtil.getLoginIdDefaultNull());
+        log.info("角色细粒度权限已更新,roleId={}, permissionCount={}, operator={}", roleId, permissionIds.size(), LogMaskUtils.maskId(String.valueOf(StpUtil.getLoginIdDefaultNull())));
         return rolePermissionIds(roleId);
     }
 
@@ -257,7 +258,7 @@ public class SystemPermissionService {
                 + "，授权" + diffSummary(beforeGrantIds, filteredGrantIds)
                 + "，禁用" + diffSummary(beforeDenyIds, denyIds));
         log.info("用户特殊权限已更新,userId={}, grantCount={}, denyCount={}, operator={}",
-                userId, filteredGrantIds.size(), denyIds.size(), StpUtil.getLoginIdDefaultNull());
+                userId, filteredGrantIds.size(), denyIds.size(), LogMaskUtils.maskId(String.valueOf(StpUtil.getLoginIdDefaultNull())));
         return userPermissionIds(userId);
     }
 

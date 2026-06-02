@@ -138,6 +138,8 @@ public class LogisticsRequirementService {
         // 敏感字段解密：手机号等字段从数据库读取后解密为原文
         decryptRecords(records);
         records = formatDateTimeValues(records);
+        // 操作日志查询结果脱敏：userId/clientIp 在展示层脱敏，数据库原始值保留用于后端查询过滤。
+        maskOperationLogSensitiveFields(module, records);
 
         List<ModuleRecordVO> voRecords = new ArrayList<>();
         for (Map<String, Object> record : records) {
@@ -160,6 +162,31 @@ public class LogisticsRequirementService {
                 if (FieldEncryptor.isEncryptedField(entry.getKey()) && entry.getValue() instanceof String) {
                     entry.setValue(fieldEncryptor.decrypt((String) entry.getValue()));
                 }
+            }
+        }
+    }
+
+    /**
+     * 操作日志查询结果脱敏：对 userId 和 clientIp 等敏感字段进行掩码处理。
+     * <p>数据库原始值保留用于后端查询过滤，仅在返回前端时脱敏展示。
+     * 不影响按 userId 搜索/过滤的功能（查询发生在脱敏之前）。
+     */
+    private void maskOperationLogSensitiveFields(String module, List<Map<String, Object>> records) {
+        if (!"operationLogs".equals(module)) {
+            return;
+        }
+        for (Map<String, Object> record : records) {
+            Object userId = record.get("user_id");
+            if (userId != null) {
+                record.put("user_id", LogMaskUtils.maskId(String.valueOf(userId)));
+            }
+            Object userCode = record.get("user_code");
+            if (userCode != null && !"".equals(userCode)) {
+                record.put("user_code", LogMaskUtils.maskId(String.valueOf(userCode)));
+            }
+            Object clientIp = record.get("client_ip");
+            if (clientIp != null) {
+                record.put("client_ip", LogMaskUtils.maskText(String.valueOf(clientIp)));
             }
         }
     }

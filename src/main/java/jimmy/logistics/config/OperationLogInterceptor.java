@@ -64,9 +64,10 @@ public class OperationLogInterceptor implements HandlerInterceptor {
 
         MDC.put("traceId", traceId);
         MDC.put("operationId", operationId);
-        // MDC 字段会被 logback 写入 JSON 日志，业务日志和操作日志可通过 traceId 串起来。
-        MDC.put("userId", currentUserId());
-        MDC.put("userCode", currentUserCode());
+        // MDC 字段会被 logback 写入 JSON 日志，userId 脱敏后存储，防止日志文件泄露。
+        // 真实 userId 仍保留在数据库操作日志表中，支持按用户查询。
+        MDC.put("userId", LogMaskUtils.maskId(currentUserId()));
+        MDC.put("userCode", LogMaskUtils.maskId(currentUserCode()));
         MDC.put("usernameMasked", LogMaskUtils.maskAccount(username));
         MDC.put("roleCode", currentRoleCode());
         MDC.put("requestUri", request.getRequestURI());
@@ -102,7 +103,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
             String operationId = String.valueOf(request.getAttribute(OPERATION_ID_ATTRIBUTE));
             String status = exception == null && response.getStatus() < 400 ? "SUCCESS" : "FAILED";
             long costMs = System.currentTimeMillis() - (Long) request.getAttribute(START_TIME_ATTRIBUTE);
-            String errorMessage = exception == null ? null : exception.getMessage();
+            String errorMessage = exception == null ? null : sanitizeErrorMessage(exception.getMessage());
             MDC.put("module", firstPath(request.getRequestURI()));
             MDC.put("operation", operation);
             MDC.put("costMs", String.valueOf(costMs));
@@ -116,7 +117,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                 String targetId = targetId(request);
                 String ua = userAgent(request);
                 log.info("操作日志已记录，operationId={}, traceId={}, userId={}, username={}, operation={}, uri={}, method={}, status={}, costMs={}, ip={}, targetId={}, ua={}{}",
-                        operationId, traceId, currentUserId(), LogMaskUtils.maskAccount(username), operation,
+                        operationId, traceId, LogMaskUtils.maskId(currentUserId()), LogMaskUtils.maskAccount(username), operation,
                         request.getRequestURI(), request.getMethod(), status, costMs, ip,
                         targetId == null ? "-" : targetId, ua == null ? "-" : ua,
                         changeSummary != null && !changeSummary.isEmpty() ? ", change=" + changeSummary : "");
@@ -238,13 +239,44 @@ public class OperationLogInterceptor implements HandlerInterceptor {
         return null;
     }
 
+    /**
+     * 判断请求参数名是否为敏感字段，敏感参数不会被写入日志。
+     * 防止 GET 请求中传递手机号/身份证/银行卡等个人信息时被明文记录到日志文件和数据库。
+     */
     private boolean isSensitiveParam(String key) {
         String lowerKey = key.toLowerCase();
         return lowerKey.contains("password")
                 || lowerKey.contains("token")
                 || lowerKey.contains("secret")
                 || lowerKey.contains("credential")
-                || lowerKey.contains("authorization");
+                || lowerKey.contains("authorization")
+                || lowerKey.contains("mobile")
+                || lowerKey.contains("phone")
+                || lowerKey.contains("email")
+                || lowerKey.contains("id_card")
+                || lowerKey.contains("idcard")
+                || lowerKey.contains("bank_card")
+                || lowerKey.contains("bankcard")
+                || lowerKey.contains("license")
+                || lowerKey.contains("address")
+                || lowerKey.contains("location");
+    }
+
+    /**
+     * 对异常消息进行安全清洗：移除手机号、邮箱等敏感信息，再截断存储。
+     * <p>防止业务代码抛出带用户数据的异常时，敏感信息被写入日志文件和数据库。
+     */
+    private String sanitizeErrorMessage(String message) {
+        if (message == null) {
+            return null;
+        }
+        // 移除中国大陆 11 位手机号（1[3-9]xxxxxxxxx）
+        String sanitized = message.replaceAll("1[3-9]\\d{9}", "***");
+        // 移除邮箱地址
+        sanitized = sanitized.replaceAll("[\\w.+-]+@[\\w.-]+\\.[a-zA-Z]{2,}", "***@***");
+        // 移除 18 位身份证号
+        sanitized = sanitized.replaceAll("\\d{17}[\\dXx]", "***");
+        return truncate(sanitized, MAX_LOG_TEXT_LENGTH);
     }
 
     private String firstHeaderValue(String value) {

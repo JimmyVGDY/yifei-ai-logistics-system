@@ -10,6 +10,7 @@ import jimmy.logistics.model.OperationResultVO;
 import jimmy.logistics.util.ColumnExistenceChecker;
 import jimmy.logistics.util.CrudBusinessUtils;
 import jimmy.util.FieldEncryptor;
+import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -108,7 +109,7 @@ public class CustomerAccountService {
         logisticsCrudMapper.insertRecord("sys_user", utils.toFieldValues(values));
         OperationChangeContext.setChangeSummary("账号=" + request.getUsername() + ", 姓名=" + request.getRealName() + ", 类型=" + subjectType + ", 角色=" + accountType);
         log.info("客户账号创建完成，userId={}, customerId={}, subjectType={}, accountType={}",
-                userId, customerId, subjectType, accountType);
+                LogMaskUtils.maskId(String.valueOf(userId)), customerId, subjectType, accountType);
         return new OperationResultVO(userId);
     }
 

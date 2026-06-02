@@ -87,7 +87,7 @@ public class AuthService {
         upgradePasswordIfNecessary(loginUser, password);
         if (StpUtil.isLogin(loginUser.id)) {
             log.info("检测到同一账号已有在线会话，创建登录冲突确认，userId={}, username={}",
-                    loginUser.id, LogMaskUtils.maskAccount(loginUser.username));
+                    LogMaskUtils.maskId(String.valueOf(loginUser.id)), LogMaskUtils.maskAccount(loginUser.username));
             return loginConflictService.create(loginUser.id, loginUser.username);
         }
         return completeLogin(loginUser);
@@ -129,7 +129,7 @@ public class AuthService {
 
         String tokenValue = StpUtil.getTokenValueByLoginId(loginUser.id);
         log.info("账号登录成功，userId={}, username={}, roleCode={}",
-                loginUser.id, LogMaskUtils.maskAccount(loginUser.username), loginUser.roleCode);
+                LogMaskUtils.maskId(String.valueOf(loginUser.id)), LogMaskUtils.maskAccount(loginUser.username), loginUser.roleCode);
         return buildResponse(loginUser, StpUtil.getTokenName(), tokenValue, permissions, menus);
     }
 
@@ -262,7 +262,7 @@ public class AuthService {
             return;
         }
         String usernameMasked = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("usernameMasked", ""));
-        log.info("账号退出登录，userId={}, username={}", loginId, usernameMasked);
+        log.info("账号退出登录，userId={}, username={}", LogMaskUtils.maskId(String.valueOf(loginId)), usernameMasked);
         // logout(loginId) 同时清除 TokenSession 和 AccountSession，防止重新登录时误判为冲突。
         StpUtil.logout(loginId);
     }
@@ -378,7 +378,7 @@ public class AuthService {
         String encoded = PASSWORD_ENCODER.encode(rawPassword);
         authMapper.updatePassword(loginUser.id, encoded);
         loginUser.password = encoded;
-        log.info("账号密码已升级为 BCrypt，userId={}, username={}", loginUser.id, LogMaskUtils.maskAccount(loginUser.username));
+        log.info("账号密码已升级为 BCrypt，userId={}, username={}", LogMaskUtils.maskId(String.valueOf(loginUser.id)), LogMaskUtils.maskAccount(loginUser.username));
     }
 
     /** 判断密码是否为 BCrypt 编码（$2a$/$2b$/$2y$ 开头） */

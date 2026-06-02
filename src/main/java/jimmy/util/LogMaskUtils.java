@@ -22,6 +22,20 @@ public final class LogMaskUtils {
         return mask(value, 2, 2);
     }
 
+    /**
+     * 对数字ID进行脱敏，保留后4位。
+     * <p>用于日志中隐藏用户ID、订单ID等数字标识，防止日志文件泄露后批量获取业务数据。
+     */
+    public static String maskId(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        if (value.length() <= 4) {
+            return "****";
+        }
+        return "****" + value.substring(value.length() - 4);
+    }
+
     private static String mask(String value, int prefixLength, int suffixLength) {
         if (!StringUtils.hasText(value)) {
             return value;
