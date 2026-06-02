@@ -34,7 +34,7 @@
 | `BLOOM_FILTER_EXPECTED_INSERTIONS` | `100000` | 布隆过滤器预计写入数量 |
 | `BLOOM_FILTER_FALSE_POSITIVE_PROBABILITY` | `0.01` | 布隆过滤器误判率 |
 | `APP_ADMIN_USERNAME` | `admin` | 后台管理员账号 |
-| `APP_ADMIN_PASSWORD` | `xlh963311213` | 后台管理员密码 |
+| `APP_ADMIN_PASSWORD` | `963311213` | 后台管理员密码 |
 | `MYBATIS_SQL_LOG_LEVEL` | `info` | MyBatis Mapper 日志级别，排查 SQL 时可临时设为 `debug` |
 | `SA_TOKEN_NAME` | `satoken` | Sa-Token 请求头名称 |
 | `SA_TOKEN_TIMEOUT` | `86400` | 登录有效期，单位秒 |
@@ -142,7 +142,7 @@ SA_TOKEN_IS_SHARE=false
 
 ```text
 username: admin
-password: xlh963311213
+password: 963311213
 ```
 
 常用接口：

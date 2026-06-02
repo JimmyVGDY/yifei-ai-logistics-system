@@ -62,7 +62,7 @@ practice-project-about-develop
 - `model`: DTO、VO、请求和响应模型。
 - `service`: 业务逻辑和第三方组件调用入口。
 - `job`: XXL-Job 定时任务处理器。
-- `util`: 通用工具类。
+- `util`: 通用工具类（含 `LogMaskUtils` 日志脱敏工具、`FieldEncryptor` 字段加密、`CrudBusinessUtils` CRUD 辅助等）。
 - `resources/mapper`: MyBatis XML 映射文件。
 
 ## 已接入组件

@@ -16,7 +16,7 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 
 | 账号 | 密码 | 角色 |
 | --- | --- | --- |
-| admin | xlh963311213 | 系统管理员 |
+| admin | 963311213 | 系统管理员 |
 | service | 123456 | 客服专员 |
 | dispatcher | 123456 | 调度专员 |
 | driver | 123456 | 司机 |
@@ -51,7 +51,21 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 
 业务写操作会同步写入 `sys_operation_log`，字段包括 `operation_id`、`trace_id`、`user_id`、`user_code`、`username`、`role_code`、`request_uri`、`request_method`、`operation_status`、`cost_ms`、`error_message`、`operation_time`。
 
-`error_message` 字段在接口返回异常时自动写入异常原因，方便在操作日志页面直接排障，无需额外查询日志文件。
+`error_message` 字段在接口返回异常时自动写入异常原因（经过安全清洗，手机号/邮箱/身份证号已脱敏），方便在操作日志页面直接排障，无需额外查询日志文件。
+
+### 日志安全加固
+
+为防止日志文件泄露导致批量数据外泄，全链路日志均经过脱敏处理：
+
+- **userId/operator**：`LogMaskUtils.maskId()` 分级脱敏，短 ID 保留可辨识信息，长 ID 保留后 4 位。
+- **userCode**：同 userId 脱敏规则。
+- **clientIp**：`LogMaskUtils.maskIp()` 保留前两段子网信息（如 `192.168.***.***`）。
+- **username/realName**：`LogMaskUtils.maskAccount()/maskName()` 仅保留头尾各 1 字符。
+- **changeSummary**：变更摘要中 ID/编号字段自动脱敏，姓名/手机号/邮箱/地址等只记录掩码值。
+- **requestParams**：过滤 password/token/手机号/邮箱/身份证号/银行卡号等 14 类敏感参数。
+- **errorMessage**：`sanitizeErrorMessage()` 对异常消息中的手机号、邮箱、身份证号做头尾保留脱敏（如 `138****5678`），兼顾隐私保护与排障定位。
+- **MDC 日志**：userId/userCode 在写入 MDC 前脱敏，Filebeat → Kibana 链路仅含脱敏值。
+- **数据库保留真值**：`sys_operation_log` 表中 userId/userCode 保留原始值用于后端 SQL 查询过滤，仅前/后端返回和日志文件层面脱敏。
 
 ### 集中日志（Filebeat + Kibana）
 
@@ -67,4 +81,4 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 
 菜单路径：`系统管理 → 操作日志`，前端路由 `/system/operation-logs`，权限码 `system:log:view`。
 
-列表展示字段包括操作 ID、Trace ID、用户编号、操作人、操作内容、接口路径、耗时和操作状态。支持按关键词模糊查询和时间范围筛选。
+列表展示字段包括操作 ID、Trace ID、用户编号（脱敏展示）、操作人（脱敏展示）、操作内容、接口路径、耗时和操作状态。IP 地址脱敏为子网段展示。支持按关键词模糊查询和时间范围筛选。

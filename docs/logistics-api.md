@@ -38,7 +38,7 @@
 ```json
 {
   "username": "admin",
-  "password": "xlh963311213"
+  "password": "963311213"
 }
 ```
 
