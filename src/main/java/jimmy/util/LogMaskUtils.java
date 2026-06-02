@@ -61,7 +61,7 @@ public final class LogMaskUtils {
      * ID脱敏：短ID（≤4位）固定3星+末1位；长ID（≥5位）固定6星+末4位。
      * <p>短ID只看末位，外人无法从星号数反推原始位数。</p>
      * <ul>
-     *   <li>1 → ***</li>
+     *   <li>1 → ***1</li>
      *   <li>86 → ***6</li>
      *   <li>100 → ***0</li>
      *   <li>1000 → ***0</li>
@@ -74,12 +74,8 @@ public final class LogMaskUtils {
             return "";
         }
         int len = value.length();
-        if (len == 1) {
-            // 单字符：固定3个星号，不显式任何原始字符
-            return repeat('*', FIXED_MASK_ID_SHORT);
-        }
         if (len <= 4) {
-            // 2-4位短ID：固定3星 + 末1位，外部无法区分原值是2/3/4位
+            // 1-4位短ID：固定3星 + 末1位，外部无法区分原值是1/2/3/4位
             return repeat('*', FIXED_MASK_ID_SHORT) + value.charAt(len - 1);
         }
         // 5位以上长ID：固定6星 + 末4位
