@@ -28,8 +28,21 @@
     </div>
 
     <el-table :data="records" v-loading="loading" height="640">
-      <el-table-column v-for="column in meta.columns" :key="column.prop" :prop="column.prop" :label="column.label" :min-width="column.minWidth || 120">
-        <template #default="{ row }">{{ formatCell(column.prop, row[column.prop]) }}</template>
+      <el-table-column v-for="column in tableColumns" :key="column.prop" :prop="column.prop" :label="column.label" :min-width="column.minWidth || 120">
+        <template #default="{ row }">
+          <span
+            class="table-cell-text"
+            :class="{ 'table-cell-ellipsis': isOperationLogs && isCompactLogColumn(column.prop) }"
+            :title="fullCellText(column.prop, row[column.prop])"
+          >
+            {{ displayCell(column.prop, row[column.prop]) }}
+          </span>
+        </template>
+      </el-table-column>
+      <el-table-column v-if="isOperationLogs" label="详情" width="90" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="openOperationLogDetail(row)">查看</el-button>
+        </template>
       </el-table-column>
       <el-table-column v-if="showCrudColumn" label="操作" width="170" fixed="right">
         <template #default="{ row }">
@@ -154,6 +167,26 @@
         <el-button v-if="canGenerateFee" type="primary" :loading="saving" @click="submitFee">生成</el-button>
       </template>
     </el-dialog>
+
+    <el-drawer v-model="operationLogDetailVisible" title="操作日志详情" size="620px">
+      <div v-if="selectedOperationLog" class="log-detail">
+        <section v-for="section in operationLogDetailSections" :key="section.title" class="log-detail-section">
+          <h4>{{ section.title }}</h4>
+          <div v-for="item in section.items" :key="item.prop" class="log-detail-row">
+            <span class="log-detail-label">{{ item.label }}</span>
+            <span class="log-detail-value">{{ fullCellText(item.prop, selectedOperationLog[item.prop]) || '-' }}</span>
+            <el-button
+              v-if="selectedOperationLog[item.prop] !== undefined && selectedOperationLog[item.prop] !== null && selectedOperationLog[item.prop] !== ''"
+              link
+              type="primary"
+              @click="copyValue(fullCellText(item.prop, selectedOperationLog[item.prop]))"
+            >
+              复制
+            </el-button>
+          </div>
+        </section>
+      </div>
+    </el-drawer>
   </section>
 </template>
 
@@ -194,6 +227,8 @@ const exceptionDialogVisible = ref(false)
 const feeDialogVisible = ref(false)
 const crudDialogVisible = ref(false)
 const customerAccountDialogVisible = ref(false)
+const operationLogDetailVisible = ref(false)
+const selectedOperationLog = ref(null)
 const crudMode = ref('create')
 const editingId = ref(null)
 const crudForm = reactive({})
@@ -271,6 +306,49 @@ const moduleMetas = {
 }
 
 const meta = computed(() => moduleMetas[route.meta.module] || moduleMetas.customers)
+const isOperationLogs = computed(() => route.meta.module === 'operationLogs')
+const operationLogTableColumns = columns('operation_time:操作时间,operation_status:状态,operation:操作内容,username:操作人,user_code:用户编号,request_method:方法,request_uri:请求地址,cost_ms:耗时ms,trace_id:Trace ID,login_session_id:会话ID')
+const tableColumns = computed(() => isOperationLogs.value ? operationLogTableColumns : meta.value.columns)
+const operationLogDetailSections = computed(() => [
+  {
+    title: '链路标识',
+    items: [
+      { prop: 'operation_id', label: '操作ID' },
+      { prop: 'trace_id', label: 'Trace ID' },
+      { prop: 'login_session_id', label: '会话ID' }
+    ]
+  },
+  {
+    title: '操作人',
+    items: [
+      { prop: 'user_code', label: '用户编号' },
+      { prop: 'user_id', label: '用户主键' },
+      { prop: 'username', label: '操作人' },
+      { prop: 'role_code', label: '角色编号' },
+      { prop: 'client_ip', label: '客户端IP' }
+    ]
+  },
+  {
+    title: '请求信息',
+    items: [
+      { prop: 'operation', label: '操作内容' },
+      { prop: 'target_id', label: '对象ID' },
+      { prop: 'request_method', label: '方法' },
+      { prop: 'request_uri', label: '请求地址' },
+      { prop: 'operation_status', label: '状态' },
+      { prop: 'cost_ms', label: '耗时ms' },
+      { prop: 'operation_time', label: '操作时间' }
+    ]
+  },
+  {
+    title: '参数与变更',
+    items: [
+      { prop: 'request_params', label: '参数摘要' },
+      { prop: 'change_summary', label: '变更摘要' },
+      { prop: 'error_message', label: '异常信息' }
+    ]
+  }
+])
 const exceptionOrderOptions = computed(() => relationRows.orders.map((row) => ({
   value: row.order_no,
   label: relationLabel('orders', row)
@@ -399,6 +477,60 @@ function formatCell(prop, value) {
     return formatDateTime(value)
   }
   return value
+}
+
+function fullCellText(prop, value) {
+  const text = formatCell(prop, value)
+  return text === null || text === undefined ? '' : String(text)
+}
+
+function displayCell(prop, value) {
+  const text = fullCellText(prop, value)
+  if (!isOperationLogs.value) {
+    return text
+  }
+  if (['operation_id', 'trace_id', 'login_session_id'].includes(prop)) {
+    return shortenText(text, 18)
+  }
+  if (['request_uri', 'operation'].includes(prop)) {
+    return shortenText(text, 34)
+  }
+  return text
+}
+
+function shortenText(value, maxLength) {
+  if (!value || value.length <= maxLength) {
+    return value
+  }
+  if (maxLength <= 10) {
+    return `${value.slice(0, maxLength)}...`
+  }
+  const headLength = Math.ceil((maxLength - 3) * 0.6)
+  const tailLength = Math.floor((maxLength - 3) * 0.4)
+  return `${value.slice(0, headLength)}...${value.slice(-tailLength)}`
+}
+
+function isCompactLogColumn(prop) {
+  return ['operation_id', 'trace_id', 'login_session_id', 'request_uri', 'operation'].includes(prop)
+}
+
+function openOperationLogDetail(row) {
+  selectedOperationLog.value = row
+  operationLogDetailVisible.value = true
+}
+
+async function copyValue(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value)
+  } else {
+    const input = document.createElement('textarea')
+    input.value = value
+    document.body.appendChild(input)
+    input.select()
+    document.execCommand('copy')
+    document.body.removeChild(input)
+  }
+  ElMessage.success('已复制')
 }
 
 async function loadData() {
@@ -731,3 +863,52 @@ onMounted(() => {
   loadCurrentRelationOptions()
 })
 </script>
+
+<style scoped>
+.table-cell-text {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.table-cell-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-detail {
+  display: grid;
+  gap: 18px;
+}
+
+.log-detail-section {
+  border-bottom: 1px solid #edf0f5;
+  padding-bottom: 14px;
+}
+
+.log-detail-section h4 {
+  color: #303133;
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+
+.log-detail-row {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 110px minmax(0, 1fr) 44px;
+  line-height: 1.7;
+  padding: 4px 0;
+}
+
+.log-detail-label {
+  color: #909399;
+}
+
+.log-detail-value {
+  color: #303133;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+</style>
