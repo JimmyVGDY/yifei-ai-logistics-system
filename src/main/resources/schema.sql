@@ -20,6 +20,7 @@ create table if not exists sys_user (
     username varchar(64) not null unique,
     real_name varchar(64) not null,
     mobile varchar(128) not null,
+    mobile_hash varchar(128) null,
     email varchar(128) null,
     password varchar(128) not null,
     role_id bigint null,
@@ -31,6 +32,7 @@ create table if not exists sys_user (
     update_time timestamp not null,
     index idx_sys_user_role (role_id),
     index idx_sys_user_customer (customer_id),
+    index idx_sys_user_mobile_hash (mobile_hash),
     index idx_sys_user_status (status)
 );
 

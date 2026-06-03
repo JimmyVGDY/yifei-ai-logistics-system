@@ -35,4 +35,14 @@ class SaTokenConfigTest {
         assertThat(config.resolveDynamicPermission("/logistics/fees/generate/LO-001", "POST")).isEqualTo("fee:create");
         assertThat(config.resolveDynamicPermission("/logistics/fees/100/pay", "POST")).isEqualTo("fee:update");
     }
+
+    @Test
+    void resolvesPracticeAndMiddlewareEndpointPermissions() {
+        SaTokenConfig config = new SaTokenConfig(null, "http://127.0.0.1:5173");
+
+        assertThat(config.resolveDynamicPermission("/demo-users", "GET")).isEqualTo("system:user:query");
+        assertThat(config.resolveDynamicPermission("/demo-users", "POST")).isEqualTo("system:user:create");
+        assertThat(config.resolveDynamicPermission("/bloom-filter/items", "POST")).isEqualTo("resource:view");
+        assertThat(config.resolveDynamicPermission("/rabbitmq/messages", "POST")).isEqualTo("resource:view");
+    }
 }

@@ -7,6 +7,7 @@
     <!-- 订单实体字段映射，数据库使用下划线命名，Java 侧使用驼峰命名。 -->
     <resultMap id="LogisticsOrderResultMap" type="jimmy.logistics.entity.LogisticsOrder">
         <id column="id" property="id"/>
+        <result column="customer_id" property="customerId"/>
         <result column="order_no" property="orderNo"/>
         <result column="customer_name" property="customerName"/>
         <result column="sender_address" property="senderAddress"/>
@@ -20,29 +21,46 @@
 
     <!-- 查询近期订单用于看板和演示列表，limit 在 Service 层已做最大值限制。 -->
     <select id="findRecent" resultMap="LogisticsOrderResultMap">
-        select id, order_no, customer_name, sender_address, receiver_address,
+        select id, customer_id, order_no, customer_name, sender_address, receiver_address,
                cargo_name, cargo_weight, status, created_at, updated_at
         from logistics_order
         order by id desc
         limit #{limit}
     </select>
 
+    <select id="findRecentByCustomerId" resultMap="LogisticsOrderResultMap">
+        select id, customer_id, order_no, customer_name, sender_address, receiver_address,
+               cargo_name, cargo_weight, status, created_at, updated_at
+        from logistics_order
+        where customer_id = #{customerId}
+        order by id desc
+        limit #{limit}
+    </select>
+
     <!-- 按业务订单号查询订单详情，供 Redis 缓存未命中后的数据库回源使用。 -->
     <select id="findByOrderNo" resultMap="LogisticsOrderResultMap">
-        select id, order_no, customer_name, sender_address, receiver_address,
+        select id, customer_id, order_no, customer_name, sender_address, receiver_address,
                cargo_name, cargo_weight, status, created_at, updated_at
         from logistics_order
         where order_no = #{orderNo}
     </select>
 
+    <select id="findByOrderNoAndCustomerId" resultMap="LogisticsOrderResultMap">
+        select id, customer_id, order_no, customer_name, sender_address, receiver_address,
+               cargo_name, cargo_weight, status, created_at, updated_at
+        from logistics_order
+        where order_no = #{orderNo}
+          and customer_id = #{customerId}
+    </select>
+
     <!-- 创建订单只落核心业务字段，调度、运单、轨迹等后续链路由事件服务补齐。 -->
     <insert id="insert" parameterType="jimmy.logistics.entity.LogisticsOrder">
         insert into logistics_order (
-            id, order_no, customer_name, sender_address, receiver_address,
+            id, customer_id, order_no, customer_name, sender_address, receiver_address,
             cargo_name, cargo_weight, status, created_at, updated_at
         )
         values (
-            #{id}, #{orderNo}, #{customerName}, #{senderAddress}, #{receiverAddress},
+            #{id}, #{customerId}, #{orderNo}, #{customerName}, #{senderAddress}, #{receiverAddress},
             #{cargoName}, #{cargoWeight}, #{status}, #{createdAt}, #{updatedAt}
         )
     </insert>

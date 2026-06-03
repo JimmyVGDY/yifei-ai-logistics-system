@@ -10,6 +10,7 @@ public class LogisticsOrder {
 
     /** 主键ID */
     private Long id;
+    private Long customerId;
     /** 订单号（服务端生成的唯一业务编号） */
     private String orderNo;
     /** 客户名称 */
@@ -35,6 +36,14 @@ public class LogisticsOrder {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Long getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(Long customerId) {
+        this.customerId = customerId;
     }
 
     public String getOrderNo() {

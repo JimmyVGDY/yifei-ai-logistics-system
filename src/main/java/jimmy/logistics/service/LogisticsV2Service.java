@@ -24,9 +24,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -42,6 +46,13 @@ public class LogisticsV2Service {
 
     private static final DateTimeFormatter FILE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final DataFormatter DATA_FORMATTER = new DataFormatter();
+    private static final long MAX_UPLOAD_SIZE = 20L * 1024 * 1024;
+    private static final long MAX_IMPORT_SIZE = 10L * 1024 * 1024;
+    private static final int MAX_IMPORT_ROWS = 1000;
+    private static final Set<String> ALLOWED_UPLOAD_EXTENSIONS = new HashSet<>(Arrays.asList(
+            ".xlsx", ".xls", ".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg"
+    ));
+    private static final Set<String> ALLOWED_IMPORT_EXTENSIONS = new HashSet<>(Arrays.asList(".xlsx"));
 
     private final LogisticsFileMapper logisticsFileMapper;
     private final LogisticsCustomerImportMapper logisticsCustomerImportMapper;
@@ -71,6 +82,9 @@ public class LogisticsV2Service {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请选择需要上传的文件");
         }
+        if (file.getSize() > MAX_UPLOAD_SIZE) {
+            throw new IllegalArgumentException("上传文件不能超过20MB");
+        }
         Files.createDirectories(uploadRoot);
         String originalName = file.getOriginalFilename() == null ? "unknown" : Paths.get(file.getOriginalFilename()).getFileName().toString();
         String suffix = "";
@@ -78,6 +92,7 @@ public class LogisticsV2Service {
         if (dotIndex >= 0) {
             suffix = originalName.substring(dotIndex);
         }
+        validateAllowedExtension(suffix, ALLOWED_UPLOAD_EXTENSIONS);
         String storedName = FILE_TIME_FORMATTER.format(LocalDateTime.now()) + "-" + UUID.randomUUID().toString().replace("-", "") + suffix;
         Path targetPath = uploadRoot.resolve(storedName).normalize();
         if (!targetPath.startsWith(uploadRoot)) {
@@ -124,8 +139,16 @@ public class LogisticsV2Service {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请选择客户 Excel 文件");
         }
+        if (file.getSize() > MAX_IMPORT_SIZE) {
+            throw new IllegalArgumentException("客户导入文件不能超过10MB");
+        }
+        validateAllowedExtension(extension(file.getOriginalFilename()), ALLOWED_IMPORT_EXTENSIONS);
         Workbook workbook = new XSSFWorkbook(file.getInputStream());
         Sheet sheet = workbook.getSheetAt(0);
+        if (sheet.getLastRowNum() > MAX_IMPORT_ROWS) {
+            workbook.close();
+            throw new IllegalArgumentException("单次最多导入1000行客户数据");
+        }
         int imported = 0;
         for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
             Row row = sheet.getRow(rowIndex);
@@ -149,6 +172,21 @@ public class LogisticsV2Service {
         log.info("客户 Excel 导入完成，imported={}", imported);
         OperationChangeContext.setChangeSummary("导入客户数=" + imported);
         return record("imported", imported);
+    }
+
+    private void validateAllowedExtension(String suffix, Set<String> allowedExtensions) {
+        if (!StringUtils.hasText(suffix) || !allowedExtensions.contains(suffix.toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("不支持的文件类型");
+        }
+    }
+
+    private String extension(String filename) {
+        if (!StringUtils.hasText(filename)) {
+            return "";
+        }
+        String safeName = Paths.get(filename).getFileName().toString();
+        int dotIndex = safeName.lastIndexOf('.');
+        return dotIndex >= 0 ? safeName.substring(dotIndex) : "";
     }
 
     private String text(String value, String defaultValue) {

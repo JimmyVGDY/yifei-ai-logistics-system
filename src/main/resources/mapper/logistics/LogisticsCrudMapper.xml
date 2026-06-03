@@ -54,11 +54,6 @@
     </update>
 
     <!-- 兼容未执行增量迁移的旧表：没有 deleted 字段时才回退物理删除。 -->
-    <delete id="physicalDelete">
-        delete from ${tableName}
-        where id = #{id}
-    </delete>
-
     <!-- 变更审计读取更新/删除前快照。tableName 仍来自 Service 白名单，不接收前端任意表名。 -->
     <select id="selectRecordById" resultType="map">
         select *
@@ -145,7 +140,8 @@
     <select id="countUserByMobile" resultType="int">
         select count(1)
         from sys_user
-        where mobile in (#{plainMobile}, #{encryptedMobile})
+        where mobile in (#{plainMobile}, #{encryptedMobile}, #{legacyEncryptedMobile})
+           or (mobile_hash is not null and mobile_hash = #{mobileHash})
     </select>
 
     <select id="countPersonalCustomerByMobile" resultType="int">
@@ -154,7 +150,10 @@
         join sys_role r on r.id = u.role_id
         where r.role_code = 'CUSTOMER'
           and u.customer_subject_type = 'PERSONAL'
-          and u.mobile in (#{plainMobile}, #{encryptedMobile})
+          and (
+              u.mobile in (#{plainMobile}, #{encryptedMobile}, #{legacyEncryptedMobile})
+              or (u.mobile_hash is not null and u.mobile_hash = #{mobileHash})
+          )
     </select>
 
     <select id="countEnterpriseMainAccountByCustomerName" resultType="int">

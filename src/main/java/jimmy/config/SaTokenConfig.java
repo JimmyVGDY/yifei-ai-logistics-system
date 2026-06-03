@@ -157,6 +157,15 @@ public class SaTokenConfig implements WebMvcConfigurer {
         if (uri.startsWith("/logistics/orders")) {
             return "GET".equalsIgnoreCase(method) ? "order:query" : "order:create";
         }
+        if (uri.startsWith("/demo-users")) {
+            return "GET".equalsIgnoreCase(method) ? "system:user:query" : "system:user:create";
+        }
+        if (uri.startsWith("/bloom-filter")) {
+            return "resource:view";
+        }
+        if (uri.startsWith("/rabbitmq")) {
+            return "resource:view";
+        }
         if (uri.startsWith("/logistics/exceptions")) {
             return uri.endsWith("/handle") ? "exception:update" : "exception:create";
         }

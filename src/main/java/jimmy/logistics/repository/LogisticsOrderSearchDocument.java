@@ -16,6 +16,9 @@ public class LogisticsOrderSearchDocument {
     @Id
     private String orderNo;
 
+    @Field(type = FieldType.Long)
+    private Long customerId;
+
     @Field(type = FieldType.Keyword)
     private String status;
 
@@ -37,6 +40,14 @@ public class LogisticsOrderSearchDocument {
 
     public void setOrderNo(String orderNo) {
         this.orderNo = orderNo;
+    }
+
+    public Long getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(Long customerId) {
+        this.customerId = customerId;
     }
 
     public String getStatus() {

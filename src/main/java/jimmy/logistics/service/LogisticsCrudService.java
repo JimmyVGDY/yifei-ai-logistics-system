@@ -9,7 +9,9 @@ import jimmy.logistics.util.ColumnExistenceChecker;
 import jimmy.logistics.util.CrudBusinessUtils;
 import jimmy.util.FieldEncryptor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.sql.Timestamp;
 import java.security.SecureRandom;
@@ -38,6 +40,7 @@ import java.util.Map;
 public class LogisticsCrudService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final BCryptPasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
     private final LogisticsCrudMapper logisticsCrudMapper;
     private final ColumnExistenceChecker columnChecker;
@@ -75,6 +78,7 @@ public class LogisticsCrudService {
     public OperationResultVO create(String module, Map<String, Object> payload) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> values = filteredPayload(config, payload, false);
+        normalizeUserPassword(module, values, false);
         Long id = idGenerator.nextId();
         values.put("id", id);
         normalizeUserCustomerBinding(module, values, id, false);
@@ -83,6 +87,7 @@ public class LogisticsCrudService {
         fillCreateDefaults(config, values);
         fillAuditDefaults(config, values, true);
         validateMobileFields(values);
+        fillSensitiveLookupHashes(config, values);
         // 敏感字段加密：手机号等字段入库前加密
         changeAudit.recordCreate(values);
         encryptValues(values);
@@ -106,12 +111,14 @@ public class LogisticsCrudService {
     public OperationResultVO update(String module, long id, Map<String, Object> payload) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> values = filteredPayload(config, payload, true);
+        normalizeUserPassword(module, values, true);
         normalizeUserCustomerBinding(module, values, id, true);
         Map<String, Object> changeValues = new LinkedHashMap<>(values);
         Map<String, Object> before = logisticsCrudMapper.selectRecordById(config.tableName, id);
         fillUpdateDefaults(config, values);
         fillAuditDefaults(config, values, false);
         validateMobileFields(values);
+        fillSensitiveLookupHashes(config, values);
         // 敏感字段加密：手机号等字段入库前加密
         encryptValues(values);
         if (values.isEmpty()) {
@@ -134,20 +141,17 @@ public class LogisticsCrudService {
     public OperationResultVO delete(String module, long id) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> before = logisticsCrudMapper.selectRecordById(config.tableName, id);
-        int updated;
-        // 已执行增量迁移的表优先逻辑删除,未迁移的旧表回退物理删除,保证旧库仍能运行。
-        if (columnChecker.hasColumn(config.tableName, "deleted")) {
-            Map<String, Object> deleteValues = new LinkedHashMap<>();
-            if (config.updateTimeColumn != null && columnChecker.hasColumn(config.tableName, config.updateTimeColumn)) {
-                deleteValues.put(config.updateTimeColumn, new Timestamp(System.currentTimeMillis()));
-            }
-            if (columnChecker.hasColumn(config.tableName, "update_by")) {
-                deleteValues.put("update_by", currentUserId());
-            }
-            updated = logisticsCrudMapper.logicalDelete(config.tableName, id, utils.toFieldValues(deleteValues), columnChecker.hasColumn(config.tableName, "version"));
-        } else {
-            updated = logisticsCrudMapper.physicalDelete(config.tableName, id);
+        if (!columnChecker.hasColumn(config.tableName, "deleted")) {
+            throw new IllegalStateException("当前表未迁移 deleted 字段，禁止物理删除，请先执行增量迁移");
         }
+        Map<String, Object> deleteValues = new LinkedHashMap<>();
+        if (config.updateTimeColumn != null && columnChecker.hasColumn(config.tableName, config.updateTimeColumn)) {
+            deleteValues.put(config.updateTimeColumn, new Timestamp(System.currentTimeMillis()));
+        }
+        if (columnChecker.hasColumn(config.tableName, "update_by")) {
+            deleteValues.put("update_by", currentUserId());
+        }
+        int updated = logisticsCrudMapper.logicalDelete(config.tableName, id, utils.toFieldValues(deleteValues), columnChecker.hasColumn(config.tableName, "version"));
         if (updated == 0) {
             throw new IllegalArgumentException("记录不存在");
         }
@@ -322,6 +326,32 @@ public class LogisticsCrudService {
                 entry.setValue(fieldEncryptor.encrypt((String) entry.getValue()));
             }
         }
+    }
+
+    private void fillSensitiveLookupHashes(CrudConfig config, Map<String, Object> values) {
+        if (!"sys_user".equals(config.tableName) || !columnChecker.hasColumn("sys_user", "mobile_hash")) {
+            return;
+        }
+        Object mobile = values.get("mobile");
+        if (mobile instanceof String && StringUtils.hasText((String) mobile)) {
+            values.put("mobile_hash", fieldEncryptor.lookupHash((String) mobile));
+        }
+    }
+
+    private void normalizeUserPassword(String module, Map<String, Object> values, boolean update) {
+        if (!"users".equals(module) || !values.containsKey("password")) {
+            return;
+        }
+        Object rawPassword = values.get("password");
+        if (rawPassword == null || !StringUtils.hasText(String.valueOf(rawPassword))) {
+            values.remove("password");
+            return;
+        }
+        String password = String.valueOf(rawPassword);
+        if (password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$")) {
+            return;
+        }
+        values.put("password", PASSWORD_ENCODER.encode(password));
     }
 
     private void validateMobileFields(Map<String, Object> values) {

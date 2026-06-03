@@ -15,8 +15,14 @@ public interface LogisticsOrderMapper {
     /** 查询最近 N 条订单（按创建时间倒序） */
     List<LogisticsOrder> findRecent(@Param("limit") int limit);
 
+    List<LogisticsOrder> findRecentByCustomerId(@Param("customerId") Long customerId,
+                                                @Param("limit") int limit);
+
     /** 按订单号精确查询 */
     LogisticsOrder findByOrderNo(@Param("orderNo") String orderNo);
+
+    LogisticsOrder findByOrderNoAndCustomerId(@Param("orderNo") String orderNo,
+                                              @Param("customerId") Long customerId);
 
     /** 插入新订单 */
     int insert(LogisticsOrder logisticsOrder);

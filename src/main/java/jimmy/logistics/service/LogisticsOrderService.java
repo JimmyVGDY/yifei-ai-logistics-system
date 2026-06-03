@@ -1,5 +1,6 @@
 package jimmy.logistics.service;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.alibaba.csp.sentinel.annotation.SentinelResource;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.entity.LogisticsOrder;
@@ -67,6 +68,7 @@ public class LogisticsOrderService {
         LocalDateTime now = LocalDateTime.now();
         LogisticsOrder logisticsOrder = new LogisticsOrder();
         logisticsOrder.setId(idGenerator.nextId());
+        logisticsOrder.setCustomerId(currentCustomerScopeOrNull());
         logisticsOrder.setOrderNo(generateOrderNo(now));
         logisticsOrder.setCustomerName(request.getCustomerName());
         logisticsOrder.setSenderAddress(request.getSenderAddress());
@@ -101,6 +103,14 @@ public class LogisticsOrderService {
      */
     @SentinelResource(value = "logisticsOrderQuery", fallback = "findByOrderNoFallback")
     public LogisticsOrder findByOrderNo(String orderNo) {
+        Long customerId = currentCustomerScopeOrNull();
+        if (customerId != null) {
+            LogisticsOrder scopedOrder = logisticsOrderMapper.findByOrderNoAndCustomerId(orderNo, customerId);
+            if (scopedOrder == null) {
+                log.warn("客户账号查询订单越权或订单不存在，orderNo={}, customerId={}", orderNo, customerId);
+            }
+            return scopedOrder;
+        }
         log.info("查询物流订单详情，orderNo={}", orderNo);
         if (!orderCacheService.mightContainOrderNo(orderNo)) {
             log.info("物流订单未命中布隆过滤器，继续查询数据库避免重启后旧数据误判，orderNo={}", orderNo);
@@ -127,7 +137,10 @@ public class LogisticsOrderService {
     public List<LogisticsOrder> findRecent(int limit) {
         // 限制单次查询数量，避免前端误传过大 limit 压垮数据库。
         int safeLimit = Math.max(1, Math.min(limit, 100));
-        List<LogisticsOrder> orders = logisticsOrderMapper.findRecent(safeLimit);
+        Long customerId = currentCustomerScopeOrNull();
+        List<LogisticsOrder> orders = customerId == null
+                ? logisticsOrderMapper.findRecent(safeLimit)
+                : logisticsOrderMapper.findRecentByCustomerId(customerId, safeLimit);
         log.info("查询近期物流订单，limit={}, safeLimit={}, resultSize={}", limit, safeLimit, orders.size());
         return orders;
     }
@@ -170,5 +183,30 @@ public class LogisticsOrderService {
         String datePart = now.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
         String randomPart = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
         return "LO" + datePart + randomPart;
+    }
+
+    private Long currentCustomerScopeOrNull() {
+        try {
+            Object loginId = StpUtil.getLoginIdDefaultNull();
+            if (loginId == null) {
+                return null;
+            }
+            Object roleCode = StpUtil.getSessionByLoginId(loginId).get("roleCode");
+            if (!"CUSTOMER".equals(String.valueOf(roleCode))) {
+                return null;
+            }
+            Object customerId = StpUtil.getSessionByLoginId(loginId).get("customerId");
+            if (customerId instanceof Number) {
+                return ((Number) customerId).longValue();
+            }
+            if (customerId != null && StringUtils.hasText(String.valueOf(customerId))) {
+                return Long.valueOf(String.valueOf(customerId));
+            }
+            throw new IllegalStateException("客户账号未绑定客户档案，禁止查询业务数据");
+        } catch (IllegalStateException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("客户数据权限校验失败", ex);
+        }
     }
 }

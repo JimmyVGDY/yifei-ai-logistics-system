@@ -1,11 +1,13 @@
 package jimmy.logistics.service;
 
+import cn.dev33.satoken.stp.StpUtil;
 import jimmy.logistics.entity.LogisticsOrder;
 import jimmy.logistics.model.LogisticsOrderVO;
 import jimmy.logistics.model.OrderSearchQueryDTO;
 import jimmy.logistics.repository.LogisticsOrderSearchDocument;
 import jimmy.model.PageResult;
 import lombok.extern.slf4j.Slf4j;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
@@ -38,6 +40,7 @@ public class LogisticsOrderSearchService {
     public void saveSearchDocument(LogisticsOrder logisticsOrder) {
         LogisticsOrderSearchDocument document = new LogisticsOrderSearchDocument();
         document.setOrderNo(logisticsOrder.getOrderNo());
+        document.setCustomerId(logisticsOrder.getCustomerId());
         document.setStatus(logisticsOrder.getStatus());
         document.setCustomerName(logisticsOrder.getCustomerName());
         document.setReceiverAddress(logisticsOrder.getReceiverAddress());
@@ -56,10 +59,16 @@ public class LogisticsOrderSearchService {
         int page = Math.max(1, query == null ? 1 : query.getPage());
         int pageSize = Math.max(1, Math.min(query == null ? 20 : query.getPageSize(), 100));
         String keyword = query == null ? null : query.getKeyword();
-        NativeSearchQuery searchQuery = new NativeSearchQueryBuilder()
-                .withQuery(StringUtils.hasText(keyword)
+        Long customerId = currentCustomerScopeOrNull();
+        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+                .must(StringUtils.hasText(keyword)
                         ? QueryBuilders.multiMatchQuery(keyword, "orderNo", "customerName", "receiverAddress", "cargoName")
-                        : QueryBuilders.matchAllQuery())
+                        : QueryBuilders.matchAllQuery());
+        if (customerId != null) {
+            boolQuery.filter(QueryBuilders.termQuery("customerId", customerId));
+        }
+        NativeSearchQuery searchQuery = new NativeSearchQueryBuilder()
+                .withQuery(boolQuery)
                 .withPageable(PageRequest.of(page - 1, pageSize))
                 .build();
         try {
@@ -78,11 +87,37 @@ public class LogisticsOrderSearchService {
     private LogisticsOrderVO toVo(LogisticsOrderSearchDocument document) {
         LogisticsOrder order = new LogisticsOrder();
         order.setOrderNo(document.getOrderNo());
+        order.setCustomerId(document.getCustomerId());
         order.setCustomerName(document.getCustomerName());
         order.setReceiverAddress(document.getReceiverAddress());
         order.setCargoName(document.getCargoName());
         order.setCargoWeight(document.getCargoWeight());
         order.setStatus(document.getStatus());
         return LogisticsOrderVO.from(order);
+    }
+
+    private Long currentCustomerScopeOrNull() {
+        try {
+            Object loginId = StpUtil.getLoginIdDefaultNull();
+            if (loginId == null) {
+                return null;
+            }
+            Object roleCode = StpUtil.getSessionByLoginId(loginId).get("roleCode");
+            if (!"CUSTOMER".equals(String.valueOf(roleCode))) {
+                return null;
+            }
+            Object customerId = StpUtil.getSessionByLoginId(loginId).get("customerId");
+            if (customerId instanceof Number) {
+                return ((Number) customerId).longValue();
+            }
+            if (customerId != null && StringUtils.hasText(String.valueOf(customerId))) {
+                return Long.valueOf(String.valueOf(customerId));
+            }
+            throw new IllegalStateException("客户账号未绑定客户档案，禁止搜索业务数据");
+        } catch (IllegalStateException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("客户搜索权限校验失败", ex);
+        }
     }
 }

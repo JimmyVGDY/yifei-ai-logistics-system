@@ -28,9 +28,6 @@ public interface LogisticsCrudMapper {
                       @Param("fields") List<CrudFieldValue> fields,
                       @Param("increaseVersion") boolean increaseVersion);
 
-    int physicalDelete(@Param("tableName") String tableName,
-                       @Param("id") Long id);
-
     Map<String, Object> selectRecordById(@Param("tableName") String tableName,
                                          @Param("id") Long id);
 
@@ -60,10 +57,14 @@ public interface LogisticsCrudMapper {
     int countUserByUsername(@Param("username") String username);
 
     int countUserByMobile(@Param("plainMobile") String plainMobile,
-                          @Param("encryptedMobile") String encryptedMobile);
+                          @Param("encryptedMobile") String encryptedMobile,
+                          @Param("legacyEncryptedMobile") String legacyEncryptedMobile,
+                          @Param("mobileHash") String mobileHash);
 
     int countPersonalCustomerByMobile(@Param("plainMobile") String plainMobile,
-                                      @Param("encryptedMobile") String encryptedMobile);
+                                      @Param("encryptedMobile") String encryptedMobile,
+                                      @Param("legacyEncryptedMobile") String legacyEncryptedMobile,
+                                      @Param("mobileHash") String mobileHash);
 
     int countEnterpriseMainAccountByCustomerName(@Param("customerName") String customerName);
 }

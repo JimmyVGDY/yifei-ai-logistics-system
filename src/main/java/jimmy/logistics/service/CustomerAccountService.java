@@ -67,8 +67,10 @@ public class CustomerAccountService {
         String subjectType = CrudBusinessUtils.trim(request.getCustomerSubjectType()).toUpperCase();
         String mobile = CrudBusinessUtils.trim(request.getMobile());
         String encryptedMobile = fieldEncryptor.encrypt(mobile);
+        String legacyEncryptedMobile = fieldEncryptor.legacyEncryptForLookup(mobile);
+        String mobileHash = fieldEncryptor.lookupHash(mobile);
         validateUniqueUsername(request.getUsername());
-        validateUniqueMobile(mobile, encryptedMobile);
+        validateUniqueMobile(mobile, encryptedMobile, legacyEncryptedMobile, mobileHash);
 
         Long customerId = resolveCustomerId(subjectType, request);
         int existingCustomerAccounts = logisticsCrudMapper.countCustomerAccounts(customerId, null);
@@ -89,6 +91,9 @@ public class CustomerAccountService {
         values.put("username", CrudBusinessUtils.trim(request.getUsername()));
         values.put("real_name", CrudBusinessUtils.trim(request.getRealName()));
         values.put("mobile", encryptedMobile);
+        if (columnChecker.hasColumn("sys_user", "mobile_hash")) {
+            values.put("mobile_hash", mobileHash);
+        }
         values.put("email", CrudBusinessUtils.trim(request.getEmail()));
         values.put("password", PASSWORD_ENCODER.encode(request.getPassword()));
         values.put("role_id", requireCustomerRoleId());
@@ -118,11 +123,11 @@ public class CustomerAccountService {
         }
     }
 
-    private void validateUniqueMobile(String mobile, String encryptedMobile) {
-        if (logisticsCrudMapper.countUserByMobile(mobile, encryptedMobile) > 0) {
+    private void validateUniqueMobile(String mobile, String encryptedMobile, String legacyEncryptedMobile, String mobileHash) {
+        if (logisticsCrudMapper.countUserByMobile(mobile, encryptedMobile, legacyEncryptedMobile, mobileHash) > 0) {
             throw new IllegalArgumentException("手机号已被其他账号使用");
         }
-        if (logisticsCrudMapper.countPersonalCustomerByMobile(mobile, encryptedMobile) > 0) {
+        if (logisticsCrudMapper.countPersonalCustomerByMobile(mobile, encryptedMobile, legacyEncryptedMobile, mobileHash) > 0) {
             throw new IllegalArgumentException("该手机号已创建个人客户账号");
         }
     }

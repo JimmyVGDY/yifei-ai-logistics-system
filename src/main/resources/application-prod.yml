@@ -74,3 +74,4 @@ xxl:
 app:
   encrypt:
     key: ${APP_ENCRYPT_KEY:}
+    require-key: true

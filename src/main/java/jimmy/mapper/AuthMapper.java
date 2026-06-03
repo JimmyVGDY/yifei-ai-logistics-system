@@ -36,5 +36,6 @@ public interface AuthMapper {
     int updateProfile(@Param("userId") Long userId,
                       @Param("realName") String realName,
                       @Param("mobile") String mobile,
+                      @Param("mobileHash") String mobileHash,
                       @Param("email") String email);
 }

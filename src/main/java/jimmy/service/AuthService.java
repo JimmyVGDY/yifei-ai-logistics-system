@@ -163,11 +163,10 @@ public class AuthService {
     private LoginResponse completeLogin(LoginUser loginUser) {
         List<String> permissions = systemPermissionService.effectivePermissionCodes(loginUser.id, loginUser.roleId);
         List<MenuVO> menus = queryMenus(loginUser.roleId, permissions);
-        if (menus.isEmpty()) {
-            menus = defaultMenus(loginUser.roleCode);
-            permissions = collectPermissions(loginUser.roleCode, menus);
-        } else {
+        if (!menus.isEmpty()) {
             addRelationQueryPermissions(loginUser.roleCode, permissions);
+            permissions = distinctList(permissions);
+        } else {
             permissions = distinctList(permissions);
         }
 
@@ -214,11 +213,10 @@ public class AuthService {
         }
         List<String> permissions = systemPermissionService.effectivePermissionCodes(userId, loginUser.roleId);
         List<MenuVO> menus = queryMenus(loginUser.roleId, permissions);
-        if (menus.isEmpty()) {
-            menus = defaultMenus(loginUser.roleCode);
-            permissions = collectPermissions(loginUser.roleCode, menus);
-        } else {
+        if (!menus.isEmpty()) {
             addRelationQueryPermissions(loginUser.roleCode, permissions);
+            permissions = distinctList(permissions);
+        } else {
             permissions = distinctList(permissions);
         }
         // 与会话初始化保持一致的写入策略，确保 H2 等环境下读写同一会话域。
@@ -378,8 +376,11 @@ public class AuthService {
         if (StringUtils.hasText(request.getMobile()) && !request.getMobile().trim().matches("^1[3-9]\\d{9}$")) {
             throw new IllegalArgumentException("手机号必须是11位中国大陆手机号");
         }
+        String mobile = StringUtils.hasText(request.getMobile()) ? request.getMobile().trim() : null;
         authMapper.updateProfile(userId, request.getRealName(),
-                fieldEncryptor.encrypt(request.getMobile()), request.getEmail());
+                fieldEncryptor.encrypt(mobile),
+                fieldEncryptor.lookupHash(mobile),
+                request.getEmail());
     }
 
     /**
@@ -737,8 +738,7 @@ public class AuthService {
         if ("CUSTOMER".equals(roleCode)) {
             return menus("orders", "tracks");
         }
-        return menus("dashboard", "orders", "customers", "waybills", "dispatches", "tasks", "tracks",
-                "drivers", "vehicles", "exceptions", "fees", "system", "users", "roles", "permissions", "files", "resources");
+        return new ArrayList<>();
     }
 
     private List<MenuVO> menus(String... keys) {

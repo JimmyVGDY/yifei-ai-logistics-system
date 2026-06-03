@@ -99,6 +99,7 @@
         <set>
             <if test="realName != null and realName != ''">real_name = #{realName},</if>
             <if test="mobile != null and mobile != ''">mobile = #{mobile},</if>
+            <if test="mobileHash != null and mobileHash != ''">mobile_hash = #{mobileHash},</if>
             <if test="email != null and email != ''">email = #{email},</if>
         </set>
         where id = #{userId}

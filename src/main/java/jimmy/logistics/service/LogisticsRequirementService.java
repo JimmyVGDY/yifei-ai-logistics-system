@@ -193,10 +193,22 @@ public class LogisticsRequirementService {
             if (loginId == null) {
                 return null;
             }
+            Object roleCode = StpUtil.getSessionByLoginId(loginId).get("roleCode");
+            if (!"CUSTOMER".equals(String.valueOf(roleCode))) {
+                return null;
+            }
             Object customerId = StpUtil.getSessionByLoginId(loginId).get("customerId");
-            return customerId instanceof Number ? ((Number) customerId).longValue() : null;
+            if (customerId instanceof Number) {
+                return ((Number) customerId).longValue();
+            }
+            if (customerId != null && StringUtils.hasText(String.valueOf(customerId))) {
+                return Long.valueOf(String.valueOf(customerId));
+            }
+            throw new IllegalStateException("客户账号未绑定客户档案，禁止查询业务数据");
+        } catch (IllegalStateException ex) {
+            throw ex;
         } catch (Exception e) {
-            return null;
+            throw new IllegalStateException("客户数据权限校验失败", e);
         }
     }
 
