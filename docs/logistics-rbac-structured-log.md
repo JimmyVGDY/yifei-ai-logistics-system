@@ -16,7 +16,7 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 
 | 账号 | 密码 | 角色 |
 | --- | --- | --- |
-| admin | 963311213 | 系统管理员 |
+| admin | 以 `APP_ADMIN_PASSWORD` 配置为准 | 系统管理员 |
 | service | 123456 | 客服专员 |
 | dispatcher | 123456 | 调度专员 |
 | driver | 123456 | 司机 |
@@ -38,9 +38,39 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 
 系统会根据菜单权限自动派生按钮权限。示例：`order:manage` 会派生 `order:query`、`order:create`、`order:update`、`order:delete`、`order:export`、`order:import`；`track:view` 会派生 `track:query`、`track:export`。
 
+### 客户数据隔离
+
+客户角色不是只靠前端隐藏菜单，而是在后端强制过滤数据：
+
+- 通用模块列表、运营看板、订单详情、近期订单和 ES 订单搜索都会读取 Sa-Token 会话中的 `customerId`。
+- `logistics_order.customer_id` 是隔离主字段，运单、调度、任务、轨迹、异常、费用等关联表通过订单归属继续过滤。
+- 客户账号未绑定客户档案时，后端会拒绝查询业务数据，避免空 `customerId` 退化成全量查询。
+- 新增客户账号时会尽量按客户名称匹配历史订单并回填 `customer_id`，详见 [物流数据库说明](logistics-database.md) 和 [数据库增量迁移说明](incremental-migration.md)。
+
+### 辅助接口权限
+
+练习和中间件示例接口也纳入权限控制：
+
+- `/demo-users/**`：查询走 `system:user:query`，新增走 `system:user:create`。
+- `/bloom-filter/**`：走 `resource:view`。
+- `/rabbitmq/**`：走 `resource:view`。
+
+这些接口仍可用于练习和联调，但不再是“只要登录就能访问”。
+
 ## 密码安全
 
 系统兼容旧的明文密码数据。用户使用明文密码登录成功后，后端会自动将 `sys_user.password` 升级为 BCrypt 密文；已经是 BCrypt 的密码会直接按 BCrypt 校验。
+
+通用用户管理新增或编辑密码时也会自动写入 BCrypt；空密码不会覆盖原密码。
+
+## 敏感字段存储
+
+手机号等敏感字段入库前会加密：
+
+- 新数据使用 `ENCGCM:` AES-GCM 密文，随机 IV，避免同一手机号每次加密结果相同。
+- 旧数据 `ENC:` 密文继续兼容解密。
+- `sys_user.mobile_hash` 保存不可逆查询摘要，用于手机号查重和个人客户账号唯一性校验。
+- 生产环境应配置 `APP_ENCRYPT_KEY`，并由 `app.encrypt.require-key=true` 强制校验。
 
 ## 操作审计
 
@@ -82,3 +112,11 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 菜单路径：`系统管理 → 操作日志`，前端路由 `/system/operation-logs`，权限码 `system:log:view`。
 
 列表展示字段包括操作 ID、Trace ID、用户编号（脱敏展示）、操作人（脱敏展示）、操作内容、接口路径、耗时和操作状态。IP 地址脱敏为子网段展示。支持按关键词模糊查询和时间范围筛选。
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [链路追踪与会话审计标识说明](trace-context-audit.md)
+- [权限配置接口说明](role-permission-api.md)
+- [物流数据库说明](logistics-database.md)
+- [配置说明](configuration.md)

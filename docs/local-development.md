@@ -243,3 +243,11 @@ XXL-Job 调度中心使用独立数据库 `xxl_job`，初始化 SQL 位于 `dock
 | Grafana | 3000 | 监控仪表盘 |
 | Kibana | 5601 | 日志检索 |
 | XXL-Job | 8081 | 定时任务调度中心 |
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [新手快速上手指南](getting-started.md)
+- [配置说明](configuration.md)
+- [数据库增量迁移说明](incremental-migration.md)
+- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)

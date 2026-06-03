@@ -29,3 +29,14 @@ source scripts/sql/20260602_incremental_operation_log_login_session.sql;
 - 查一次业务链路：用 `traceId` 关联接口日志、Redis、ES、RabbitMQ 发布和消费日志。
 - 查一次登录期间全部行为：用 `loginSessionId` 查询操作日志。
 - 查某个用户的历史行为：用 `userId` 或 `userCode` 跨会话查询。
+
+## 和操作日志的关系
+
+操作日志页面主要面向业务排障，展示 `traceId`、`operationId`、`loginSessionId`、用户编号、操作内容、接口路径、结果、耗时和变更摘要。结构化文件日志主要面向技术排障，可通过同一组标识继续追踪 Redis、ES、RabbitMQ、XXL-Job 等链路。
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
+- [物流接口文档](logistics-api.md)
+- [AI 助手设计文档](ai-assistant-design.md)

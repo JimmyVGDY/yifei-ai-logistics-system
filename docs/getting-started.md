@@ -205,3 +205,11 @@ netstat -ano | findstr :8080
 - **API 调试**：Apifox / Postman
 - **Redis**：Another Redis Desktop Manager
 - **消息队列**：RabbitMQ Management (`http://127.0.0.1:15672`)
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [本地开发指南](local-development.md)
+- [配置说明](configuration.md)
+- [数据库增量迁移说明](incremental-migration.md)
+- [前端工程说明](frontend.md)

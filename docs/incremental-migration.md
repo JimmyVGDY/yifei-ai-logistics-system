@@ -10,6 +10,7 @@ source scripts/sql/20260526_incremental_role_permission_menu.sql;
 source scripts/sql/20260601_incremental_user_permission.sql;
 source scripts/sql/20260601_incremental_enterprise_roles.sql;
 source scripts/sql/20260601_incremental_customer_account_binding.sql;
+source scripts/sql/20260603_incremental_security_hardening.sql;
 ```
 
 这些脚本会保留现有数据，并补充：
@@ -24,7 +25,29 @@ source scripts/sql/20260601_incremental_customer_account_binding.sql;
 - 系统管理下的“权限配置”菜单
 - 企业级权限表：`sys_permission`、`sys_role_permission`、`sys_user_permission`
 - 企业岗位角色：客服、订单运营、运营主管、车队管理员、司机、异常处理、财务主管、审计只读、资料管理员、客户账号
+- 安全加固字段：`sys_user.mobile_hash`、`logistics_order.customer_id` 以及核心表 `deleted/version`
+- 存量订单客户归属回填：按 `logistics_order.customer_name = logistics_customer.customer_name` 补齐 `customer_id`
 
 权限增量脚本会根据现有 `sys_menu` 和 `sys_role_menu` 推导默认权限数据，不会删除旧角色、旧用户或旧菜单。
 
 `schema.sql` 和 `data.sql` 主要用于 H2 或全新开发库初始化；已有数据环境优先执行增量脚本。
+
+## 最近脚本说明
+
+### `20260603_incremental_security_hardening.sql`
+
+该脚本用于安全边界补齐，已经设计为可重复执行：
+
+- 给 `sys_user` 增加 `mobile_hash`，用于手机号不可逆查重。
+- 给 `logistics_order` 增加或确认 `customer_id`，用于客户角色数据隔离。
+- 给核心业务表和系统表补齐 `create_by`、`update_by`、`deleted`、`version`。
+- 按客户名称回填历史订单 `customer_id`，避免客户账号绑定后看不到存量订单。
+
+执行后无需清库，也不会覆盖已有业务数据。
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [物流数据库说明](logistics-database.md)
+- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
+- [配置说明](configuration.md)

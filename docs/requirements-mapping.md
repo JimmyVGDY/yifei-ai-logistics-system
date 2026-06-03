@@ -94,3 +94,11 @@ users / roles / operationLogs / files
 ## 当前边界
 
 本次已完成需求书 v2.0 的基础能力框架 + DevOps 补齐：异常处理、费用收款、统计趋势、文件上传、Excel 导入导出、操作审计（含排障）、管理页基础 CRUD、组合查询、真实分页、按钮级权限显示、订单创建中间件链路、Docker 容器化、全栈监控、集中日志、定时任务和跨平台运维脚本。后续可以继续深化为 Excel 模板下载、上传文件预览、ES 高亮搜索和更细颗粒度的数据权限。
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [物流接口文档](logistics-api.md)
+- [物流数据库说明](logistics-database.md)
+- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
+- [AI 助手设计文档](ai-assistant-design.md)

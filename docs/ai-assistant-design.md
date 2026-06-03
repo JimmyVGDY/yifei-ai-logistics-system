@@ -332,3 +332,11 @@ AI 助手相关行为必须进入现有审计体系。
 ## 15. 当前结论
 
 在当前系统中接入 AI 助手是可行的，而且和现有技术栈契合度较高。最稳妥的路线是先把 AI 助手做成只读的“系统问答 + 业务查询 + 日志排障”入口，复用已有 Sa-Token、MyBatis、Redis、RabbitMQ、Elasticsearch、Sentinel、操作日志和结构化日志能力。等权限、审计、脱敏和引用来源都稳定后，再考虑带二次确认的业务操作能力。
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [项目结构说明](architecture.md)
+- [物流接口文档](logistics-api.md)
+- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
+- [链路追踪与会话审计标识说明](trace-context-audit.md)

@@ -79,3 +79,11 @@ GET /api/infra/status
 - 后端运行、测试任务
 - Vue、ESLint、Prettier、Git Graph、GitLens 等推荐扩展
 - 终端 PATH 包含 Node、Git、Maven 和 JDK
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [新手快速上手指南](getting-started.md)
+- [认证接口文档](auth-api.md)
+- [权限配置接口说明](role-permission-api.md)
+- [物流接口文档](logistics-api.md)

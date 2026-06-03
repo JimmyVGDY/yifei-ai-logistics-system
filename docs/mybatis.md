@@ -65,3 +65,11 @@ mvn test
 - 创建订单后的 RabbitMQ 消费、轨迹初始化和 ES 索引链路。
 - 看板统计、订单趋势、收入趋势。
 - 通用管理页新增、编辑、删除、分页、模糊查询、时间范围查询。
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [开发规范与约定](development-guide.md)
+- [项目结构说明](architecture.md)
+- [物流数据库说明](logistics-database.md)
+- [数据库增量迁移说明](incremental-migration.md)

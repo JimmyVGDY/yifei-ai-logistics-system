@@ -15,7 +15,7 @@
 | `SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE` | `20MB` | 单个上传文件大小上限 |
 | `SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE` | `30MB` | 单次上传请求大小上限 |
 | `APP_UPLOAD_ROOT` | `uploads` | 业务附件本地保存目录 |
-| `SPRING_SQL_INIT_MODE` | `always` | SQL 初始化模式 |
+| `SPRING_SQL_INIT_MODE` | `never` | SQL 初始化模式，MySQL 默认不自动执行初始化脚本 |
 | `NACOS_SERVER_ADDR` | `127.0.0.1:8848` | Nacos 服务地址 |
 | `NACOS_USERNAME` | `nacos` | Nacos 用户名 |
 | `NACOS_PASSWORD` | `nacos` | Nacos 密码 |
@@ -34,7 +34,10 @@
 | `BLOOM_FILTER_EXPECTED_INSERTIONS` | `100000` | 布隆过滤器预计写入数量 |
 | `BLOOM_FILTER_FALSE_POSITIVE_PROBABILITY` | `0.01` | 布隆过滤器误判率 |
 | `APP_ADMIN_USERNAME` | `admin` | 后台管理员账号 |
-| `APP_ADMIN_PASSWORD` | `963311213` | 后台管理员密码 |
+| `APP_ADMIN_PASSWORD` | 见 `application.yml` | 后台管理员密码，建议本地通过环境变量覆盖 |
+| `APP_ENCRYPT_ENABLED` | `true` | 是否启用手机号等敏感字段加密 |
+| `APP_ENCRYPT_KEY` | 空 | 敏感字段加密密钥；生产环境必须配置 |
+| `APP_ENCRYPT_REQUIRE_KEY` | `false`，生产为 `true` | 是否要求显式配置加密密钥 |
 | `MYBATIS_SQL_LOG_LEVEL` | `info` | MyBatis Mapper 日志级别，排查 SQL 时可临时设为 `debug` |
 | `SA_TOKEN_NAME` | `satoken` | Sa-Token 请求头名称 |
 | `SA_TOKEN_TIMEOUT` | `86400` | 登录有效期，单位秒 |
@@ -48,7 +51,7 @@
 jdbc:mysql://127.0.0.1:3306/logistics_management?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
 ```
 
-项目启动时会执行 `schema.sql` 和 `data.sql`，用于创建并初始化 `demo_user` 示例表。
+MySQL 环境默认 `SPRING_SQL_INIT_MODE=never`，项目启动不会自动执行 `schema.sql` 和 `data.sql`，避免覆盖已有数据。已有库结构升级请执行 [数据库增量迁移说明](incremental-migration.md) 中登记的脚本。
 
 ## H2 兜底模式
 
@@ -163,3 +166,26 @@ POST /auth/logout
 expectedInsertions = 100000
 falsePositiveProbability = 0.01
 ```
+
+## 敏感字段加密
+
+`FieldEncryptor` 负责手机号等敏感字段入库加密：
+
+- 新数据写入 `ENCGCM:` AES-GCM 密文。
+- 旧数据 `ENC:` 密文继续兼容解密。
+- `sys_user.mobile_hash` 用于手机号不可逆查重。
+- 生产配置 `application-prod.yml` 已开启 `app.encrypt.require-key=true`，必须通过 `APP_ENCRYPT_KEY` 提供密钥。
+
+## 上传限制
+
+应用层和业务层都会限制上传文件：
+
+- 通用上传：最大 20MB，仅允许 `.xlsx`、`.xls`、`.pdf`、`.doc`、`.docx`、`.png`、`.jpg`、`.jpeg`。
+- 客户导入：最大 10MB，仅允许 `.xlsx`，单次最多 1000 行。
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [数据库增量迁移说明](incremental-migration.md)
+- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
+- [本地开发指南](local-development.md)

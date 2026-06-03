@@ -60,7 +60,7 @@ http://127.0.0.1:5173
 
 ```text
 账号：admin
-密码：963311213
+密码：以 src/main/resources/application.yml 中 APP_ADMIN_PASSWORD 默认值为准，可通过环境变量覆盖
 ```
 
 基础设施状态接口：
@@ -87,6 +87,7 @@ MySQL 服务: MySQL84
 
 ```bash
 F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_management < scripts/sql/20260525_incremental_base_fields_and_indexes.sql
+F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_management < scripts/sql/20260603_incremental_security_hardening.sql
 ```
 
 如果不想依赖 MySQL，可以使用 H2 内存库：
@@ -124,6 +125,7 @@ src/main/resources/data.sql
 
 ## 文档
 
+- [项目文档索引](docs/README.md) — 所有文档入口和推荐阅读顺序
 - [新手快速上手指南](docs/getting-started.md) — 10 分钟跑通项目
 - [开发规范与约定](docs/development-guide.md) — 编码规范、Git 工作流、代码审查清单
 - [项目结构说明](docs/architecture.md)
@@ -133,6 +135,14 @@ src/main/resources/data.sql
 - [前端工程说明](docs/frontend.md)
 - [需求匹配说明](docs/requirements-mapping.md)
 - [物流接口文档](docs/logistics-api.md)
+- [认证接口文档](docs/auth-api.md)
+- [权限配置接口说明](docs/role-permission-api.md)
+- [用户接口文档](docs/user-api.md)
+- [物流数据库说明](docs/logistics-database.md)
+- [数据库增量迁移说明](docs/incremental-migration.md)
+- [权限、结构化日志与操作审计说明](docs/logistics-rbac-structured-log.md)
+- [链路追踪与会话审计标识说明](docs/trace-context-audit.md)
+- [AI 助手设计文档](docs/ai-assistant-design.md)
 - [认证接口文档](docs/auth-api.md)
 - [用户接口文档](docs/user-api.md)
 - [角色权限接口文档](docs/role-permission-api.md)

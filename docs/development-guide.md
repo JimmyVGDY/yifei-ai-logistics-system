@@ -51,6 +51,17 @@ public LogisticsOrderVO getOrderDetail(String orderNo) {
 | 异常处理 | 不吞异常，不 `catch (Exception e) {}` 留空 |
 | 字符串拼接 | 循环内用 `StringBuilder`，简单拼接可用 `+` |
 
+### 安全关键逻辑
+
+| 规则 | 说明 |
+|------|------|
+| 客户数据隔离 | 客户角色必须按 `customerId` 在后端过滤，不能只靠前端隐藏菜单 |
+| 密码写入 | 新增或更新用户密码必须 BCrypt；空密码不得覆盖旧密码 |
+| 敏感字段 | 手机号等字段入库前加密，查重使用不可逆 hash，不在日志中输出明文 |
+| 删除操作 | 通用 CRUD 只允许逻辑删除；缺少 `deleted` 字段先补迁移脚本 |
+| 文件上传 | 必须限制扩展名、大小和导入行数，禁止可执行文件进入上传目录 |
+| 权限兜底 | 明确配置为空权限时不能自动回退默认权限 |
+
 ## 项目结构约定
 
 ```text
@@ -202,8 +213,10 @@ log.info("订单创建，客户手机={}, 地址={}", phone, address);
 
 ## 相关文档
 
+- [项目文档索引](README.md) — 所有文档入口
 - [新手快速上手指南](getting-started.md) — 10 分钟跑通项目
 - [本地开发指南](local-development.md) — 中间件启动和环境搭建详解
 - [项目结构说明](architecture.md) — 目录结构和分层约定
 - [MyBatis 使用规范](mybatis.md) — SQL 编写和动态 SQL 边界
 - [数据库增量迁移](incremental-migration.md) — 结构变更流程
+- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md) — 安全和审计规则

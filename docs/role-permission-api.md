@@ -78,3 +78,18 @@ source scripts/sql/20260601_incremental_enterprise_roles.sql;
 ```
 
 应用启动时也会以“只创建缺失表、只补齐缺失权限定义”的方式兜底，不会删除已有业务数据。
+
+## 权限控制边界
+
+- 角色权限控制菜单和默认操作权限。
+- 用户特殊权限可以在角色基础上增加或禁用具体权限码。
+- 前端按钮显隐和后端接口鉴权必须使用同一套权限码，例如 `order:create`、`order:update`、`order:delete`。
+- 如果角色或用户被配置为空菜单/空权限，后端不会再回退到默认菜单，避免权限收回失效。
+- 客户角色还叠加 `customerId` 数据范围控制，不能只依赖菜单和按钮隐藏。
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [认证接口文档](auth-api.md)
+- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
+- [前端工程说明](frontend.md)

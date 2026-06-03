@@ -55,3 +55,21 @@
 - 做后端业务开发前必须阅读 [development-guide.md](development-guide.md) 和 [mybatis.md](mybatis.md)。
 - 做权限、日志、审计相关功能前必须阅读 [logistics-rbac-structured-log.md](logistics-rbac-structured-log.md) 和 [trace-context-audit.md](trace-context-audit.md)。
 - 设计 AI 助手或智能排障能力前必须阅读 [ai-assistant-design.md](ai-assistant-design.md)。
+
+## 文档维护约定
+
+- 所有 Markdown 文档使用 UTF-8 编码；如果 PowerShell 控制台显示乱码，以编辑器、Gitee 页面或 UTF-8 读取工具为准。
+- 每个专题文档底部保留“相关文档”小节，至少回链到本索引，避免单个文档孤立。
+- 新增接口、表结构、权限码、中间件链路或运维脚本时，需要同步更新对应专题文档和本索引。
+- 已有 MySQL 数据库不通过应用启动自动重建；涉及字段变更时优先新增 `scripts/sql/*incremental*.sql`，并在 [incremental-migration.md](incremental-migration.md) 中登记。
+- 文档示例不写真实生产密码、token、accessToken；本地默认值以配置文件和环境变量为准。
+
+## 最近安全增强
+
+- 客户角色数据隔离已覆盖通用模块列表、看板、订单详情、近期订单和 ES 订单搜索；客户账号缺少 `customer_id` 绑定时禁止查询业务数据。
+- 新写入的手机号等敏感字段使用 `ENCGCM:` AES-GCM 密文，旧 `ENC:` 密文继续兼容；`sys_user.mobile_hash` 用于不可逆查重。
+- 通用用户管理写入密码时自动 BCrypt，空密码不会覆盖旧密码。
+- 通用删除只允许逻辑删除，缺少 `deleted` 字段时要求先执行增量迁移。
+- 练习和中间件示例接口已接入 Sa-Token 权限映射，不再只是登录即可访问。
+
+相关说明见 [logistics-rbac-structured-log.md](logistics-rbac-structured-log.md)、[logistics-database.md](logistics-database.md)、[incremental-migration.md](incremental-migration.md) 和 [configuration.md](configuration.md)。

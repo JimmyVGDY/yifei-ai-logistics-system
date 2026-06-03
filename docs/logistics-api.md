@@ -4,6 +4,8 @@
 
 除 `/auth/login`、`/actuator/health` 外，接口默认需要登录。登录成功后前端会把 Sa-Token 返回的 token 放入请求头。
 
+客户角色接口会自动按登录会话中的 `customerId` 做数据隔离。客户账号未绑定客户档案时，订单、看板、通用模块和 ES 搜索等业务查询会被拒绝，避免看到其他客户数据。
+
 统一响应结构：
 
 ```json
@@ -104,6 +106,12 @@ exceptions, fees, users, roles, operationLogs, files
 
 创建订单必填：客户名称、发货地址、收货地址。货物名称、重量、体积和计划时间允许暂缺，后续可在运单管理里补充。
 
+客户角色查询订单时：
+
+- `/logistics/orders` 只返回当前客户的近期订单。
+- `/logistics/orders/{orderNo}` 只允许查看当前客户订单。
+- `/logistics/orders/search` 会在 ES 查询条件中追加 `customerId` 过滤。
+
 订单搜索参数：
 
 | 参数 | 必填 | 说明 |
@@ -167,3 +175,23 @@ exceptions, fees, users, roles, operationLogs, files
 | GET | `/actuator/health` | 健康检查 |
 | GET | `/actuator/prometheus` | Prometheus 指标（JVM/HTTP/GC/HikariCP） |
 | GET | `/infra/status` | 中间件连接状态 |
+
+## 练习与中间件示例接口
+
+| 地址 | 权限 | 说明 |
+| --- | --- | --- |
+| `/demo-users/**` | `system:user:query` / `system:user:create` | MyBatis 练习用户示例 |
+| `/bloom-filter/**` | `resource:view` | 布隆过滤器示例 |
+| `/rabbitmq/**` | `resource:view` | RabbitMQ 示例消息 |
+
+## 文件上传与导入限制
+
+- `/logistics/files/upload` 最大 20MB，仅允许 `.xlsx`、`.xls`、`.pdf`、`.doc`、`.docx`、`.png`、`.jpg`、`.jpeg`。
+- `/logistics/excel/import/customers` 最大 10MB，仅允许 `.xlsx`，单次最多 1000 行。
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [认证接口文档](auth-api.md)
+- [权限配置接口说明](role-permission-api.md)
+- [物流数据库说明](logistics-database.md)
