@@ -124,6 +124,8 @@ src/main/resources/data.sql
 
 ## 文档
 
+- [新手快速上手指南](docs/getting-started.md) — 10 分钟跑通项目
+- [开发规范与约定](docs/development-guide.md) — 编码规范、Git 工作流、代码审查清单
 - [项目结构说明](docs/architecture.md)
 - [配置说明](docs/configuration.md)
 - [本地开发指南](docs/local-development.md)
@@ -135,7 +137,9 @@ src/main/resources/data.sql
 - [用户接口文档](docs/user-api.md)
 - [角色权限接口文档](docs/role-permission-api.md)
 - [数据库增量迁移说明](docs/incremental-migration.md)
+- [物流数据库说明](docs/logistics-database.md)
 - [权限和结构化日志说明](docs/logistics-rbac-structured-log.md)
+- [链路追踪与会话审计](docs/trace-context-audit.md)
 
 ## 常用接口
 
