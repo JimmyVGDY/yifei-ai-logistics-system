@@ -52,7 +52,8 @@
             <div class="avatar">{{ item.role === 'user' ? '我' : 'AI' }}</div>
             <div class="message-body">
               <div class="message-meta">{{ item.role === 'user' ? '你' : '物流AI助手' }}</div>
-              <p>{{ item.content }}</p>
+              <p v-if="item.role === 'user'">{{ item.content }}</p>
+              <div v-else class="markdown-body" v-html="renderMarkdown(item.content)"></div>
             </div>
           </div>
 
@@ -192,6 +193,8 @@
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Promotion, Refresh, Search } from '@element-plus/icons-vue'
+import MarkdownIt from 'markdown-it'
+import DOMPurify from 'dompurify'
 import { analyzeAiLogs, chatWithAi, fetchAiConversation, fetchAiConversations } from '../api/ai-assistant'
 
 const conversations = ref([])
@@ -206,6 +209,11 @@ const chatScrollbarRef = ref(null)
 const thinkingStepIndex = ref(0)
 const thinkingSteps = ['理解你的问题', '检索系统文档和上下文', '整理引用和工具结果', '生成只读回答']
 let thinkingTimer = null
+const markdown = new MarkdownIt({
+  html: false,
+  linkify: true,
+  breaks: true
+})
 const logForm = reactive({
   traceId: '',
   operationId: '',
@@ -275,6 +283,14 @@ function stopThinking() {
   chatLoading.value = false
   window.clearInterval(thinkingTimer)
   thinkingTimer = null
+}
+
+function renderMarkdown(content) {
+  const html = markdown.render(content || '')
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    ADD_ATTR: ['target', 'rel']
+  })
 }
 
 async function scrollToBottom() {
@@ -493,7 +509,8 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
   text-align: right;
 }
 
-.message-body p,
+.message-body > p,
+.markdown-body,
 .thinking-card {
   margin: 0;
   padding: 12px 14px;
@@ -503,15 +520,97 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
   word-break: break-word;
 }
 
-.message-row.assistant .message-body p,
+.message-row.assistant .markdown-body,
 .thinking-card {
   border: 1px solid #e2e8f0;
   background: #fff;
 }
 
-.message-row.user .message-body p {
+.message-row.user .message-body > p {
   background: #2563eb;
   color: #fff;
+}
+
+.markdown-body {
+  overflow-x: auto;
+  color: #0f172a;
+}
+
+.markdown-body :deep(p) {
+  margin: 0 0 10px;
+}
+
+.markdown-body :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.markdown-body :deep(strong) {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
+  margin: 8px 0 10px 20px;
+  padding: 0;
+}
+
+.markdown-body :deep(li + li) {
+  margin-top: 4px;
+}
+
+.markdown-body :deep(table) {
+  width: 100%;
+  margin: 10px 0 12px;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: normal;
+}
+
+.markdown-body :deep(th),
+.markdown-body :deep(td) {
+  padding: 8px 10px;
+  border: 1px solid #dbe4ef;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-body :deep(th) {
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 700;
+}
+
+.markdown-body :deep(code) {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 12px;
+}
+
+.markdown-body :deep(pre) {
+  overflow-x: auto;
+  margin: 10px 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #0f172a;
+}
+
+.markdown-body :deep(pre code) {
+  padding: 0;
+  background: transparent;
+  color: #e2e8f0;
+}
+
+.markdown-body :deep(a) {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.markdown-body :deep(a:hover) {
+  text-decoration: underline;
 }
 
 .typing-line,
