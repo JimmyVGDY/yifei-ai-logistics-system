@@ -13,7 +13,7 @@
 - RabbitMQ 4.1.8（基础 AMQP 能力兼容 RabbitMQ 3.x+）
 - XXL-Job 2.4.x（需要调度任务时启动）
 
-项目基于 Spring Boot `3.3.13`，依赖版本通过 `pom.xml` 中的 Spring Cloud 和 Spring Cloud Alibaba BOM 统一管理。完整版本矩阵见 [环境与中间件版本清单](environment-versions.md)。
+项目基于 Spring Boot `3.5.14`，依赖版本通过 `pom.xml` 中的 Spring Cloud、Spring Cloud Alibaba 和 Spring AI BOM 统一管理。完整版本矩阵见 [环境与中间件版本清单](environment-versions.md)。
 
 ## 本地中间件位置（Windows）
 
@@ -217,9 +217,13 @@ GET  http://127.0.0.1:8080/infra/rabbitmq/client
 GET  http://127.0.0.1:8080/demo-users
 POST http://127.0.0.1:8080/auth/login  {"username":"admin","password":"***"}
 GET  http://127.0.0.1:8080/logistics/dashboard
+POST http://127.0.0.1:8080/ai/chat  {"message":"系统有哪些文档？"}
+POST http://127.0.0.1:8080/ai/logs/analyze  {"traceId":"..."}
 GET  http://127.0.0.1:8080/actuator/health
 GET  http://127.0.0.1:8080/actuator/prometheus
 ```
+
+AI 助手未配置模型密钥时仍可启动，接口会返回本地文档检索和明确的配置提示。需要真实模型回答时设置 `SPRING_AI_OPENAI_API_KEY` 等变量，详见 [Spring AI 接入说明](spring-ai.md)。
 
 ## Docker 部署（生产环境）
 
@@ -250,5 +254,6 @@ XXL-Job 调度中心使用独立数据库 `xxl_job`，初始化 SQL 位于 `dock
 - [新手快速上手指南](getting-started.md)
 - [环境与中间件版本清单](environment-versions.md)
 - [配置说明](configuration.md)
+- [Spring AI 接入说明](spring-ai.md)
 - [数据库增量迁移说明](incremental-migration.md)
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)

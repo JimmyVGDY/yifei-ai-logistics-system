@@ -61,7 +61,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
      * 注册两条拦截器链：
      * <ol>
      *   <li>SaInterceptor：全部路径（排除登录/健康检查），校验登录态 + 路由权限</li>
-     *   <li>OperationLogInterceptor：仅覆盖 /logistics、/auth、/system、/infra 等业务路径，记录操作日志</li>
+     *   <li>OperationLogInterceptor：仅覆盖 /logistics、/auth、/system、/infra、/ai 等业务路径，记录操作日志</li>
      * </ol>
      */
     @Override

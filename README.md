@@ -1,13 +1,14 @@
 # practice-project-about-develop
 
-这是一个以物流管理系统为业务场景的 Spring Boot + Vue3 前后端分离练习项目。项目已经接入 Nacos、Sentinel、Elasticsearch、Redis、RabbitMQ、MyBatis、Sa-Token 和布隆过滤器，重点用于练习“业务流程闭环 + 中间件落地 + 权限控制 + 前端管理台”。
+这是一个以物流管理系统为业务场景的 Spring Boot + Vue3 前后端分离练习项目。项目已经接入 Nacos、Sentinel、Elasticsearch、Redis、RabbitMQ、MyBatis、Sa-Token、Spring AI 和布隆过滤器，重点用于练习“业务流程闭环 + 中间件落地 + 权限控制 + 前端管理台 + 只读 AI 助手”。
 
 ## 技术栈
 
 - Java 21
-- Spring Boot 3.3.13
-- Spring Cloud 2023.0.6
-- Spring Cloud Alibaba 2023.0.3.4
+- Spring Boot 3.5.14
+- Spring Cloud 2025.0.2
+- Spring Cloud Alibaba 2025.0.0.0
+- Spring AI 1.1.7
 - Nacos Discovery / Config
 - Sentinel
 - Spring Data Elasticsearch
@@ -35,6 +36,7 @@
 - 操作日志记录（含变更摘要、请求参数、错误消息）。
 - 日志安全：userId/IP 脱敏、手机号/邮箱/身份证号清洗、敏感参数过滤、异常消息安全化。
 - Excel 导出和客户资料导入。
+- Spring AI 只读助手，支持系统文档问答、短期会话、操作日志排障分析；未配置模型密钥时应用仍可启动并返回本地兜底提示。
 
 ## 快速开始
 
@@ -144,14 +146,8 @@ src/main/resources/data.sql
 - [数据库增量迁移说明](docs/incremental-migration.md)
 - [权限、结构化日志与操作审计说明](docs/logistics-rbac-structured-log.md)
 - [链路追踪与会话审计标识说明](docs/trace-context-audit.md)
+- [Spring AI 接入说明](docs/spring-ai.md)
 - [AI 助手设计文档](docs/ai-assistant-design.md)
-- [认证接口文档](docs/auth-api.md)
-- [用户接口文档](docs/user-api.md)
-- [角色权限接口文档](docs/role-permission-api.md)
-- [数据库增量迁移说明](docs/incremental-migration.md)
-- [物流数据库说明](docs/logistics-database.md)
-- [权限和结构化日志说明](docs/logistics-rbac-structured-log.md)
-- [链路追踪与会话审计](docs/trace-context-audit.md)
 
 ## 常用接口
 
@@ -169,6 +165,10 @@ GET  /logistics/orders/{orderNo}
 GET  /logistics/orders/search?keyword=上海&page=1&pageSize=20
 GET  /logistics/excel/export/{module}
 POST /logistics/excel/import/customers
+POST /ai/chat
+POST /ai/logs/analyze
+GET  /ai/conversations
+GET  /ai/conversations/{id}
 GET  /infra/status
 GET  /actuator/health
 ```
@@ -187,4 +187,8 @@ RABBITMQ_PORT=5672
 SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/logistics_management?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
 SPRING_DATASOURCE_USERNAME=root
 SPRING_DATASOURCE_PASSWORD=
+SPRING_AI_OPENAI_API_KEY=missing
+SPRING_AI_OPENAI_BASE_URL=https://api.openai.com
+SPRING_AI_OPENAI_CHAT_MODEL=gpt-4o-mini
+APP_AI_CONVERSATION_TTL_SECONDS=3600
 ```

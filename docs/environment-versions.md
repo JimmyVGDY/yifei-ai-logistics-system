@@ -4,7 +4,7 @@
 
 ## 1. 版本选择原则
 
-- 后端当前以 Java 21 为运行基线，新增依赖需要确认兼容 Java 21、Spring Boot 3.3.x 和 Jakarta 命名空间。
+- 后端当前以 Java 21 为运行基线，新增依赖需要确认兼容 Java 21、Spring Boot 3.5.x 和 Jakarta 命名空间。
 - 本地 Windows 环境优先复用当前项目已验证的版本，减少“我这里能跑、你那里跑不了”的差异。
 - Docker Compose 版本用于容器化部署和统一联调，可能与本机手动安装版本不同，但需要保持协议兼容。
 - 新增或升级中间件时，需要同步更新本文、[本地开发环境说明](local-development.md)、[配置说明](configuration.md) 和相关启动脚本。
@@ -79,17 +79,20 @@ docker compose up -d
 
 | 组件 | 当前版本 | 来源 | 说明 |
 | --- | --- | --- | --- |
-| Spring Boot | 3.3.13 | `spring-boot-starter-parent` | Java 21 兼容的 Spring Boot 3.x 版本。 |
-| Spring Cloud | 2023.0.6 | `pom.xml` BOM | 与 Spring Boot 3.3.x 配套。 |
-| Spring Cloud Alibaba | 2023.0.3.4 | `pom.xml` BOM | Nacos、Sentinel 相关依赖由此统一管理。 |
+| Spring Boot | 3.5.14 | `spring-boot-starter-parent` | 当前项目运行基线，兼容 Spring AI 1.1.x。 |
+| Spring Cloud | 2025.0.2 | `pom.xml` BOM | 与 Spring Boot 3.5.x 配套。 |
+| Spring Cloud Alibaba | 2025.0.0.0 | `pom.xml` BOM | Nacos、Sentinel 相关依赖由此统一管理。 |
+| Spring AI | 1.1.7 | `spring-ai-bom` | AI 助手模型接入，当前使用 OpenAI 兼容接口 starter。 |
 | Sa-Token | 1.45.0 | `pom.xml` | 登录认证、权限和会话。 |
 | MyBatis Spring Boot Starter | 3.0.4 | `pom.xml` | Mapper XML 数据访问。 |
 | XXL-Job Core | 2.4.0 | `pom.xml` | 定时任务执行器端。 |
 | Lombok | 1.18.34 | `pom.xml` | 简化部分模型代码。 |
-| Logstash Logback Encoder | 7.3 | `pom.xml` | 结构化日志编码器，当前随 Spring Boot 3.3.x 使用 Logback 1.5.x。 |
+| Logstash Logback Encoder | 7.3 | `pom.xml` | 结构化日志编码器，当前随 Spring Boot 3.5.x 使用 Logback 1.5.x。 |
 | Guava | 32.1.3-jre | `pom.xml` | 本地内存布隆过滤器。 |
 
-注意：当前项目已经升级到 Spring Boot 3.3.x 和 Logback 1.5.x，`logstash-logback-encoder` 7.3 已通过 Java 21 单元测试和打包验证。后续如果继续升级到 8.x，需要重新验证结构化日志字段、文件滚动和启动兼容性。
+注意：当前项目已经升级到 Spring Boot 3.5.x 和 Logback 1.5.x，`logstash-logback-encoder` 7.3 已通过 Java 21 单元测试和打包验证。后续如果继续升级到 8.x，需要重新验证结构化日志字段、文件滚动和启动兼容性。
+
+Spring AI 默认不要求配置真实模型密钥即可启动。需要真实模型回答时，通过环境变量提供 `SPRING_AI_OPENAI_API_KEY`、`SPRING_AI_OPENAI_BASE_URL` 和 `SPRING_AI_OPENAI_CHAT_MODEL`，详见 [Spring AI 接入说明](spring-ai.md)。
 
 ## 6. 前端依赖版本
 

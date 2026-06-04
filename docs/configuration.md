@@ -39,6 +39,10 @@
 | `APP_ENCRYPT_KEY` | 空 | 敏感字段加密密钥；生产环境必须配置 |
 | `APP_ENCRYPT_REQUIRE_KEY` | `false`，生产为 `true` | 是否要求显式配置加密密钥 |
 | `MYBATIS_SQL_LOG_LEVEL` | `info` | MyBatis Mapper 日志级别，排查 SQL 时可临时设为 `debug` |
+| `SPRING_AI_OPENAI_API_KEY` | `missing` | Spring AI OpenAI 兼容接口密钥；未配置时 AI 接口走本地兜底，不影响应用启动 |
+| `SPRING_AI_OPENAI_BASE_URL` | `https://api.openai.com` | OpenAI 兼容接口地址，可替换为内网模型网关 |
+| `SPRING_AI_OPENAI_CHAT_MODEL` | `gpt-4o-mini` | AI 问答使用的聊天模型名称 |
+| `APP_AI_CONVERSATION_TTL_SECONDS` | `3600` | Redis 中 AI 短期会话保留时间，单位秒 |
 | `SA_TOKEN_NAME` | `satoken` | Sa-Token 请求头名称 |
 | `SA_TOKEN_TIMEOUT` | `86400` | 登录有效期，单位秒 |
 | `SA_TOKEN_ACTIVE_TIMEOUT` | `1800` | 无操作有效期，单位秒 |
@@ -158,6 +162,27 @@ POST /auth/logout
 
 `/auth/login` 和 `/actuator/health` 会放行，其余接口默认要求登录。
 
+## Spring AI 助手
+
+AI 助手接口统一由后端代理调用模型，前端不会接触模型密钥。当前第一版只开放只读问答和日志排障：
+
+```text
+POST /ai/chat
+POST /ai/logs/analyze
+GET  /ai/conversations
+GET  /ai/conversations/{id}
+```
+
+权限码：
+
+```text
+ai:chat
+ai:log:analyze
+ai:conversation:query
+```
+
+如果 `SPRING_AI_OPENAI_API_KEY` 未配置或仍为 `missing`，应用仍可正常启动，AI 问答会返回本地文档检索和中文配置提示。真实模型接入、脱敏边界和验证方式见 [Spring AI 接入说明](spring-ai.md)。
+
 ## Bloom Filter
 
 布隆过滤器使用 Guava 实现，默认参数：
@@ -188,5 +213,6 @@ falsePositiveProbability = 0.01
 - [项目文档索引](README.md)
 - [环境与中间件版本清单](environment-versions.md)
 - [数据库增量迁移说明](incremental-migration.md)
+- [Spring AI 接入说明](spring-ai.md)
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
 - [本地开发指南](local-development.md)

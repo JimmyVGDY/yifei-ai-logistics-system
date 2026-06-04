@@ -111,7 +111,7 @@ src/main/java/jimmy/
 | `refactor` | 代码重构 | `refactor \| 统一脱敏规则为前2后4` |
 | `docs` | 文档更新 | `docs \| 新增新手快速上手指南` |
 | `test` | 测试相关 | `test \| 补充订单服务单元测试` |
-| `chore` | 构建/配置 | `chore \| 升级 Spring Boot 到 3.3.13` |
+| `chore` | 构建/配置 | `chore \| 升级 Spring Boot 到 3.5.14` |
 | `perf` | 性能优化 | `perf \| 订单查询添加复合索引` |
 
 **提交即推送**：`git commit` 后立即 `git push`。

@@ -21,6 +21,7 @@
 | [requirements-mapping.md](requirements-mapping.md) | 物流管理需求与当前实现模块的对应关系 |
 | [frontend.md](frontend.md) | 前端新人接入手册，覆盖 Vue3 工程、路由、权限、接口、通用管理页和开发检查清单 |
 | [mybatis.md](mybatis.md) | MyBatis Mapper XML 使用规范和 SQL 维护约定 |
+| [spring-ai.md](spring-ai.md) | Spring AI 当前接入状态、配置项、接口、权限和本地验证说明 |
 
 ## 业务与接口
 
@@ -49,14 +50,15 @@
 
 | 文档 | 用途 |
 | --- | --- |
-| [ai-assistant-design.md](ai-assistant-design.md) | AI 助手接入可行性、现有组件编排、权限审计和分阶段落地方案 |
+| [spring-ai.md](spring-ai.md) | 已落地的 Spring AI 只读助手接入说明 |
+| [ai-assistant-design.md](ai-assistant-design.md) | AI 助手整体设计、现有组件编排、权限审计和后续演进方案 |
 
 ## 阅读建议
 
 - 新开发者先看“新人接入”和“系统设计”，搭环境前先确认 [environment-versions.md](environment-versions.md)，前端开发者还应重点阅读 [frontend.md](frontend.md)，再按负责模块阅读接口和数据库文档。
 - 做后端业务开发前必须阅读 [development-guide.md](development-guide.md) 和 [mybatis.md](mybatis.md)。
 - 做权限、日志、审计相关功能前必须阅读 [logistics-rbac-structured-log.md](logistics-rbac-structured-log.md) 和 [trace-context-audit.md](trace-context-audit.md)。
-- 设计 AI 助手或智能排障能力前必须阅读 [ai-assistant-design.md](ai-assistant-design.md)。
+- 使用或继续开发 AI 助手前先阅读 [spring-ai.md](spring-ai.md)，再阅读 [ai-assistant-design.md](ai-assistant-design.md)。
 
 ## 文档维护约定
 

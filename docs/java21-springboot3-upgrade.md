@@ -1,19 +1,20 @@
 # Java 21 与 Spring Boot 3 升级记录
 
-本文记录项目从 Java 8 / Spring Boot 2.7.x 升级到 Java 21 / Spring Boot 3.3.x 的范围、版本、验证结果和后续注意事项。新开发者搭建环境前应先阅读 [环境与中间件版本清单](environment-versions.md) 和 [本地开发指南](local-development.md)。
+本文记录项目从 Java 8 / Spring Boot 2.7.x 升级到 Java 21 / Spring Boot 3.x 的范围、版本、验证结果和后续注意事项。当前运行基线已经演进到 Spring Boot 3.5.x。新开发者搭建环境前应先阅读 [环境与中间件版本清单](environment-versions.md) 和 [本地开发指南](local-development.md)。
 
 ## 升级范围
 
 - 后端运行基线升级为 Java 21。
-- Spring Boot 升级为 3.3.13。
-- Spring Cloud 升级为 2023.0.6。
-- Spring Cloud Alibaba 升级为 2023.0.3.4。
+- Spring Boot 升级为 3.5.14。
+- Spring Cloud 升级为 2025.0.2。
+- Spring Cloud Alibaba 升级为 2025.0.0.0。
+- Spring AI BOM 接入 1.1.7，当前只用于只读 AI 助手和日志排障。
 - Sa-Token 切换为 Boot3 starter，保留现有登录、会话、权限和按钮控制逻辑。
 - MyBatis Spring Boot Starter 升级为 3.0.4，继续使用 Mapper 接口 + XML 维护 SQL。
 - Servlet、Validation、PostConstruct 相关包迁移到 Jakarta 命名空间。
 - Docker 应用镜像切换到 Temurin 21。
 
-本轮不接入 Spring AI，不拆分微服务，不清空数据库，不改变现有接口 URL、请求参数和响应结构。
+本轮不拆分微服务，不清空数据库，不改变现有物流业务接口 URL、请求参数和响应结构。Spring AI 接入只新增 `/ai/**` 只读能力，未开放写操作。
 
 ## 本地环境
 
@@ -21,7 +22,7 @@
 
 | 工具 | 当前状态 |
 | --- | --- |
-| Java | `F:\Development\IDE\IntelliJ IDEA Ultimate\jbr`，版本 21.0.9 |
+| Java | 本地 JDK 21，推荐 `F:\Development\Java\temurin-21` |
 | Maven | `F:\Development\Tools\apache-maven-3.9.16`，运行在 Java 21 上 |
 | Node.js | 24.16.0 |
 | npm | 11.13.0 |
@@ -30,8 +31,8 @@
 说明：
 
 - Java 8 目录保留，不删除，避免影响其它旧项目。
-- 当前用户级 `JAVA_HOME` 已切到 IDEA 自带 JBR 21。
-- 标准 Temurin 21 下载受网络影响未完成；后续如需独立 JDK，可按 [环境与中间件版本清单](environment-versions.md) 重新安装到 `F:\Development\Java\temurin-21`。
+- 当前项目优先使用本地 JDK 21，减少 IDEA 自带 JBR 与命令行环境不一致带来的问题。
+- Java 8 仍可保留在本机，用于其它旧项目；本项目 Maven、IDEA Project SDK 和 Maven Runner 均应使用 Java 21。
 
 ## 兼容适配点
 
@@ -76,7 +77,7 @@ java -jar target/demo-springboot-1.0-SNAPSHOT.jar --spring.profiles.active=h2 --
 验证结论：
 
 - Java 21 编译通过。
-- 单元测试通过：54 个测试，0 失败，0 错误。
+- 单元测试通过，包含权限、日志、链路追踪、RabbitMQ 事件上下文和 AI 权限映射相关测试。
 - Spring Boot 可执行 Jar 打包成功。
 - H2 profile 启动成功，`GET /actuator/health` 返回 `UP`。
 - 结构化日志、操作日志、权限服务、脱敏工具、RabbitMQ 事件上下文相关测试保持通过。
@@ -97,6 +98,7 @@ java -jar target/demo-springboot-1.0-SNAPSHOT.jar --spring.profiles.active=h2 --
 5. 菜单、按钮和接口权限保持一致。
 6. 运单创建、订单搜索、物流轨迹、异常处理、费用结算、操作日志可正常使用。
 7. Redis 缓存、RabbitMQ 事件、Elasticsearch 搜索、Sentinel 兜底和 XXL-Job 注册按需验证。
+8. AI 助手入口在管理员账号下可见；未配置模型密钥时 `/ai/chat` 返回中文兜底提示，配置密钥后再验证真实模型回答。
 
 ## 相关文档
 
@@ -104,5 +106,6 @@ java -jar target/demo-springboot-1.0-SNAPSHOT.jar --spring.profiles.active=h2 --
 - [环境与中间件版本清单](environment-versions.md)
 - [本地开发指南](local-development.md)
 - [配置说明](configuration.md)
+- [Spring AI 接入说明](spring-ai.md)
 - [MyBatis 使用说明](mybatis.md)
 - [链路追踪与会话审计说明](trace-context-audit.md)

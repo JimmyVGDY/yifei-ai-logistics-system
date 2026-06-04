@@ -40,3 +40,4 @@ source scripts/sql/20260602_incremental_operation_log_login_session.sql;
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
 - [物流接口文档](logistics-api.md)
 - [AI 助手设计文档](ai-assistant-design.md)
+- [Spring AI 接入说明](spring-ai.md)

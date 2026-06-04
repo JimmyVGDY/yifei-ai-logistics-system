@@ -101,4 +101,5 @@ users / roles / operationLogs / files
 - [物流接口文档](logistics-api.md)
 - [物流数据库说明](logistics-database.md)
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
+- [Spring AI 接入说明](spring-ai.md)
 - [AI 助手设计文档](ai-assistant-design.md)
