@@ -775,6 +775,7 @@ public class AuthService {
         menus.put("operationLogs", system.getChildren().get(3));
         menus.put("files", menu(-16L, 0L, "上传文件", "/files", "file:manage", 940));
         menus.put("resources", menu(-17L, 0L, "资源中心", "/resources", "resource:view", 950));
+        menus.put("ai", menu(-19L, 0L, "AI助手", "/ai-assistant", "ai:chat", 960));
         return menus;
     }
 

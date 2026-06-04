@@ -45,4 +45,12 @@ class SaTokenConfigTest {
         assertThat(config.resolveDynamicPermission("/bloom-filter/items", "POST")).isEqualTo("resource:view");
         assertThat(config.resolveDynamicPermission("/rabbitmq/messages", "POST")).isEqualTo("resource:view");
     }
+
+    @Test
+    void shouldResolveAiAssistantEndpointPermissions() {
+        assertThat(config.resolveDynamicPermission("/ai/chat", "POST")).isEqualTo("ai:chat");
+        assertThat(config.resolveDynamicPermission("/ai/logs/analyze", "POST")).isEqualTo("ai:log:analyze");
+        assertThat(config.resolveDynamicPermission("/ai/conversations", "GET")).isEqualTo("ai:conversation:query");
+        assertThat(config.resolveDynamicPermission("/ai/conversations/100", "GET")).isEqualTo("ai:conversation:query");
+    }
 }

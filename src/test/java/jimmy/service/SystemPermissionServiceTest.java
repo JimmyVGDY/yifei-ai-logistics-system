@@ -58,6 +58,17 @@ class SystemPermissionServiceTest {
         );
     }
 
+    @Test
+    void shouldExpandAiChatPermissionToReadOnlyAssistantActions() {
+        when(mapper.selectRolePermissionCodes(1L)).thenReturn(Collections.singletonList("ai:chat"));
+        when(mapper.selectUserPermissionOverrides(10L)).thenReturn(Collections.emptyList());
+
+        List<String> permissions = service.effectivePermissionCodes(10L, 1L);
+
+        assertThat(permissions).contains("ai:chat", "ai:log:analyze", "ai:conversation:query");
+        assertThat(permissions).doesNotContain("ai:create", "ai:update", "ai:delete");
+    }
+
     private Map<String, Object> override(String permissionCode, String grantType) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("permissionCode", permissionCode);

@@ -520,6 +520,7 @@ public class SystemPermissionService {
         menus.add(new StandardMenu("/system", "操作日志", "/system/operation-logs", "system:log:view", 930));
         menus.add(new StandardMenu(null, "上传文件", "/files", "file:manage", 940));
         menus.add(new StandardMenu(null, "资源中心", "/resources", "resource:view", 950));
+        menus.add(new StandardMenu(null, "AI助手", "/ai-assistant", "ai:chat", 960));
         return menus;
     }
 
@@ -599,6 +600,9 @@ public class SystemPermissionService {
     }
 
     private List<String> actionsFor(String permissionCode) {
+        if ("ai:chat".equals(permissionCode)) {
+            return Arrays.asList("chat", "log:analyze", "conversation:query");
+        }
         if (permissionCode.endsWith(":manage")) {
             return MANAGE_ACTIONS;
         }
@@ -633,6 +637,9 @@ public class SystemPermissionService {
         map.put("delete", "删除");
         map.put("import", "导入");
         map.put("export", "导出");
+        map.put("chat", "AI问答");
+        map.put("log:analyze", "日志分析");
+        map.put("conversation:query", "会话查询");
         return map;
     }
 

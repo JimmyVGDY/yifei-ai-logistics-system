@@ -358,6 +358,7 @@ public class OperationLogInterceptor implements HandlerInterceptor {
                 || uri.startsWith("/auth/")
                 || uri.startsWith("/system/")
                 || uri.startsWith("/infra/")
+                || uri.startsWith("/ai/")
                 || uri.startsWith("/demo-users")
                 || uri.startsWith("/bloom-filter/")
                 || uri.startsWith("/rabbitmq/");

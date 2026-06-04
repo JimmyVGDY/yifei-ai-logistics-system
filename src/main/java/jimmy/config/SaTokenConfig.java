@@ -86,6 +86,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
                         "/auth/**",
                         "/system/**",
                         "/infra/**",
+                        "/ai/**",
                         "/demo-users/**",
                         "/bloom-filter/**",
                         "/rabbitmq/**"
@@ -102,6 +103,10 @@ public class SaTokenConfig implements WebMvcConfigurer {
         SaRouter.match("/system/permissions/**", r -> StpUtil.checkPermission(permissionAction("system:permission")));
         SaRouter.match("/infra", r -> StpUtil.checkPermission("resource:view"));
         SaRouter.match("/infra/**", r -> StpUtil.checkPermission("resource:view"));
+        SaRouter.match("/ai/chat", r -> StpUtil.checkPermission("ai:chat"));
+        SaRouter.match("/ai/logs/analyze", r -> StpUtil.checkPermission("ai:log:analyze"));
+        SaRouter.match("/ai/conversations", r -> StpUtil.checkPermission("ai:conversation:query"));
+        SaRouter.match("/ai/conversations/**", r -> StpUtil.checkPermission("ai:conversation:query"));
     }
 
     private boolean checkDynamicLogisticsPermission() {
@@ -165,6 +170,15 @@ public class SaTokenConfig implements WebMvcConfigurer {
         }
         if (uri.startsWith("/rabbitmq")) {
             return "resource:view";
+        }
+        if (uri.equals("/ai/chat")) {
+            return "ai:chat";
+        }
+        if (uri.equals("/ai/logs/analyze")) {
+            return "ai:log:analyze";
+        }
+        if (uri.startsWith("/ai/conversations")) {
+            return "ai:conversation:query";
         }
         if (uri.startsWith("/logistics/exceptions")) {
             return uri.endsWith("/handle") ? "exception:update" : "exception:create";
