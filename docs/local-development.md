@@ -2,8 +2,8 @@
 
 ## 前置要求
 
-- JDK 8
-- Maven 3.8.x（最低 3.6+）
+- JDK 21
+- Maven 3.9.x（最低 3.6+）
 - Node.js 18 LTS（最低 16+）
 - MySQL 8.4.9（兼容 MySQL 8.0+）
 - Nacos 2.4.3（兼容 Nacos 2.x）
@@ -13,7 +13,7 @@
 - RabbitMQ 4.1.8（基础 AMQP 能力兼容 RabbitMQ 3.x+）
 - XXL-Job 2.4.x（需要调度任务时启动）
 
-项目基于 Spring Boot `2.7.18`，依赖版本通过 `pom.xml` 中的 Spring Cloud 和 Spring Cloud Alibaba BOM 统一管理。完整版本矩阵见 [环境与中间件版本清单](environment-versions.md)。
+项目基于 Spring Boot `3.3.13`，依赖版本通过 `pom.xml` 中的 Spring Cloud 和 Spring Cloud Alibaba BOM 统一管理。完整版本矩阵见 [环境与中间件版本清单](environment-versions.md)。
 
 ## 本地中间件位置（Windows）
 
@@ -108,7 +108,7 @@ Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -eq 9999 }
 
 ## IDEA 启动（推荐）
 
-1. 使用 JDK 8 打开项目。
+1. 使用 JDK 21 打开项目。
 2. 等待 Maven 依赖加载完成。
 3. 运行 `jimmy.DemoApplication`。
 

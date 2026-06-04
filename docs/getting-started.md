@@ -4,8 +4,8 @@
 
 ## 前置条件
 
-- **JDK 8**（推荐 Zulu 8 / Corretto 8）
-- **Maven 3.8.x**（最低 3.6+）
+- **JDK 21**（推荐 Temurin 21 / Zulu 21 / Corretto 21）
+- **Maven 3.9.x**（最低 3.9+）
 - **Node.js 18 LTS**（最低 16+，仅前端开发需要）
 - **Git**（需要能访问 Gitee 仓库）
 - 本机已安装并启动以下中间件（Windows 环境路径见下文）

@@ -4,10 +4,10 @@
 
 ## 技术栈
 
-- Java 8
-- Spring Boot 2.7.18
-- Spring Cloud 2021.0.9
-- Spring Cloud Alibaba 2021.0.6.0
+- Java 21
+- Spring Boot 3.3.13
+- Spring Cloud 2023.0.6
+- Spring Cloud Alibaba 2023.0.3.4
 - Nacos Discovery / Config
 - Sentinel
 - Spring Data Elasticsearch
@@ -132,6 +132,7 @@ src/main/resources/data.sql
 - [配置说明](docs/configuration.md)
 - [本地开发指南](docs/local-development.md)
 - [环境与中间件版本清单](docs/environment-versions.md)
+- [Java 21 与 Spring Boot 3 升级记录](docs/java21-springboot3-upgrade.md)
 - [MyBatis 使用说明](docs/mybatis.md)
 - [前端新人接入手册](docs/frontend.md)
 - [需求匹配说明](docs/requirements-mapping.md)

@@ -11,6 +11,7 @@
 | [local-development.md](local-development.md) | 本地开发环境、中间件、IDE 和启动参数说明 |
 | [environment-versions.md](environment-versions.md) | JDK、Maven、Node、MySQL、Redis、RabbitMQ、ES、Nacos、Sentinel、XXL-Job 和 Docker 镜像版本清单 |
 | [configuration.md](configuration.md) | Spring Boot、Nacos、Redis、RabbitMQ、ES、XXL-Job 等配置说明 |
+| [java21-springboot3-upgrade.md](java21-springboot3-upgrade.md) | Java 21 与 Spring Boot 3 升级范围、验证结果和后续注意事项 |
 
 ## 系统设计
 

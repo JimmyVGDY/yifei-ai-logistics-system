@@ -6,7 +6,7 @@
 
 ### Java
 
-- **JDK 版本**：Java 8（兼容性要求）
+- **JDK 版本**：Java 21（兼容性要求）
 - **编码格式**：UTF-8（所有 `.java`、`.xml`、`.yml`、`.properties` 文件）
 - **缩进**：4 空格（禁止 Tab）
 - **注释**：所有类、公共方法、复杂逻辑必须写中文注释，说明"为什么"而非"是什么"
@@ -90,7 +90,7 @@ src/main/java/jimmy/
 - **Controller**：只做参数校验和响应封装，不写业务逻辑。
 - **Service**：承载全部业务逻辑、事务控制、缓存操作、消息发送。
 - **Mapper**：只定义 SQL 映射接口，XML 中编写 SQL。
-- **Entity**：纯数据对象，不使用 Lombok（保持 JDK 8 兼容）。
+- **Entity / DTO / VO**：允许按现有代码风格使用 Lombok，关键业务字段和校验规则需要保留清晰命名与中文注释。
 
 ## Git 工作流
 
@@ -111,7 +111,7 @@ src/main/java/jimmy/
 | `refactor` | 代码重构 | `refactor \| 统一脱敏规则为前2后4` |
 | `docs` | 文档更新 | `docs \| 新增新手快速上手指南` |
 | `test` | 测试相关 | `test \| 补充订单服务单元测试` |
-| `chore` | 构建/配置 | `chore \| 升级 Spring Boot 到 2.7.18` |
+| `chore` | 构建/配置 | `chore \| 升级 Spring Boot 到 3.3.13` |
 | `perf` | 性能优化 | `perf \| 订单查询添加复合索引` |
 
 **提交即推送**：`git commit` 后立即 `git push`。
@@ -161,7 +161,7 @@ src/main/java/jimmy/
 | **事务** | `@Transactional` 是否加在正确层级，传播行为是否正确 |
 | **性能** | 循环内是否有 DB 调用/远程调用，大集合是否分批处理 |
 | **安全** | 敏感日志是否脱敏（`LogMaskUtils`），参数是否校验 |
-| **兼容** | 是否使用 Java 8+ 特性，是否兼容现有 JDK 8 |
+| **兼容** | 是否使用 Java 21+ 特性，是否兼容现有 JDK 21 |
 
 ## 日志安全
 

@@ -4,7 +4,7 @@
 
 ## 1. 版本选择原则
 
-- 后端必须兼容 Java 8，避免引入只支持 Java 11+ 或 Java 17+ 的依赖版本。
+- 后端当前以 Java 21 为运行基线，新增依赖需要确认兼容 Java 21、Spring Boot 3.3.x 和 Jakarta 命名空间。
 - 本地 Windows 环境优先复用当前项目已验证的版本，减少“我这里能跑、你那里跑不了”的差异。
 - Docker Compose 版本用于容器化部署和统一联调，可能与本机手动安装版本不同，但需要保持协议兼容。
 - 新增或升级中间件时，需要同步更新本文、[本地开发环境说明](local-development.md)、[配置说明](configuration.md) 和相关启动脚本。
@@ -13,13 +13,13 @@
 
 | 组件 | 本地推荐版本 | 最低/兼容范围 | 是否必需 | 说明 |
 | --- | --- | --- | --- | --- |
-| JDK | Java 8，推荐 Zulu 8 / Corretto 8 | Java 8 | 必需 | 项目 `pom.xml` 使用 `java.version=1.8`，不要直接升级到 Java 17。 |
-| Maven | 3.8.x | 3.6+ | 必需 | 用于后端依赖下载、测试和打包。 |
+| JDK | Java 21，推荐 Temurin 21 / Zulu 21 / Corretto 21 | Java 21 | 必需 | 项目 `pom.xml` 使用 `java.version=21`，IDEA 和 Maven Runner 也必须使用 Java 21。 |
+| Maven | 3.9.x | 3.9+ | 必需 | 用于后端依赖下载、测试和打包；本机已验证 Maven 3.9.16 + Java 21。 |
 | Node.js | 18 LTS | 16+ | 前端开发必需 | Vite 6 和 Vue 3 开发建议使用 Node 18 LTS；已安装 Node 16 时也可运行。 |
 | npm | 随 Node 18 附带版本 | 8+ | 前端开发必需 | 进入 `frontend/` 后执行 `npm install`。 |
 | Git | 2.40+ | 2.x | 必需 | VS Code 工作区已配置 Git 相关能力。 |
 | VS Code | 当前稳定版 | 当前稳定版 | 前端推荐 | 前端开发建议打开仓库根目录的 `.code-workspace`。 |
-| IntelliJ IDEA | 2023+ | 支持 Java 8/Maven 的版本 | 后端推荐 | 后端开发推荐使用 IDEA。 |
+| IntelliJ IDEA | 2023+ | 支持 Java 21/Maven 的版本 | 后端推荐 | 后端开发推荐使用 IDEA。 |
 
 ## 3. 本地 Windows 中间件推荐版本
 
@@ -79,17 +79,17 @@ docker compose up -d
 
 | 组件 | 当前版本 | 来源 | 说明 |
 | --- | --- | --- | --- |
-| Spring Boot | 2.7.18 | `spring-boot-starter-parent` | Java 8 兼容的 Spring Boot 2.x 版本。 |
-| Spring Cloud | 2021.0.9 | `pom.xml` BOM | 与 Spring Boot 2.7.x 配套。 |
-| Spring Cloud Alibaba | 2021.0.6.0 | `pom.xml` BOM | Nacos、Sentinel 相关依赖由此统一管理。 |
+| Spring Boot | 3.3.13 | `spring-boot-starter-parent` | Java 21 兼容的 Spring Boot 3.x 版本。 |
+| Spring Cloud | 2023.0.6 | `pom.xml` BOM | 与 Spring Boot 3.3.x 配套。 |
+| Spring Cloud Alibaba | 2023.0.3.4 | `pom.xml` BOM | Nacos、Sentinel 相关依赖由此统一管理。 |
 | Sa-Token | 1.45.0 | `pom.xml` | 登录认证、权限和会话。 |
-| MyBatis Spring Boot Starter | 2.3.1 | `pom.xml` | Mapper XML 数据访问。 |
+| MyBatis Spring Boot Starter | 3.0.4 | `pom.xml` | Mapper XML 数据访问。 |
 | XXL-Job Core | 2.4.0 | `pom.xml` | 定时任务执行器端。 |
 | Lombok | 1.18.34 | `pom.xml` | 简化部分模型代码。 |
-| Logstash Logback Encoder | 6.6 | `pom.xml` | 兼容 Logback 1.2.x 的结构化日志编码器。 |
+| Logstash Logback Encoder | 7.3 | `pom.xml` | 结构化日志编码器，当前随 Spring Boot 3.3.x 使用 Logback 1.5.x。 |
 | Guava | 32.1.3-jre | `pom.xml` | 本地内存布隆过滤器。 |
 
-注意：`logstash-logback-encoder` 不要随意升级到 7.x；Spring Boot 2.7 默认使用 Logback 1.2.x，7.x 版本会调用 Logback 1.3+ 才有的方法，可能导致启动时报 `ILoggingEvent.getInstant()` 不存在。
+注意：当前项目已经升级到 Spring Boot 3.3.x 和 Logback 1.5.x，`logstash-logback-encoder` 7.3 已通过 Java 21 单元测试和打包验证。后续如果继续升级到 8.x，需要重新验证结构化日志字段、文件滚动和启动兼容性。
 
 ## 6. 前端依赖版本
 
