@@ -45,4 +45,13 @@ class AiQueryIntentParserTest {
         assertThat(intent.startTime()).isNotBlank();
         assertThat(intent.endTime()).isNotBlank();
     }
+
+    @Test
+    void shouldCleanupChineseQuestionSuffixFromKeyword() {
+        AiQueryIntent intent = parser.parse("我需要知道客户名称为陈土豆的信息");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("customers");
+        assertThat(intent.keyword()).isEqualTo("陈土豆");
+    }
 }

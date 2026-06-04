@@ -19,7 +19,7 @@ public class AiQueryIntentParser {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Pattern DATE_PATTERN = Pattern.compile("(20\\d{2}-\\d{1,2}-\\d{1,2})");
-    private static final Pattern EXPLICIT_KEYWORD = Pattern.compile("(关键词|客户|客户名|客户名称|订单号|运单号|司机|司机名|车辆|车牌号|状态|traceId|operationId|loginSessionId)[是为:：\\s]*([^，,。；;\\s]+)");
+    private static final Pattern EXPLICIT_KEYWORD = Pattern.compile("(loginSessionId|operationId|traceId|客户名称|客户名|关键词|订单号|运单号|司机名|车牌号|客户|司机|车辆|状态)[是为:：\\s]*([^，,。；;\\s]+)");
     private static final Pattern ORDER_NO = Pattern.compile("\\b(?:LO|WB)-[A-Z0-9-]+\\b", Pattern.CASE_INSENSITIVE);
 
     private final List<ModuleRule> moduleRules = List.of(
@@ -87,7 +87,9 @@ public class AiQueryIntentParser {
         if (!StringUtils.hasText(value)) {
             return null;
         }
-        String keyword = value.trim().replaceAll("[，,。；;：:]+$", "");
+        String keyword = value.trim()
+                .replaceAll("[，,。；;：:]+$", "")
+                .replaceAll("(的)?(相关)?(信息|资料|情况|记录|数据)$", "");
         return StringUtils.hasText(keyword) ? keyword : null;
     }
 
