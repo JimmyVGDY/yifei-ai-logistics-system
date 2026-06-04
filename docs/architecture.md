@@ -103,5 +103,5 @@ practice-project-about-develop
 - [项目文档索引](README.md)
 - [开发规范与约定](development-guide.md)
 - [MyBatis 使用规范](mybatis.md)
-- [前端工程说明](frontend.md)
+- [前端新人接入手册](frontend.md)
 - [物流接口文档](logistics-api.md)

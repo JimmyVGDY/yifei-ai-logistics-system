@@ -17,7 +17,7 @@
 | --- | --- |
 | [architecture.md](architecture.md) | 项目目录、后端分层、前端结构和组件说明 |
 | [requirements-mapping.md](requirements-mapping.md) | 物流管理需求与当前实现模块的对应关系 |
-| [frontend.md](frontend.md) | Vue3 前端结构、路由、权限和页面组件说明 |
+| [frontend.md](frontend.md) | 前端新人接入手册，覆盖 Vue3 工程、路由、权限、接口、通用管理页和开发检查清单 |
 | [mybatis.md](mybatis.md) | MyBatis Mapper XML 使用规范和 SQL 维护约定 |
 
 ## 业务与接口
@@ -51,7 +51,7 @@
 
 ## 阅读建议
 
-- 新开发者先看“新人接入”和“系统设计”，再按负责模块阅读接口和数据库文档。
+- 新开发者先看“新人接入”和“系统设计”，前端开发者还应重点阅读 [frontend.md](frontend.md)，再按负责模块阅读接口和数据库文档。
 - 做后端业务开发前必须阅读 [development-guide.md](development-guide.md) 和 [mybatis.md](mybatis.md)。
 - 做权限、日志、审计相关功能前必须阅读 [logistics-rbac-structured-log.md](logistics-rbac-structured-log.md) 和 [trace-context-audit.md](trace-context-audit.md)。
 - 设计 AI 助手或智能排障能力前必须阅读 [ai-assistant-design.md](ai-assistant-design.md)。

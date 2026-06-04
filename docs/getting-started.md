@@ -192,7 +192,7 @@ netstat -ano | findstr :8080
 | 4 | [权限配置说明](role-permission-api.md) | 理解 RBAC 权限模型 |
 | 5 | [物流数据库说明](logistics-database.md) | 了解表结构和数据关系 |
 | 6 | [MyBatis 使用规范](mybatis.md) | 新增 SQL 时参考 |
-| 7 | [前端工程说明](frontend.md) | 前端开发参考 |
+| 7 | [前端新人接入手册](frontend.md) | 前端开发参考 |
 | 8 | [链路追踪说明](trace-context-audit.md) | 排障时查阅 |
 | 9 | [需求匹配说明](requirements-mapping.md) | 对照需求查看落地情况 |
 | 10 | [本地开发指南](local-development.md) | 中间件细节和运维脚本 |
@@ -212,4 +212,4 @@ netstat -ano | findstr :8080
 - [本地开发指南](local-development.md)
 - [配置说明](configuration.md)
 - [数据库增量迁移说明](incremental-migration.md)
-- [前端工程说明](frontend.md)
+- [前端新人接入手册](frontend.md)

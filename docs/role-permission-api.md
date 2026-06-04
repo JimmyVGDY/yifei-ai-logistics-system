@@ -92,4 +92,4 @@ source scripts/sql/20260601_incremental_enterprise_roles.sql;
 - [项目文档索引](README.md)
 - [认证接口文档](auth-api.md)
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
-- [前端工程说明](frontend.md)
+- [前端新人接入手册](frontend.md)

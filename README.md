@@ -132,7 +132,7 @@ src/main/resources/data.sql
 - [配置说明](docs/configuration.md)
 - [本地开发指南](docs/local-development.md)
 - [MyBatis 使用说明](docs/mybatis.md)
-- [前端工程说明](docs/frontend.md)
+- [前端新人接入手册](docs/frontend.md)
 - [需求匹配说明](docs/requirements-mapping.md)
 - [物流接口文档](docs/logistics-api.md)
 - [认证接口文档](docs/auth-api.md)
