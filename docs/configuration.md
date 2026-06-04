@@ -183,6 +183,16 @@ ai:conversation:query
 
 如果 `SPRING_AI_OPENAI_API_KEY` 未配置或仍为 `missing`，应用仍可正常启动，AI 问答会返回本地文档检索和中文配置提示。真实模型接入、脱敏边界和验证方式见 [Spring AI 接入说明](spring-ai.md)。
 
+AI 配置可以放到 Nacos，默认导入 `spring-ai.yml`：
+
+```text
+Data ID: spring-ai.yml
+Group: DEFAULT_GROUP
+格式: YAML
+```
+
+应用启动后会输出“AI 配置摘要”，用于确认 `base-url` 和 `model` 是否来自远程配置；日志不会打印 API Key 明文。
+
 ## Bloom Filter
 
 布隆过滤器使用 Guava 实现，默认参数：

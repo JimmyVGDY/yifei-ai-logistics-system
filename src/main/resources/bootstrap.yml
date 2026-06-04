@@ -1,6 +1,9 @@
 spring:
   application:
     name: practice-project-about-develop
+  config:
+    import:
+      - optional:nacos:spring-ai.yml?group=${NACOS_CONFIG_GROUP:DEFAULT_GROUP}&refreshEnabled=true
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   cloud:
@@ -17,3 +20,7 @@ spring:
         group: ${NACOS_CONFIG_GROUP:DEFAULT_GROUP}
         file-extension: yaml
         refresh-enabled: true
+        extension-configs:
+          - data-id: spring-ai.yml
+            group: DEFAULT_GROUP
+            refresh: true

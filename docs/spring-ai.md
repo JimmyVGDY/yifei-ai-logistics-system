@@ -42,6 +42,47 @@
 
 未配置 `SPRING_AI_OPENAI_API_KEY` 时，应用仍可正常启动，AI 接口会返回本地文档检索结果和中文配置提示。这是为了保证 AI 模块不会影响现有物流业务功能。
 
+## Nacos 配置
+
+项目启动时会显式导入 Nacos 配置：
+
+```yaml
+spring:
+  config:
+    import:
+      - optional:nacos:spring-ai.yml?group=${NACOS_CONFIG_GROUP:DEFAULT_GROUP}&refreshEnabled=true
+```
+
+Nacos 控制台配置要求：
+
+| 项 | 值 |
+| --- | --- |
+| Data ID | `spring-ai.yml` |
+| Group | `DEFAULT_GROUP`，或与 `NACOS_CONFIG_GROUP` 保持一致 |
+| 命名空间 | 默认 Public；如果使用其它命名空间，需要设置 `NACOS_CONFIG_NAMESPACE` |
+| 配置格式 | YAML |
+
+示例：
+
+```yaml
+spring:
+  ai:
+    openai:
+      api-key: sk-***
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: deepseek-v4-flash
+```
+
+启动成功后，控制台会输出 AI 配置摘要：
+
+```text
+AI 配置摘要：configured=true, baseUrl=https://api.deepseek.com, model=deepseek-v4-flash, ...
+```
+
+日志不会打印 API Key 明文。若 `model` 仍显示本地默认值，优先检查 Nacos 配置是否已发布、Data ID/Group/命名空间是否一致，以及启动参数是否关闭了 Nacos 配置。
+
 示例：
 
 ```powershell
