@@ -26,21 +26,30 @@ public class AiReadonlyQueryService {
     private static final String WRITE_REFUSED_MESSAGE = "当前 AI 助手仅支持只读查询和信息整理，不能执行新增、修改、删除、导入、导出或上传操作。";
 
     private final AiQueryIntentParser intentParser;
+    private final AiGeneratedSqlQueryService generatedSqlQueryService;
     private final LogisticsRequirementService logisticsRequirementService;
     private final AiQuerySummaryService summaryService;
     private final AiSensitiveDataMasker masker;
 
     public AiReadonlyQueryService(AiQueryIntentParser intentParser,
+                                  AiGeneratedSqlQueryService generatedSqlQueryService,
                                   LogisticsRequirementService logisticsRequirementService,
                                   AiQuerySummaryService summaryService,
                                   AiSensitiveDataMasker masker) {
         this.intentParser = intentParser;
+        this.generatedSqlQueryService = generatedSqlQueryService;
         this.logisticsRequirementService = logisticsRequirementService;
         this.summaryService = summaryService;
         this.masker = masker;
     }
 
     public AiReadonlyQueryResult query(String message) {
+        AiGeneratedSqlQueryResult sqlQueryResult = generatedSqlQueryService.query(message);
+        if (sqlQueryResult.executed()) {
+            return new AiReadonlyQueryResult(true, sqlQueryResult.message(),
+                    List.of(citation("临时只读 SQL 查询", sqlQueryResult.message())),
+                    List.of(new AiToolCall("临时只读 SQL 查询", "关联查询", sqlQueryResult.message())));
+        }
         AiQueryIntent intent = intentParser.parse(message);
         if (!intent.matched()) {
             return AiReadonlyQueryResult.empty();

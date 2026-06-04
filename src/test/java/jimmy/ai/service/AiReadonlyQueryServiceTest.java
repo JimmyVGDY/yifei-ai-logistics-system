@@ -10,19 +10,23 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyString;
 
 class AiReadonlyQueryServiceTest {
 
     @Test
     void shouldReturnFriendlyMessageAndSkipQueryWhenPermissionDenied() {
         AiQueryIntentParser parser = mock(AiQueryIntentParser.class);
+        AiGeneratedSqlQueryService sqlQueryService = mock(AiGeneratedSqlQueryService.class);
         LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
         AiReadonlyQueryService service = new AiReadonlyQueryService(
                 parser,
+                sqlQueryService,
                 requirementService,
                 new AiQuerySummaryService(),
                 new AiSensitiveDataMasker()
         );
+        when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
         when(parser.parse("查未收款费用")).thenReturn(new AiQueryIntent(
                 "fees", "费用结算", "fee:query", null, null, null, false, false, true
         ));
@@ -44,13 +48,16 @@ class AiReadonlyQueryServiceTest {
     @Test
     void shouldRejectWriteRequestWithoutQueryingDatabase() {
         AiQueryIntentParser parser = mock(AiQueryIntentParser.class);
+        AiGeneratedSqlQueryService sqlQueryService = mock(AiGeneratedSqlQueryService.class);
         LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
         AiReadonlyQueryService service = new AiReadonlyQueryService(
                 parser,
+                sqlQueryService,
                 requirementService,
                 new AiQuerySummaryService(),
                 new AiSensitiveDataMasker()
         );
+        when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
         when(parser.parse("删除订单")).thenReturn(AiQueryIntent.forbiddenWriteIntent());
 
         AiReadonlyQueryResult result = service.query("删除订单");
