@@ -3,7 +3,7 @@ package jimmy.logistics.config;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * 操作变更审计上下文 —— 线程安全的请求级别上下文容器。

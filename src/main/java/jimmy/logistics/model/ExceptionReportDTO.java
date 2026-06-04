@@ -1,6 +1,6 @@
 package jimmy.logistics.model;
 
-import javax.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * 异常上报请求 —— 前端提交运输异常信息。

@@ -12,7 +12,7 @@ import jimmy.service.AuthService;
 import jimmy.service.LoginSecurityService;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 
 /**
  * 认证控制器 —— 登录、会话恢复、退出。

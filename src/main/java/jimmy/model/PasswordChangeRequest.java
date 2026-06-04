@@ -1,7 +1,7 @@
 package jimmy.model;
 
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.Size;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * 密码修改请求 —— 需要输入原密码验证身份。

@@ -33,7 +33,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 
 /**
  * 物流业务统一控制器 —— 客户账号、通用 CRUD、异常/费用、统计、文件上传、Excel 导入导出。
