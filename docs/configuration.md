@@ -164,7 +164,7 @@ POST /auth/logout
 
 ## Spring AI 助手
 
-AI 助手接口统一由后端代理调用模型，前端不会接触模型密钥。当前第一版只开放只读问答和日志排障：
+AI 助手接口统一由后端代理调用模型，前端不会接触模型密钥。当前第一版只开放只读问答、日志排障、白名单业务查询和受控临时 SELECT 查询：
 
 ```text
 POST /ai/chat
@@ -181,7 +181,7 @@ ai:log:analyze
 ai:conversation:query
 ```
 
-如果 `SPRING_AI_OPENAI_API_KEY` 未配置或仍为 `missing`，应用仍可正常启动，AI 问答会返回本地文档检索和中文配置提示。真实模型接入、脱敏边界和验证方式见 [Spring AI 接入说明](spring-ai.md)。
+如果 `SPRING_AI_OPENAI_API_KEY` 未配置或仍为 `missing`，应用仍可正常启动，AI 问答会返回本地文档检索和中文配置提示；临时只读 SQL 能力依赖真实模型生成候选查询，未配置模型时会自动回退为普通业务查询提示。真实模型接入、脱敏边界和验证方式见 [Spring AI 接入说明](spring-ai.md)。
 
 AI 配置可以放到 Nacos，默认导入 `spring-ai.yml`：
 
@@ -192,6 +192,8 @@ Group: DEFAULT_GROUP
 ```
 
 应用启动后会输出“AI 配置摘要”，用于确认 `base-url` 和 `model` 是否来自远程配置；日志不会打印 API Key 明文。
+
+AI 临时只读 SQL 不需要单独配置数据库连接，它复用当前应用数据源、Sa-Token 权限和 MyBatis 文档中定义的安全边界。普通业务 SQL 仍必须写入 Mapper XML，详见 [MyBatis 使用规范](mybatis.md)。
 
 ## Bloom Filter
 

@@ -8,6 +8,8 @@
 
 - 普通问答：`POST /ai/chat`
 - 系统文档问答：读取 `README.md` 和 `docs/*.md` 做轻量检索
+- 只读业务查询：复用现有模块白名单、权限校验、分页、脱敏和客户数据隔离
+- 临时只读 SQL：复杂统计、关联、连表类问题由模型生成候选 `SELECT`，后端安全校验后执行
 - 日志排障：`POST /ai/logs/analyze`
 - 当前用户会话：`GET /ai/conversations`、`GET /ai/conversations/{id}`
 - 前端入口：`/ai-assistant`
@@ -109,11 +111,31 @@ mvn spring-boot:run
 | `AiAssistantService` | 编排文档检索、日志分析、模型调用和会话写入 |
 | `AiModelGateway` | 封装 Spring AI `ChatClient`，缺少密钥或模型异常时降级 |
 | `AiKnowledgeService` | 从 `README.md` 和 `docs/*.md` 检索文档片段 |
+| `AiReadonlyQueryService` | 复用现有业务查询能力，生成 AI 可读的查询摘要 |
+| `AiGeneratedSqlQueryService` | 对统计、关联、连表类问题生成候选只读 SQL 并执行安全查询 |
+| `AiSqlSafetyValidator` | 校验 AI SQL 的单语句、只读、表白名单、字段和权限边界 |
 | `AiLogAnalysisService` | 复用操作日志能力生成排障时间线 |
 | `AiConversationService` | 使用 Redis 保存当前用户短期会话 |
 | `AiSensitiveDataMasker` | 模型输入前脱敏手机号、邮箱、token、密码等敏感数据 |
 
 AI 日志排障复用现有操作日志和链路追踪字段，不新增日志查询 SQL。后续如果日志量变大，可以把结构化日志接入 Filebeat/Kibana 或 Elasticsearch 后再增强检索。
+
+## 只读业务查询与临时 SQL
+
+AI 查询分两层处理：
+
+1. 标准业务查询：自然语言先解析到运单、客户、车辆、司机、异常、费用、操作日志等白名单模块，再复用 `LogisticsRequirementService.modulePage()` 或运营看板查询。该路径继续沿用模块白名单、字段白名单、分页、关键词、时间范围、客户账号数据隔离和前端状态脱敏。
+2. 临时只读 SQL：当问题包含“统计、数量、总数、排名、平均、连表、关联、SQL、join、group”等复杂分析意图时，模型只生成候选 `SELECT`。候选 SQL 需要通过 `AiSqlSafetyValidator` 后才会由 `AiGeneratedSqlQueryService` 执行。
+
+临时只读 SQL 的硬性边界：
+
+- 只允许单条 `SELECT`，禁止 `insert/update/delete/drop/alter/create/truncate/call/execute` 等写操作或过程调用。
+- 禁止多语句、注释片段、`select *`、密码、token、secret、api_key 等敏感字段。
+- 只能访问后端白名单中的业务表和字段，且每张表都必须通过当前登录账号的查询权限校验。
+- 客户账号存在数据范围限制，暂不开放临时关联 SQL，仍走普通客户、订单、轨迹查询。
+- 外层统一包裹 `limit 20`，回答区只展示摘要化结果，敏感内容继续脱敏。
+
+这个能力只服务自然语言临时分析，不改变项目的 SQL 开发规范。普通业务 SQL 仍必须维护在 Mapper XML 中，详见 [MyBatis 使用规范](mybatis.md)。
 
 ## 接口与权限
 
@@ -159,7 +181,7 @@ AI 助手必须遵守现有系统安全规则：
 
 - 用户看不到的数据，AI 也不能回答。
 - 所有接口继续走 Sa-Token 登录态和权限校验。
-- AI 只读，不直接执行新增、修改、删除。
+- AI 只读，不直接执行新增、修改、删除；临时 SQL 也只允许经过安全校验的 `SELECT`。
 - 输入模型前脱敏手机号、邮箱、token、密码、详细敏感内容。
 - `traceId`、`operationId`、`loginSessionId`、`userId`、`userCode` 保留原值，方便审计追踪。
 - AI 问答和日志分析会进入操作日志，便于后续追查。
@@ -197,6 +219,21 @@ POST /ai/chat
 - 操作日志记录“AI助手-普通问答”。
 - 原有登录、运单、客户、异常、费用、权限、日志模块不受影响。
 
+只读业务查询验证：
+
+```text
+POST /ai/chat
+{
+  "message": "统计一下各订单状态分别有多少条"
+}
+```
+
+预期结果：
+
+- 配置真实模型时，可触发临时只读 SQL 查询并返回 Markdown 摘要表格。
+- 未配置真实模型时，返回普通查询或中文配置提示，不影响其它业务接口。
+- 权限不足时只返回“当前账号权限不足，无法查询该类数据。如有需要，请联系系统管理员。”，不暴露权限码、内部表名或异常堆栈。
+
 日志排障验证：
 
 ```text
@@ -214,7 +251,7 @@ POST /ai/logs/analyze
 ## 后续规划
 
 - 文档知识库从轻量关键词检索升级为向量检索或 Elasticsearch 文档检索。
-- 业务查询工具按权限逐步接入运单、轨迹、异常、费用和客户数据。
+- 业务查询工具继续补充更多领域摘要；临时只读 SQL 网关保持只读和白名单边界。
 - 日志排障接入结构化日志文件或日志索引，展示更完整的接口、Redis、RabbitMQ、ES 链路。
 - 写操作仍保持二次确认路线，必须先生成建议，再由用户明确确认并记录审计。
 
@@ -223,6 +260,7 @@ POST /ai/logs/analyze
 - [项目文档索引](README.md)
 - [AI 助手设计文档](ai-assistant-design.md)
 - [配置说明](configuration.md)
+- [MyBatis 使用规范](mybatis.md)
 - [环境与中间件版本清单](environment-versions.md)
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
 - [链路追踪与会话审计说明](trace-context-audit.md)

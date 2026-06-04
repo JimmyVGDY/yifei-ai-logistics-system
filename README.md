@@ -36,7 +36,7 @@
 - 操作日志记录（含变更摘要、请求参数、错误消息）。
 - 日志安全：userId/IP 脱敏、手机号/邮箱/身份证号清洗、敏感参数过滤、异常消息安全化。
 - Excel 导出和客户资料导入。
-- Spring AI 只读助手，支持系统文档问答、短期会话、操作日志排障分析；未配置模型密钥时应用仍可启动并返回本地兜底提示。
+- Spring AI 只读助手，支持系统文档问答、短期会话、操作日志排障分析、普通白名单业务查询和受控临时 SELECT 统计查询；未配置模型密钥时应用仍可启动并返回本地兜底提示。
 
 ## 快速开始
 
@@ -146,8 +146,8 @@ src/main/resources/data.sql
 - [数据库增量迁移说明](docs/incremental-migration.md)
 - [权限、结构化日志与操作审计说明](docs/logistics-rbac-structured-log.md)
 - [链路追踪与会话审计标识说明](docs/trace-context-audit.md)
-- [Spring AI 接入说明](docs/spring-ai.md)
-- [AI 助手设计文档](docs/ai-assistant-design.md)
+- [Spring AI 接入说明](docs/spring-ai.md) — 当前 AI 接口、Nacos 配置、只读业务查询和临时 SQL 安全边界
+- [AI 助手设计文档](docs/ai-assistant-design.md) — AI 助手整体架构、权限审计和后续演进路线
 
 ## 常用接口
 

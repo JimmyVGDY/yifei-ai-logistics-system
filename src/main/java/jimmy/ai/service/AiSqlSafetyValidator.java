@@ -45,6 +45,7 @@ public class AiSqlSafetyValidator {
         if (hasMultipleStatements(sql)) {
             throw new IllegalArgumentException("AI 只允许生成单条查询语句");
         }
+        // 只校验 FROM/JOIN 中出现的表，且每张表都必须在白名单内并绑定当前账号查询权限。
         List<String> tables = extractTables(sql);
         if (tables.isEmpty()) {
             throw new IllegalArgumentException("查询语句未识别到可校验的数据表");
@@ -63,6 +64,7 @@ public class AiSqlSafetyValidator {
 
     public String schemaPrompt() {
         StringBuilder builder = new StringBuilder();
+        // 暴露给模型的是精简后的业务 schema，不包含密码、token 等敏感字段。
         builder.append("可查询表和字段如下，只能使用这些表字段，禁止写操作：\n");
         for (TableRule rule : tableRules.values()) {
             builder.append("- ").append(rule.tableName()).append("(").append(rule.columns()).append(")\n");
@@ -75,6 +77,7 @@ public class AiSqlSafetyValidator {
             return "";
         }
         String sql = rawSql.trim();
+        // 兼容模型偶尔返回 ```sql 代码块的情况，提取内部 SQL 后继续做统一校验。
         Matcher block = Pattern.compile("(?is)```sql\\s*(.*?)\\s*```").matcher(sql);
         if (block.find()) {
             sql = block.group(1).trim();

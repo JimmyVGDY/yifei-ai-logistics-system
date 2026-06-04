@@ -41,7 +41,9 @@ src/main/resources/mapper/**/*.xml
 
 `JdbcTemplate` 只允许用于数据库元信息检测，例如判断某张表是否存在 `deleted` 或 `user_code` 字段。该逻辑不属于业务 SQL，且必须集中封装，不能散落到 Controller 或 Service 的业务流程里。
 
-除元信息检测外，新增业务查询、写入、更新、删除、统计聚合都应进入 Mapper XML。
+AI 助手的临时只读 SQL 网关是另一个受控例外：`AiGeneratedSqlQueryService` 允许模型生成候选 `SELECT`，但执行前必须经过 `AiSqlSafetyValidator` 校验。校验规则包括单条 `SELECT`、禁止写关键字、禁止注释和多语句、禁止 `select *`、禁止敏感字段、只允许白名单表字段、每张表都要求当前账号具备对应查询权限，并由外层统一 `limit 20`。该例外只服务自然语言临时统计、关联和连表分析，不能推广到普通业务开发。
+
+除元信息检测和 AI 受控临时只读 SQL 外，新增业务查询、写入、更新、删除、统计聚合都应进入 Mapper XML。
 
 ## 暂不引入 MyBatis-Plus 的原因
 
@@ -73,3 +75,4 @@ mvn test
 - [项目结构说明](architecture.md)
 - [物流数据库说明](logistics-database.md)
 - [数据库增量迁移说明](incremental-migration.md)
+- [Spring AI 接入说明](spring-ai.md)

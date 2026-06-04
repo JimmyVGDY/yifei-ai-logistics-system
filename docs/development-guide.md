@@ -124,6 +124,7 @@ src/main/java/jimmy/
 - Mapper 方法参数必须使用 `@Param` 命名。
 - 动态表名、字段名必须来自后端白名单，禁止从前端直接拼入 `${}`。
 - 查询条件值一律使用 `#{}` 预编译，防止 SQL 注入。
+- AI 临时只读 SQL 属于受控例外，只能通过专用安全网关执行，不能作为普通业务开发写法；具体边界见 [MyBatis 使用规范](mybatis.md)。
 - 新增表必须包含 `create_time`、`update_time` 字段。
 - 业务表建议包含 `create_by`、`update_by`、`deleted`、`version` 审计字段。
 

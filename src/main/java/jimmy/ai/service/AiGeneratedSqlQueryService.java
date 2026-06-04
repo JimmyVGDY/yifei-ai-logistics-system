@@ -49,6 +49,7 @@ public class AiGeneratedSqlQueryService {
         if (!shouldUseGeneratedSql(message)) {
             return AiGeneratedSqlQueryResult.skipped();
         }
+        // 客户账号存在天然数据范围限制，临时关联 SQL 很难安全补齐客户隔离条件，先统一走普通只读查询。
         if (isCustomerRole()) {
             return AiGeneratedSqlQueryResult.message(CUSTOMER_SCOPE_MESSAGE);
         }
@@ -60,6 +61,7 @@ public class AiGeneratedSqlQueryService {
             if (candidate.isEmpty()) {
                 return AiGeneratedSqlQueryResult.message("模型暂时无法生成只读查询语句，请稍后重试。");
             }
+            // 模型输出只当作候选文本，必须经过表白名单、权限、敏感字段和单语句校验后才允许执行。
             AiSqlSafetyValidator.ValidatedSql validatedSql = sqlSafetyValidator.validate(candidate.get());
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(wrapLimit(validatedSql.sql()));
             List<Map<String, Object>> formatted = formatRows(rows);
@@ -80,6 +82,7 @@ public class AiGeneratedSqlQueryService {
         if (!StringUtils.hasText(message)) {
             return false;
         }
+        // 普通“查某客户/查某订单”仍走模块查询；这里仅识别需要统计、关联或连表分析的表达。
         String lower = message.toLowerCase(Locale.ROOT);
         return lower.contains("sql")
                 || lower.contains("连表")
@@ -124,6 +127,7 @@ public class AiGeneratedSqlQueryService {
     }
 
     private String wrapLimit(String sql) {
+        // 外层统一加 limit，避免模型遗漏限制条件导致一次性返回过多数据。
         return "select * from (" + sql + ") ai_readonly_result limit " + MAX_ROWS;
     }
 

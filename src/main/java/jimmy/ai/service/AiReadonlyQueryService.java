@@ -14,7 +14,11 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * AI 只读查询服务：统一复用现有业务查询能力，禁止模型生成 SQL 或直连 Mapper。
+ * AI 只读查询服务：统一复用现有业务查询能力。
+ * <p>
+ * 优先走普通模块白名单查询，只有用户明确提出统计、关联、连表等复杂只读分析时，
+ * 才委托 {@link AiGeneratedSqlQueryService} 生成候选 SELECT，并继续由后端安全校验兜底。
+ * </p>
  */
 @Slf4j
 @Service
