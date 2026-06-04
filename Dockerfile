@@ -1,14 +1,14 @@
 # 物流管理平台 Docker 镜像
 # 构建: docker build -t logistics-app:latest .
 # 运行: docker run -p 8080:8080 logistics-app:latest
-FROM maven:3.9.9-eclipse-temurin-8 AS builder
+FROM maven:3.9.9-eclipse-temurin-21 AS builder
 
 WORKDIR /workspace
 COPY pom.xml .
 COPY src ./src
 RUN mvn -B -DskipTests package
 
-FROM openjdk:8-jre-slim
+FROM eclipse-temurin:21-jre
 
 LABEL maintainer="jimmy"
 LABEL description="物流管理系统 Spring Boot 应用"
