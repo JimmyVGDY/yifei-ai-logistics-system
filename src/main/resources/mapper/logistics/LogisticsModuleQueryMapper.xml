@@ -27,7 +27,7 @@
                 select w.id, w.waybill_no, w.order_id, o.order_no, w.start_site, w.target_site,
                        w.current_location, w.transport_status, w.create_time, w.update_time,
                        <choose><when test="deletedExists">w.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
-                from logistics_waybill w join logistics_order o on o.id = w.order_id
+                from logistics_waybill w left join logistics_order o on o.id = w.order_id
             </when>
             <when test="module == 'dispatches'">
                 select d.id, d.order_id, o.order_no, d.waybill_id, w.waybill_no, d.driver_id,
@@ -36,10 +36,10 @@
                        d.create_time, d.update_time,
                        <choose><when test="deletedExists">d.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
                 from logistics_dispatch d
-                join logistics_order o on o.id = d.order_id
-                join logistics_waybill w on w.id = d.waybill_id
-                join logistics_driver dr on dr.id = d.driver_id
-                join logistics_vehicle v on v.id = d.vehicle_id
+                left join logistics_order o on o.id = d.order_id
+                left join logistics_waybill w on w.id = d.waybill_id
+                left join logistics_driver dr on dr.id = d.driver_id
+                left join logistics_vehicle v on v.id = d.vehicle_id
             </when>
             <when test="module == 'tasks'">
                 select t.id, t.task_no, t.order_id, o.order_no, t.waybill_id, t.dispatch_id,
@@ -47,9 +47,9 @@
                        t.proof_url, t.create_time, t.update_time,
                        <choose><when test="deletedExists">t.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
                 from logistics_task t
-                join logistics_order o on o.id = t.order_id
-                join logistics_driver dr on dr.id = t.driver_id
-                join logistics_vehicle v on v.id = t.vehicle_id
+                left join logistics_order o on o.id = t.order_id
+                left join logistics_driver dr on dr.id = t.driver_id
+                left join logistics_vehicle v on v.id = t.vehicle_id
             </when>
             <when test="module == 'tracks'">
                 select tr.id, tr.order_id, o.order_no, tr.waybill_id, w.waybill_no,
@@ -57,8 +57,8 @@
                        tr.operation_desc, tr.operation_time,
                        <choose><when test="deletedExists">tr.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
                 from logistics_track tr
-                join logistics_order o on o.id = tr.order_id
-                join logistics_waybill w on w.id = tr.waybill_id
+                left join logistics_order o on o.id = tr.order_id
+                left join logistics_waybill w on w.id = tr.waybill_id
             </when>
             <when test="module == 'drivers'">
                 select id, driver_code, driver_name, phone, license_no, license_type, status,
@@ -82,7 +82,7 @@
                        e.handle_time,
                        <choose><when test="deletedExists">e.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
                 from logistics_exception e
-                join logistics_order o on o.id = e.order_id
+                left join logistics_order o on o.id = e.order_id
                 left join sys_user ru on concat('', ru.id) = e.report_user
                 left join sys_user hu on concat('', hu.id) = e.handle_user
             </when>
@@ -91,7 +91,7 @@
                        f.additional_fee, f.discount_fee, f.payable_fee, f.actual_fee,
                        f.payment_status, f.create_time, f.update_time,
                        <choose><when test="deletedExists">f.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
-                from logistics_fee f join logistics_order o on o.id = f.order_id
+                from logistics_fee f left join logistics_order o on o.id = f.order_id
             </when>
             <when test="module == 'users'">
                 <!-- user_code 是后续增量字段；旧库没有该字段时用 U-id 兜底，保证前端仍有用户编号可展示。 -->
