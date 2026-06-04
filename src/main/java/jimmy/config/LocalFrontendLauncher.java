@@ -13,6 +13,10 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -62,32 +66,30 @@ public class LocalFrontendLauncher implements ApplicationRunner {
     }
 
     private void startFrontend() throws IOException {
-        File workingDirectory = new File(properties.getWorkingDirectory());
+        File workingDirectory = resolveWorkingDirectory();
         if (!workingDirectory.exists()) {
+            log.warn("前端目录不存在，跳过自动启动，directory={}", workingDirectory.getAbsolutePath());
             return;
         }
 
-        // 跨平台启动命令
-        String os = System.getProperty("os.name").toLowerCase();
-        ProcessBuilder processBuilder;
-        if (os.contains("win")) {
-            processBuilder = new ProcessBuilder("cmd", "/c", "npm", "run", "dev");
-        } else {
-            processBuilder = new ProcessBuilder("npm", "run", "dev");
-        }
+        ProcessBuilder processBuilder = new ProcessBuilder(frontendStartCommand());
         processBuilder.directory(workingDirectory);
         processBuilder.redirectErrorStream(true);
+        ensureNodePath(processBuilder);
         processBuilder.start();
+        log.info("前端开发服务已尝试启动，directory={}, url={}", workingDirectory.getAbsolutePath(), properties.getUrl());
     }
 
     private void waitForFrontendAndOpen() throws Exception {
         for (int i = 0; i < 30; i++) {
             if (isFrontendAvailable()) {
                 openBrowser();
+                log.info("前端页面已打开，url={}", properties.getUrl());
                 return;
             }
             TimeUnit.SECONDS.sleep(1);
         }
+        log.warn("等待前端开发服务超时，未自动打开浏览器，url={}", properties.getUrl());
     }
 
     private void openBrowser() throws Exception {
@@ -106,5 +108,35 @@ public class LocalFrontendLauncher implements ApplicationRunner {
         } else {
             Runtime.getRuntime().exec(new String[]{"xdg-open", properties.getUrl()});
         }
+    }
+
+    private File resolveWorkingDirectory() {
+        Path configuredPath = Paths.get(properties.getWorkingDirectory());
+        if (configuredPath.isAbsolute()) {
+            return configuredPath.toFile();
+        }
+        return Paths.get(System.getProperty("user.dir"), properties.getWorkingDirectory()).toFile();
+    }
+
+    private List<String> frontendStartCommand() {
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("win")) {
+            return List.of("cmd", "/c", properties.getStartCommand());
+        }
+        return List.of("sh", "-c", properties.getStartCommand());
+    }
+
+    private void ensureNodePath(ProcessBuilder processBuilder) {
+        String os = System.getProperty("os.name").toLowerCase();
+        if (!os.contains("win")) {
+            return;
+        }
+        List<String> pathItems = new ArrayList<>();
+        pathItems.add("C:\\Program Files\\nodejs");
+        pathItems.add("C:\\Windows\\System32");
+        pathItems.add("C:\\Windows");
+        pathItems.add("C:\\Windows\\System32\\Wbem");
+        String currentPath = processBuilder.environment().getOrDefault("PATH", "");
+        processBuilder.environment().put("PATH", String.join(";", pathItems) + ";" + currentPath);
     }
 }

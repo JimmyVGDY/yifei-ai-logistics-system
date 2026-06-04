@@ -12,7 +12,7 @@ public class LocalFrontendProperties {
     private boolean autoOpen = true;
     private String url = "http://127.0.0.1:5173";
     private String workingDirectory = "frontend";
-    private String startCommand = "cmd /c npm run dev";
+    private String startCommand = "npm run dev";
 
     public boolean isAutoStart() {
         return autoStart;
