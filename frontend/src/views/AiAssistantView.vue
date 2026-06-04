@@ -1,11 +1,17 @@
 <template>
   <section class="ai-page">
     <aside class="ai-sidebar">
-      <div class="panel-header">
-        <h3>会话</h3>
-        <el-button size="small" :icon="Refresh" @click="loadConversations" />
+      <div class="panel-header compact">
+        <div>
+          <h3>会话</h3>
+          <p>{{ conversations.length }} 条记录</p>
+        </div>
+        <el-tooltip content="刷新会话">
+          <el-button size="small" circle :icon="Refresh" @click="loadConversations" />
+        </el-tooltip>
       </div>
-      <el-scrollbar height="640px">
+
+      <el-scrollbar class="conversation-list">
         <button
           v-for="item in conversations"
           :key="item.conversationId"
@@ -13,43 +19,100 @@
           :class="{ active: item.conversationId === conversationId }"
           @click="selectConversation(item.conversationId)"
         >
-          <strong>{{ item.title || '新会话' }}</strong>
-          <span>{{ item.updatedAt || item.createdAt }}</span>
+          <span class="conversation-title">{{ item.title || '新会话' }}</span>
+          <span class="conversation-time">{{ item.updatedAt || item.createdAt }}</span>
         </button>
+        <el-empty v-if="!conversations.length" :image-size="72" description="暂无会话" />
       </el-scrollbar>
     </aside>
 
-    <main class="ai-chat-panel">
-      <div class="panel-header">
-        <div>
-          <h3>AI助手</h3>
-          <p>只读问答、日志排障和系统文档检索</p>
+    <main class="ai-workspace">
+      <div class="assistant-header">
+        <div class="assistant-title">
+          <span class="assistant-mark">AI</span>
+          <div>
+            <h2>AI助手</h2>
+            <p>只读问答、日志排障和系统文档检索</p>
+          </div>
         </div>
-        <el-tag type="success" effect="light">只读</el-tag>
+        <div class="assistant-badges">
+          <el-tag type="success" effect="light">只读模式</el-tag>
+          <el-tag effect="plain">可审计</el-tag>
+        </div>
       </div>
 
-      <el-scrollbar class="chat-stream" height="480px">
-        <div v-for="(item, index) in messages" :key="index" class="chat-message" :class="item.role">
-          <span>{{ item.role === 'user' ? '我' : 'AI' }}</span>
-          <p>{{ item.content }}</p>
-        </div>
-      </el-scrollbar>
+      <div class="chat-shell">
+        <el-scrollbar ref="chatScrollbarRef" class="chat-stream">
+          <div class="welcome-strip">
+            <strong>我可以帮你查看系统文档、解释业务页面、按链路排查日志。</strong>
+            <span>涉及新增、修改、删除的请求只会给出建议，不会直接执行。</span>
+          </div>
 
-      <div v-if="lastResponse" class="ai-meta">
+          <div v-for="(item, index) in messages" :key="index" class="message-row" :class="item.role">
+            <div class="avatar">{{ item.role === 'user' ? '我' : 'AI' }}</div>
+            <div class="message-body">
+              <div class="message-meta">{{ item.role === 'user' ? '你' : '物流AI助手' }}</div>
+              <p>{{ item.content }}</p>
+            </div>
+          </div>
+
+          <div v-if="chatLoading" class="message-row assistant pending">
+            <div class="avatar">AI</div>
+            <div class="message-body">
+              <div class="message-meta">物流AI助手正在处理</div>
+              <div class="thinking-card">
+                <div class="typing-line">
+                  <span>正在组织回答</span>
+                  <i></i>
+                  <i></i>
+                  <i></i>
+                </div>
+                <div class="thinking-steps">
+                  <div
+                    v-for="(step, index) in thinkingSteps"
+                    :key="step"
+                    class="thinking-step"
+                    :class="{ active: index === thinkingStepIndex, done: index < thinkingStepIndex }"
+                  >
+                    <span>{{ index + 1 }}</span>
+                    <p>{{ step }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-scrollbar>
+      </div>
+
+      <div class="ai-meta" v-if="lastResponse || chatLoading">
         <el-collapse>
-          <el-collapse-item title="引用来源" name="citations">
-            <el-empty v-if="!lastResponse.citations?.length" description="暂无引用" />
-            <div v-for="item in lastResponse.citations" :key="item.reference" class="citation-item">
+          <el-collapse-item name="citations">
+            <template #title>
+              <div class="collapse-title">
+                <span>引用来源</span>
+                <el-tag size="small" effect="plain">{{ lastResponse?.citations?.length || 0 }}</el-tag>
+              </div>
+            </template>
+            <el-empty v-if="!lastResponse?.citations?.length" :image-size="64" description="暂无引用" />
+            <div v-for="item in lastResponse?.citations || []" :key="item.reference" class="citation-item">
               <strong>{{ item.title }}</strong>
               <small>{{ item.reference }}</small>
               <p>{{ item.snippet }}</p>
             </div>
           </el-collapse-item>
-          <el-collapse-item title="工具调用" name="tools">
-            <el-empty v-if="!lastResponse.toolCalls?.length" description="暂无工具调用" />
-            <el-tag v-for="item in lastResponse.toolCalls" :key="item.toolName + item.target" class="tool-tag">
-              {{ item.toolName }} · {{ item.result }}
-            </el-tag>
+          <el-collapse-item name="tools">
+            <template #title>
+              <div class="collapse-title">
+                <span>工具调用</span>
+                <el-tag size="small" effect="plain">{{ lastResponse?.toolCalls?.length || 0 }}</el-tag>
+              </div>
+            </template>
+            <el-empty v-if="!lastResponse?.toolCalls?.length" :image-size="64" description="暂无工具调用" />
+            <div class="tool-list">
+              <el-tag v-for="item in lastResponse?.toolCalls || []" :key="item.toolName + item.target" class="tool-tag">
+                {{ item.toolName }} · {{ item.result }}
+              </el-tag>
+            </div>
           </el-collapse-item>
         </el-collapse>
       </div>
@@ -69,10 +132,14 @@
 
     <aside class="log-panel">
       <div class="panel-header">
-        <h3>日志排障</h3>
+        <div>
+          <h3>日志排障</h3>
+          <p>按链路标识定位异常</p>
+        </div>
         <el-button type="primary" size="small" :icon="Search" :loading="logLoading" @click="analyzeLogs">分析</el-button>
       </div>
-      <el-form :model="logForm" label-width="96px" class="log-form">
+
+      <el-form :model="logForm" label-width="82px" class="log-form">
         <el-form-item label="Trace ID">
           <el-input v-model="logForm.traceId" clearable />
         </el-form-item>
@@ -90,8 +157,23 @@
         </el-form-item>
       </el-form>
 
+      <div v-if="logLoading" class="log-loading">
+        <span>正在分析日志链路</span>
+        <i></i>
+        <i></i>
+        <i></i>
+      </div>
+
       <div v-if="logResult" class="analysis-result">
         <h4>{{ logResult.summary }}</h4>
+        <el-alert
+          v-for="risk in logResult.riskPoints"
+          :key="risk"
+          :title="risk"
+          type="warning"
+          show-icon
+          :closable="false"
+        />
         <el-timeline>
           <el-timeline-item v-for="(item, index) in logResult.timeline" :key="index" :timestamp="item.time">
             <strong>{{ item.operation || item.uri }}</strong>
@@ -101,14 +183,13 @@
             <p v-if="item.errorMessage" class="error-text">{{ item.errorMessage }}</p>
           </el-timeline-item>
         </el-timeline>
-        <el-alert v-for="risk in logResult.riskPoints" :key="risk" :title="risk" type="warning" show-icon :closable="false" />
       </div>
     </aside>
   </section>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Promotion, Refresh, Search } from '@element-plus/icons-vue'
 import { analyzeAiLogs, chatWithAi, fetchAiConversation, fetchAiConversations } from '../api/ai-assistant'
@@ -121,6 +202,10 @@ const chatLoading = ref(false)
 const logLoading = ref(false)
 const lastResponse = ref(null)
 const logResult = ref(null)
+const chatScrollbarRef = ref(null)
+const thinkingStepIndex = ref(0)
+const thinkingSteps = ['理解你的问题', '检索系统文档和上下文', '整理引用和工具结果', '生成只读回答']
+let thinkingTimer = null
 const logForm = reactive({
   traceId: '',
   operationId: '',
@@ -137,6 +222,8 @@ async function selectConversation(id) {
   const conversation = await fetchAiConversation(id)
   conversationId.value = conversation?.conversationId || id
   messages.value = conversation?.messages || []
+  lastResponse.value = null
+  await scrollToBottom()
 }
 
 async function sendMessage() {
@@ -147,7 +234,9 @@ async function sendMessage() {
   const content = message.value.trim()
   messages.value.push({ role: 'user', content })
   message.value = ''
-  chatLoading.value = true
+  lastResponse.value = null
+  startThinking()
+  await scrollToBottom()
   try {
     const response = await chatWithAi({
       message: content,
@@ -159,7 +248,8 @@ async function sendMessage() {
     messages.value.push({ role: 'assistant', content: response.answer })
     await loadConversations()
   } finally {
-    chatLoading.value = false
+    stopThinking()
+    await scrollToBottom()
   }
 }
 
@@ -172,117 +262,351 @@ async function analyzeLogs() {
   }
 }
 
+function startThinking() {
+  chatLoading.value = true
+  thinkingStepIndex.value = 0
+  window.clearInterval(thinkingTimer)
+  thinkingTimer = window.setInterval(() => {
+    thinkingStepIndex.value = Math.min(thinkingStepIndex.value + 1, thinkingSteps.length - 1)
+  }, 900)
+}
+
+function stopThinking() {
+  chatLoading.value = false
+  window.clearInterval(thinkingTimer)
+  thinkingTimer = null
+}
+
+async function scrollToBottom() {
+  await nextTick()
+  const scrollbar = chatScrollbarRef.value
+  if (scrollbar?.setScrollTop) {
+    scrollbar.setScrollTop(999999)
+  }
+}
+
 onMounted(loadConversations)
+onBeforeUnmount(() => window.clearInterval(thinkingTimer))
 </script>
 
 <style scoped>
 .ai-page {
   display: grid;
-  grid-template-columns: 260px minmax(520px, 1fr) 420px;
+  grid-template-columns: 260px minmax(620px, 1fr) 420px;
   gap: 16px;
-  min-height: 720px;
+  min-height: calc(100vh - 112px);
 }
 
 .ai-sidebar,
-.ai-chat-panel,
+.ai-workspace,
 .log-panel {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 16px;
   min-width: 0;
+  border: 1px solid #dfe7f2;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
 
-.panel-header {
+.ai-sidebar,
+.log-panel {
+  padding: 16px;
+}
+
+.ai-workspace {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.panel-header,
+.assistant-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+}
+
+.panel-header {
+  margin-bottom: 14px;
+}
+
+.panel-header h3,
+.assistant-header h2 {
+  margin: 0;
+  color: #0f172a;
 }
 
 .panel-header h3 {
-  margin: 0;
   font-size: 16px;
 }
 
-.panel-header p {
+.panel-header p,
+.assistant-header p {
   margin: 4px 0 0;
   color: #64748b;
 }
 
+.panel-header p {
+  font-size: 12px;
+}
+
+.assistant-header {
+  padding: 18px 20px;
+  border-bottom: 1px solid #e8eef7;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.assistant-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.assistant-mark {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 700;
+  background: #2563eb;
+}
+
+.assistant-badges {
+  display: flex;
+  gap: 8px;
+}
+
+.conversation-list {
+  height: calc(100vh - 190px);
+}
+
 .conversation-item {
   width: 100%;
-  border: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
   background: transparent;
-  border-bottom: 1px solid #eef2f7;
-  padding: 12px 8px;
+  padding: 12px;
   text-align: left;
   cursor: pointer;
 }
 
-.conversation-item.active,
-.conversation-item:hover {
-  background: #f1f5f9;
+.conversation-item + .conversation-item {
+  margin-top: 8px;
 }
 
-.conversation-item strong,
-.conversation-item span {
+.conversation-item.active,
+.conversation-item:hover {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.conversation-title,
+.conversation-time {
   display: block;
 }
 
-.conversation-item span {
-  margin-top: 4px;
+.conversation-title {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.conversation-time {
+  margin-top: 6px;
   color: #94a3b8;
   font-size: 12px;
 }
 
+.chat-shell {
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+  background: #f4f7fb;
+}
+
 .chat-stream {
-  border: 1px solid #eef2f7;
-  border-radius: 6px;
-  padding: 12px;
-  background: #f8fafc;
+  height: calc(100vh - 390px);
+  min-height: 420px;
+  padding: 16px;
+  border: 1px solid #e5edf7;
+  border-radius: 8px;
+  background: #f8fbff;
 }
 
-.chat-message {
-  margin-bottom: 12px;
-  max-width: 88%;
+.welcome-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #334155;
 }
 
-.chat-message span {
-  display: inline-block;
-  margin-bottom: 4px;
+.welcome-strip span {
+  color: #64748b;
+}
+
+.message-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.message-row.user {
+  flex-direction: row-reverse;
+}
+
+.avatar {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.message-row.user .avatar {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.message-body {
+  max-width: min(820px, 82%);
+}
+
+.message-meta {
+  margin-bottom: 5px;
   color: #64748b;
   font-size: 12px;
 }
 
-.chat-message p {
+.message-row.user .message-meta {
+  text-align: right;
+}
+
+.message-body p,
+.thinking-card {
   margin: 0;
-  padding: 10px 12px;
-  border-radius: 6px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.chat-message.user {
-  margin-left: auto;
-}
-
-.chat-message.user p {
-  background: #dbeafe;
-}
-
-.chat-message.assistant p {
+.message-row.assistant .message-body p,
+.thinking-card {
+  border: 1px solid #e2e8f0;
   background: #fff;
-  border: 1px solid #e5e7eb;
 }
 
-.ai-meta {
+.message-row.user .message-body p {
+  background: #2563eb;
+  color: #fff;
+}
+
+.typing-line,
+.log-loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #334155;
+}
+
+.typing-line i,
+.log-loading i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2563eb;
+  animation: dotPulse 1.1s infinite ease-in-out;
+}
+
+.typing-line i:nth-child(3),
+.log-loading i:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.typing-line i:nth-child(4),
+.log-loading i:nth-child(4) {
+  animation-delay: 0.3s;
+}
+
+.thinking-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
   margin-top: 12px;
 }
 
+.thinking-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.thinking-step span {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e2e8f0;
+  font-size: 11px;
+}
+
+.thinking-step p {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.thinking-step.active {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.thinking-step.done {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.thinking-step.done span {
+  color: #fff;
+  background: #10b981;
+}
+
+.ai-meta {
+  padding: 0 16px;
+  background: #fff;
+}
+
+.collapse-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .citation-item {
-  padding: 8px 0;
+  padding: 10px 0;
   border-bottom: 1px solid #eef2f7;
 }
 
@@ -293,15 +617,19 @@ onMounted(loadConversations)
   color: #64748b;
 }
 
-.tool-tag {
-  margin: 0 8px 8px 0;
+.tool-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .composer {
   display: grid;
-  grid-template-columns: 1fr 92px;
+  grid-template-columns: 1fr 96px;
   gap: 12px;
-  margin-top: 12px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid #e8eef7;
+  background: #fff;
 }
 
 .log-form {
@@ -310,8 +638,20 @@ onMounted(loadConversations)
   padding-bottom: 4px;
 }
 
+.log-loading {
+  justify-content: center;
+  margin: 10px 0 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
 .analysis-result h4 {
   margin: 0 0 12px;
+}
+
+.analysis-result :deep(.el-alert) {
+  margin-bottom: 10px;
 }
 
 .cost {
@@ -324,13 +664,41 @@ onMounted(loadConversations)
   word-break: break-word;
 }
 
-@media (max-width: 1280px) {
+@keyframes dotPulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@media (max-width: 1360px) {
   .ai-page {
-    grid-template-columns: 220px 1fr;
+    grid-template-columns: 230px 1fr;
   }
 
   .log-panel {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .ai-page {
+    grid-template-columns: 1fr;
+  }
+
+  .composer,
+  .thinking-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .message-body {
+    max-width: 86%;
   }
 }
 </style>
