@@ -176,17 +176,14 @@ public class SaTokenConfig implements WebMvcConfigurer {
     }
 
     private String resolveModuleAction(String method, String[] parts) {
-        if ("GET".equalsIgnoreCase(method)) {
-            return "query";
-        }
         if (parts.length >= 3 && "delete".equals(parts[2])) {
             return "delete";
         }
-        if ("POST".equalsIgnoreCase(method) && parts.length == 1) {
-            return "create";
-        }
-        // 其余 POST/PUT/PATCH 统一按更新权限处理，例如状态处理、编辑表单保存等。
-        return "update";
+        return switch (method.toUpperCase()) {
+            case "GET" -> "query";
+            case "POST" -> parts.length == 1 ? "create" : "update";
+            default -> "update";
+        };
     }
 
     private String permissionAction(String prefix) {
@@ -198,10 +195,10 @@ public class SaTokenConfig implements WebMvcConfigurer {
     }
 
     private HttpServletRequest currentRequest() {
-        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes)) {
+        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes servletRequestAttributes)) {
             return null;
         }
-        return ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+        return servletRequestAttributes.getRequest();
     }
 
     private static Map<String, String> buildModulePermissionPrefixes() {

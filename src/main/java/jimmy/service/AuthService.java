@@ -23,6 +23,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
+
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -82,7 +83,7 @@ public class AuthService {
      *
      * @param request 用户名 + 密码 + 可选验证码
      * @return 首次登录返回 {@link LoginResponse}，冲突时返回 {@link LoginConflictResponse}，
-     *         异常设备且未提供验证码时返回 {@link RequireCaptchaResponse}
+     * 异常设备且未提供验证码时返回 {@link RequireCaptchaResponse}
      * @throws IllegalArgumentException 账号为空 / 密码错误 / 账号已停用 / 验证码错误
      */
     public Object login(LoginRequest request) {
@@ -418,7 +419,9 @@ public class AuthService {
         return mapUser(authMapper.findLoginUserByUsername(username));
     }
 
-    /** 根据 userId 查找用户信息 */
+    /**
+     * 根据 userId 查找用户信息
+     */
     private LoginUser findLoginUserById(Long userId) {
         return mapUser(authMapper.findLoginUserById(userId));
     }
@@ -426,7 +429,7 @@ public class AuthService {
     /**
      * 密码匹配：优先 BCrypt 编码匹配，兼容旧数据明文密码。
      *
-     * @param rawPassword 用户输入的明文密码
+     * @param rawPassword    用户输入的明文密码
      * @param storedPassword 数据库中存储的密码（明文或 BCrypt）
      * @return 匹配成功返回 true
      */
@@ -456,7 +459,9 @@ public class AuthService {
         log.info("账号密码已升级为 BCrypt，userId={}, username={}", loginUser.id, LogMaskUtils.maskAccount(loginUser.username));
     }
 
-    /** 判断密码是否为 BCrypt 编码（$2a$/$2b$/$2y$ 开头） */
+    /**
+     * 判断密码是否为 BCrypt 编码（$2a$/$2b$/$2y$ 开头）
+     */
     private boolean isBcrypt(String password) {
         return password != null && (password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$"));
     }
@@ -554,7 +559,9 @@ public class AuthService {
         return false;
     }
 
-    /** 列表去重，保持顺序 */
+    /**
+     * 列表去重，保持顺序
+     */
     private List<String> distinctList(List<String> list) {
         List<String> result = new ArrayList<>();
         for (String s : list) {
@@ -574,11 +581,11 @@ public class AuthService {
         if (value == null) {
             return null;
         }
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
+        if (value instanceof Number number) {
+            return number.longValue();
         }
-        if (value instanceof BigInteger) {
-            return ((BigInteger) value).longValue();
+        if (value instanceof BigInteger bigInteger) {
+            return bigInteger.longValue();
         }
         return Long.valueOf(String.valueOf(value));
     }
@@ -587,8 +594,8 @@ public class AuthService {
         if (value == null) {
             return null;
         }
-        if (value instanceof Number) {
-            return ((Number) value).intValue();
+        if (value instanceof Number number) {
+            return number.intValue();
         }
         return Integer.valueOf(String.valueOf(value));
     }
@@ -628,40 +635,19 @@ public class AuthService {
     }
 
     private void addRelationQueryPermissions(String roleCode, List<String> expanded) {
-        if ("OPERATIONS_MANAGER".equals(roleCode)) {
-            addQueryPermissions(expanded, "customer", "driver", "vehicle", "fee");
-            return;
-        }
-        if ("ORDER_OPERATOR".equals(roleCode) || "CUSTOMER_SERVICE".equals(roleCode)) {
-            addQueryPermissions(expanded, "customer", "order", "waybill", "track");
-            return;
-        }
-        if ("DISPATCHER".equals(roleCode)) {
-            addQueryPermissions(expanded, "order", "waybill");
-            return;
-        }
-        if ("FLEET_MANAGER".equals(roleCode)) {
-            addQueryPermissions(expanded, "order", "waybill", "dispatch", "driver", "vehicle");
-            return;
-        }
-        if ("DRIVER".equals(roleCode)) {
-            addQueryPermissions(expanded, "order", "waybill", "dispatch", "driver", "vehicle");
-            return;
-        }
-        if ("EXCEPTION_HANDLER".equals(roleCode)) {
-            addQueryPermissions(expanded, "order", "task", "track");
-            return;
-        }
-        if ("FINANCE".equals(roleCode)) {
-            addQueryPermissions(expanded, "order");
-            return;
-        }
-        if ("FINANCE_MANAGER".equals(roleCode)) {
-            addQueryPermissions(expanded, "order", "fee");
-            return;
-        }
-        if ("AUDITOR".equals(roleCode)) {
-            addQueryPermissions(expanded, "order", "waybill", "track", "fee", "system:log");
+        String[] prefixes = switch (String.valueOf(roleCode)) {
+            case "OPERATIONS_MANAGER" -> new String[]{"customer", "driver", "vehicle", "fee"};
+            case "ORDER_OPERATOR", "CUSTOMER_SERVICE" -> new String[]{"customer", "order", "waybill", "track"};
+            case "DISPATCHER" -> new String[]{"order", "waybill"};
+            case "FLEET_MANAGER", "DRIVER" -> new String[]{"order", "waybill", "dispatch", "driver", "vehicle"};
+            case "EXCEPTION_HANDLER" -> new String[]{"order", "task", "track"};
+            case "FINANCE" -> new String[]{"order"};
+            case "FINANCE_MANAGER" -> new String[]{"order", "fee"};
+            case "AUDITOR" -> new String[]{"order", "waybill", "track", "fee", "system:log"};
+            default -> new String[0];
+        };
+        if (prefixes.length > 0) {
+            addQueryPermissions(expanded, prefixes);
         }
     }
 
@@ -702,43 +688,22 @@ public class AuthService {
     }
 
     private List<MenuVO> defaultMenus(String roleCode) {
-        if ("CUSTOMER_SERVICE".equals(roleCode)) {
-            return menus("customers", "orders", "waybills", "tracks");
-        }
-        if ("ORDER_OPERATOR".equals(roleCode)) {
-            return menus("orders", "customers", "waybills", "tracks");
-        }
-        if ("DISPATCHER".equals(roleCode)) {
-            return menus("dispatches", "tasks", "drivers", "vehicles", "tracks", "exceptions");
-        }
-        if ("FLEET_MANAGER".equals(roleCode)) {
-            return menus("drivers", "vehicles", "dispatches", "tasks", "tracks");
-        }
-        if ("DRIVER".equals(roleCode)) {
-            return menus("tasks", "tracks", "exceptions");
-        }
-        if ("EXCEPTION_HANDLER".equals(roleCode)) {
-            return menus("exceptions", "orders", "tasks", "tracks");
-        }
-        if ("FINANCE".equals(roleCode)) {
-            return menus("fees", "dashboard");
-        }
-        if ("FINANCE_MANAGER".equals(roleCode)) {
-            return menus("fees", "dashboard", "system", "operationLogs");
-        }
-        if ("OPERATIONS_MANAGER".equals(roleCode)) {
-            return menus("dashboard", "orders", "waybills", "dispatches", "tasks", "tracks", "exceptions");
-        }
-        if ("AUDITOR".equals(roleCode)) {
-            return menus("dashboard", "orders", "waybills", "tracks", "fees", "system", "operationLogs");
-        }
-        if ("FILE_MANAGER".equals(roleCode)) {
-            return menus("files", "resources");
-        }
-        if ("CUSTOMER".equals(roleCode)) {
-            return menus("orders", "tracks");
-        }
-        return new ArrayList<>();
+        return switch (String.valueOf(roleCode)) {
+            case "CUSTOMER_SERVICE" -> menus("customers", "orders", "waybills", "tracks");
+            case "ORDER_OPERATOR" -> menus("orders", "customers", "waybills", "tracks");
+            case "DISPATCHER" -> menus("dispatches", "tasks", "drivers", "vehicles", "tracks", "exceptions");
+            case "FLEET_MANAGER" -> menus("drivers", "vehicles", "dispatches", "tasks", "tracks");
+            case "DRIVER" -> menus("tasks", "tracks", "exceptions");
+            case "EXCEPTION_HANDLER" -> menus("exceptions", "orders", "tasks", "tracks");
+            case "FINANCE" -> menus("fees", "dashboard");
+            case "FINANCE_MANAGER" -> menus("fees", "dashboard", "system", "operationLogs");
+            case "OPERATIONS_MANAGER" ->
+                    menus("dashboard", "orders", "waybills", "dispatches", "tasks", "tracks", "exceptions");
+            case "AUDITOR" -> menus("dashboard", "orders", "waybills", "tracks", "fees", "system", "operationLogs");
+            case "FILE_MANAGER" -> menus("files", "resources");
+            case "CUSTOMER" -> menus("orders", "tracks");
+            default -> new ArrayList<>();
+        };
     }
 
     private List<MenuVO> menus(String... keys) {
@@ -758,10 +723,10 @@ public class AuthService {
      * <p>用于提取客户端 IP 和 User-Agent，供异常设备检测使用。
      */
     private HttpServletRequest currentRequest() {
-        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes)) {
+        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes servletRequestAttributes)) {
             return null;
         }
-        return ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+        return servletRequestAttributes.getRequest();
     }
 
     /**
