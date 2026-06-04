@@ -13,15 +13,16 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.13</version>
+        <version>3.5.14</version>
         <relativePath/>
     </parent>
 
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-cloud.version>2023.0.6</spring-cloud.version>
-        <spring-cloud-alibaba.version>2023.0.3.4</spring-cloud-alibaba.version>
+        <spring-cloud.version>2025.0.2</spring-cloud.version>
+        <spring-cloud-alibaba.version>2025.0.0.0</spring-cloud-alibaba.version>
+        <spring-ai.version>1.1.7</spring-ai.version>
         <sa-token.version>1.45.0</sa-token.version>
         <lombok.version>1.18.34</lombok.version>
     </properties>
@@ -39,6 +40,13 @@
                 <groupId>com.alibaba.cloud</groupId>
                 <artifactId>spring-cloud-alibaba-dependencies</artifactId>
                 <version>${spring-cloud-alibaba.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -105,7 +113,13 @@
             <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
         </dependency>
 
-        <!-- Elasticsearch 集成，版本由 Spring Boot 3.3.x 统一管理。 -->
+        <!-- Spring AI OpenAI 兼容模型接入，API Key 只允许通过环境变量或本地私有配置提供。 -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>
+
+        <!-- Elasticsearch 集成，版本由 Spring Boot 3.5.x 统一管理。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
@@ -130,7 +144,7 @@
             <version>${sa-token.version}</version>
         </dependency>
 
-        <!-- MyBatis 持久层支持，兼容 Spring Boot 3.3.x 和 Java 21。 -->
+        <!-- MyBatis 持久层支持，兼容 Spring Boot 3.5.x 和 Java 21。 -->
         <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
