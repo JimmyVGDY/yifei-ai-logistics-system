@@ -3,23 +3,20 @@ package jimmy.logistics.model;
 /**
  * 通用 CRUD 操作结果 —— 包含操作 ID、是否删除、新状态。
  */
-public class OperationResultVO {
-
-    /** 操作结果ID */
-    private Long id;
-    /** 是否软删除 */
-    private Boolean deleted;
-    /** 操作后状态 */
-    private String status;
+public record OperationResultVO(
+        /** 操作结果ID */
+        Long id,
+        /** 是否软删除 */
+        Boolean deleted,
+        /** 操作后状态 */
+        String status) {
 
     public OperationResultVO(Long id) {
-        this.id = id;
+        this(id, null, null);
     }
 
     public static OperationResultVO deleted(Long id) {
-        OperationResultVO result = new OperationResultVO(id);
-        result.setDeleted(Boolean.TRUE);
-        return result;
+        return new OperationResultVO(id, Boolean.TRUE, null);
     }
 
     public Long getId() {
@@ -30,15 +27,7 @@ public class OperationResultVO {
         return deleted;
     }
 
-    public void setDeleted(Boolean deleted) {
-        this.deleted = deleted;
-    }
-
     public String getStatus() {
         return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
     }
 }
