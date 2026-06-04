@@ -110,7 +110,7 @@
             <el-empty v-if="!lastResponse?.toolCalls?.length" :image-size="64" description="暂无工具调用" />
             <div class="tool-list">
               <el-tag v-for="item in lastResponse?.toolCalls || []" :key="item.toolName + item.target" class="tool-tag">
-                {{ item.toolName }} · {{ item.result }}
+                {{ item.toolName }} · {{ item.target }} · {{ item.result }}
               </el-tag>
             </div>
           </el-collapse-item>
