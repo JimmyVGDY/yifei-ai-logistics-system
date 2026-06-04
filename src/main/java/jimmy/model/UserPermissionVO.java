@@ -1,6 +1,5 @@
 package jimmy.model;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -9,12 +8,12 @@ import java.util.List;
 public record UserPermissionVO(List<Long> grantPermissionIds, List<Long> denyPermissionIds) {
 
     public UserPermissionVO {
-        grantPermissionIds = grantPermissionIds == null ? new ArrayList<>() : grantPermissionIds;
-        denyPermissionIds = denyPermissionIds == null ? new ArrayList<>() : denyPermissionIds;
+        grantPermissionIds = grantPermissionIds == null ? List.of() : grantPermissionIds;
+        denyPermissionIds = denyPermissionIds == null ? List.of() : denyPermissionIds;
     }
 
     public UserPermissionVO() {
-        this(new ArrayList<>(), new ArrayList<>());
+        this(List.of(), List.of());
     }
 
     public List<Long> getGrantPermissionIds() { return grantPermissionIds; }
