@@ -7,14 +7,11 @@ import jimmy.logistics.model.OrderSearchQueryDTO;
 import jimmy.logistics.repository.LogisticsOrderSearchDocument;
 import jimmy.model.PageResult;
 import lombok.extern.slf4j.Slf4j;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
-import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
-import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
+import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -60,15 +57,20 @@ public class LogisticsOrderSearchService {
         int pageSize = Math.max(1, Math.min(query == null ? 20 : query.getPageSize(), 100));
         String keyword = query == null ? null : query.getKeyword();
         Long customerId = currentCustomerScopeOrNull();
-        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                .must(StringUtils.hasText(keyword)
-                        ? QueryBuilders.multiMatchQuery(keyword, "orderNo", "customerName", "receiverAddress", "cargoName")
-                        : QueryBuilders.matchAllQuery());
-        if (customerId != null) {
-            boolQuery.filter(QueryBuilders.termQuery("customerId", customerId));
-        }
-        NativeSearchQuery searchQuery = new NativeSearchQueryBuilder()
-                .withQuery(boolQuery)
+        NativeQuery searchQuery = NativeQuery.builder()
+                .withQuery(root -> root.bool(bool -> {
+                    if (StringUtils.hasText(keyword)) {
+                        bool.must(must -> must.multiMatch(multiMatch -> multiMatch
+                                .query(keyword)
+                                .fields("orderNo", "customerName", "receiverAddress", "cargoName")));
+                    } else {
+                        bool.must(must -> must.matchAll(matchAll -> matchAll));
+                    }
+                    if (customerId != null) {
+                        bool.filter(filter -> filter.term(term -> term.field("customerId").value(customerId)));
+                    }
+                    return bool;
+                }))
                 .withPageable(PageRequest.of(page - 1, pageSize))
                 .build();
         try {
