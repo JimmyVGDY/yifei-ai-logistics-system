@@ -71,11 +71,12 @@ public class SystemPermissionService {
         ensureStandardMenus();
         ensurePermissionMenu();
         ensurePermissionCatalog();
-        // 仅在首次启动（权限表无数据）时自动同步预设菜单和权限，后续的人工调整不再被覆盖。
+        // 仅在首次启动（权限表无数据）时自动同步预设菜单，后续只追加新增权限，不覆盖人工调整。
         if (countAllRolePermissions() == 0) {
             ensureDefaultRoleMenus();
-            syncRolePermissionsFromMenus();
         }
+        ensureAdminAiMenu();
+        syncRolePermissionsFromMenus();
     }
 
     /**
@@ -381,6 +382,24 @@ public class SystemPermissionService {
                 if (menuId != null) {
                     systemPermissionMapper.insertRoleMenu(idGenerator.nextId(), roleId, menuId);
                 }
+            }
+        }
+    }
+
+    private void ensureAdminAiMenu() {
+        Long aiMenuId = systemPermissionMapper.selectMenuIdByPath("/ai-assistant");
+        if (aiMenuId == null) {
+            return;
+        }
+        for (Map<String, Object> role : systemPermissionMapper.selectAllRoles()) {
+            Long roleId = toLong(role.get("id"));
+            String roleCode = String.valueOf(role.get("roleCode"));
+            if (roleId == null || !"ADMIN".equalsIgnoreCase(roleCode)) {
+                continue;
+            }
+            List<Long> menuIds = systemPermissionMapper.selectRoleMenuIds(roleId);
+            if (menuIds == null || !menuIds.contains(aiMenuId)) {
+                systemPermissionMapper.insertRoleMenu(idGenerator.nextId(), roleId, aiMenuId);
             }
         }
     }
