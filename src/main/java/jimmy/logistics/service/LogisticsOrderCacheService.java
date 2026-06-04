@@ -40,7 +40,7 @@ public class LogisticsOrderCacheService {
 
     public LogisticsOrder getOrder(String orderNo) {
         Object cached = redisTemplate.opsForValue().get(orderCacheKey(orderNo));
-        return cached instanceof LogisticsOrder ? (LogisticsOrder) cached : null;
+        return cached instanceof LogisticsOrder logisticsOrder ? logisticsOrder : null;
     }
 
     public void cacheOrder(LogisticsOrder logisticsOrder) {

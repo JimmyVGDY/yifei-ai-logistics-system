@@ -133,7 +133,9 @@ public class LogisticsOrderService {
         return logisticsOrder;
     }
 
-    /** 查询最近 N 条订单（上限 100，防止前端传过大 limit 压库） */
+    /**
+     * 查询最近 N 条订单（上限 100，防止前端传过大 limit 压库）
+     */
     public List<LogisticsOrder> findRecent(int limit) {
         // 限制单次查询数量，避免前端误传过大 limit 压垮数据库。
         int safeLimit = Math.max(1, Math.min(limit, 100));
@@ -145,7 +147,9 @@ public class LogisticsOrderService {
         return orders;
     }
 
-    /** Sentinel 创建订单的 fallback —— 返回 BLOCKED 状态标记，调用方可据此提示稍后重试 */
+    /**
+     * Sentinel 创建订单的 fallback —— 返回 BLOCKED 状态标记，调用方可据此提示稍后重试
+     */
     public LogisticsOrder createFallback(CreateLogisticsOrderRequest request, Throwable throwable) {
         log.warn("创建物流订单触发 Sentinel 兜底，customerName={}, reason={}",
                 request == null ? null : LogMaskUtils.maskName(request.getCustomerName()),
@@ -196,8 +200,8 @@ public class LogisticsOrderService {
                 return null;
             }
             Object customerId = StpUtil.getSessionByLoginId(loginId).get("customerId");
-            if (customerId instanceof Number) {
-                return ((Number) customerId).longValue();
+            if (customerId instanceof Number number) {
+                return number.longValue();
             }
             if (customerId != null && StringUtils.hasText(String.valueOf(customerId))) {
                 return Long.valueOf(String.valueOf(customerId));

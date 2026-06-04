@@ -86,13 +86,17 @@ public class LogisticsRequirementService {
         return summary;
     }
 
-    /** 查询模块全量记录列表（为导出等功能提供原始 Map 数据） */
+    /**
+     * 查询模块全量记录列表（为导出等功能提供原始 Map 数据）
+     */
     public List<Map<String, Object>> moduleRecords(String module, int limit) {
         PageResult<ModuleRecordVO> page = modulePage(module, query(1, limit, null, null, null));
         return new ArrayList<Map<String, Object>>(page.getRecords());
     }
 
-    /** 查询模块记录列表（支持关键词/时间范围过滤） */
+    /**
+     * 查询模块记录列表（支持关键词/时间范围过滤）
+     */
     public List<Map<String, Object>> moduleRecords(String module, int limit, String keyword, String startTime, String endTime) {
         PageResult<ModuleRecordVO> page = modulePage(module, query(1, limit, keyword, startTime, endTime));
         return new ArrayList<Map<String, Object>>(page.getRecords());
@@ -157,12 +161,14 @@ public class LogisticsRequirementService {
         return new PageResult<>(voRecords, page, pageSize, total == null ? 0 : total);
     }
 
-    /** 解密记录中的敏感字段（手机号等） */
+    /**
+     * 解密记录中的敏感字段（手机号等）
+     */
     private void decryptRecords(List<Map<String, Object>> records) {
         for (Map<String, Object> record : records) {
             for (Map.Entry<String, Object> entry : record.entrySet()) {
-                if (FieldEncryptor.isEncryptedField(entry.getKey()) && entry.getValue() instanceof String) {
-                    entry.setValue(fieldEncryptor.decrypt((String) entry.getValue()));
+                if (FieldEncryptor.isEncryptedField(entry.getKey()) && entry.getValue() instanceof String cipherText) {
+                    entry.setValue(fieldEncryptor.decrypt(cipherText));
                 }
             }
         }
@@ -186,7 +192,9 @@ public class LogisticsRequirementService {
         }
     }
 
-    /** 获取当前登录用户的客户ID，用于客户角色数据权限隔离 */
+    /**
+     * 获取当前登录用户的客户ID，用于客户角色数据权限隔离
+     */
     private Long getCurrentCustomerId() {
         try {
             Object loginId = StpUtil.getLoginIdDefaultNull();
@@ -198,8 +206,8 @@ public class LogisticsRequirementService {
                 return null;
             }
             Object customerId = StpUtil.getSessionByLoginId(loginId).get("customerId");
-            if (customerId instanceof Number) {
-                return ((Number) customerId).longValue();
+            if (customerId instanceof Number number) {
+                return number.longValue();
             }
             if (customerId != null && StringUtils.hasText(String.valueOf(customerId))) {
                 return Long.valueOf(String.valueOf(customerId));
@@ -232,12 +240,12 @@ public class LogisticsRequirementService {
     }
 
     private Object formatValue(Object value) {
-        if (value instanceof LocalDateTime) {
-            return ((LocalDateTime) value).format(DATE_TIME_FORMATTER);
+        if (value instanceof LocalDateTime localDateTime) {
+            return localDateTime.format(DATE_TIME_FORMATTER);
         }
-        if (value instanceof Timestamp) {
+        if (value instanceof Timestamp timestamp) {
             // 使用线程安全的 DateTimeFormatter 替代 SimpleDateFormat，避免并发格式化异常。
-            return ((Timestamp) value).toLocalDateTime().format(DATE_TIME_FORMATTER);
+            return timestamp.toLocalDateTime().format(DATE_TIME_FORMATTER);
         }
         return value;
     }
@@ -272,7 +280,6 @@ public class LogisticsRequirementService {
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
-
 
 
     private Map<String, ModuleQueryConfig> buildModuleQueryConfigs() {

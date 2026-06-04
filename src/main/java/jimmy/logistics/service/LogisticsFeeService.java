@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Map;
 
 /**
@@ -42,11 +43,11 @@ public class LogisticsFeeService {
         if (order == null || order.get("id") == null || order.get("cargoWeight") == null) {
             throw new IllegalArgumentException("订单不存在或缺少货物信息");
         }
-        Long orderId = ((Number) order.get("id")).longValue();
+        Long orderId = order.get("id") instanceof Number number ? number.longValue() : Long.valueOf(String.valueOf(order.get("id")));
         BigDecimal cargoWeight = new BigDecimal(String.valueOf(order.get("cargoWeight")));
         // 当前是练习版计费模型：基础运费 + 重量费 + 固定里程费，后续可替换为线路/距离/合同价规则。
         BigDecimal baseFee = new BigDecimal("120.00");
-        BigDecimal weightFee = cargoWeight.multiply(new BigDecimal("2.50")).setScale(2, BigDecimal.ROUND_HALF_UP);
+        BigDecimal weightFee = cargoWeight.multiply(new BigDecimal("2.50")).setScale(2, RoundingMode.HALF_UP);
         BigDecimal distanceFee = new BigDecimal("80.00");
         BigDecimal additionalFee = BigDecimal.ZERO.setScale(2);
         BigDecimal discountFee = BigDecimal.ZERO.setScale(2);

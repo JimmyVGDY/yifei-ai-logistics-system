@@ -120,8 +120,8 @@ public class ChangeAuditService {
 
     private String normalizeAuditValue(String column, Object value) {
         Object normalized = value;
-        if (FieldEncryptor.isEncryptedField(column) && value instanceof String) {
-            normalized = fieldEncryptor.decrypt((String) value);
+        if (FieldEncryptor.isEncryptedField(column) && value instanceof String cipherText) {
+            normalized = fieldEncryptor.decrypt(cipherText);
         }
         return normalized == null ? "" : String.valueOf(normalized).trim();
     }

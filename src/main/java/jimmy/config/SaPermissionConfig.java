@@ -17,7 +17,7 @@ public class SaPermissionConfig implements StpInterface {
     @SuppressWarnings("unchecked")
     public List<String> getPermissionList(Object loginId, String loginType) {
         Object permissions = StpUtil.getSessionByLoginId(loginId).get("permissions");
-        return permissions instanceof List ? (List<String>) permissions : new ArrayList<>();
+        return permissions instanceof List<?> permissionList ? (List<String>) permissionList : new ArrayList<>();
     }
 
     @Override

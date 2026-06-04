@@ -36,9 +36,9 @@ public final class OperationChangeContext {
     }
 
     private static HttpServletRequest currentRequest() {
-        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes)) {
+        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes servletRequestAttributes)) {
             return null;
         }
-        return ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+        return servletRequestAttributes.getRequest();
     }
 }

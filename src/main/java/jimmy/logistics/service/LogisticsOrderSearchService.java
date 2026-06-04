@@ -109,8 +109,8 @@ public class LogisticsOrderSearchService {
                 return null;
             }
             Object customerId = StpUtil.getSessionByLoginId(loginId).get("customerId");
-            if (customerId instanceof Number) {
-                return ((Number) customerId).longValue();
+            if (customerId instanceof Number number) {
+                return number.longValue();
             }
             if (customerId != null && StringUtils.hasText(String.valueOf(customerId))) {
                 return Long.valueOf(String.valueOf(customerId));

@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import jakarta.annotation.PostConstruct;
+
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -130,17 +131,23 @@ public class SystemPermissionService {
         return roots;
     }
 
-    /** 查询角色已分配的菜单 ID 列表 */
+    /**
+     * 查询角色已分配的菜单 ID 列表
+     */
     public List<Long> roleMenuIds(long roleId) {
         return systemPermissionMapper.selectRoleMenuIds(roleId);
     }
 
-    /** 查询角色已分配的权限 ID 列表 */
+    /**
+     * 查询角色已分配的权限 ID 列表
+     */
     public List<Long> rolePermissionIds(long roleId) {
         return systemPermissionMapper.selectRolePermissionIds(roleId);
     }
 
-    /** 查询用户个性化权限 ID（GRANT 和 DENY 两列） */
+    /**
+     * 查询用户个性化权限 ID（GRANT 和 DENY 两列）
+     */
     public UserPermissionVO userPermissionIds(long userId) {
         return new UserPermissionVO(
                 systemPermissionMapper.selectUserPermissionIds(userId, "GRANT"),
@@ -261,7 +268,9 @@ public class SystemPermissionService {
         return userPermissionIds(userId);
     }
 
-    /** 对比前后 ID 集合变化，生成本次变更的差异摘要字符串 */
+    /**
+     * 对比前后 ID 集合变化，生成本次变更的差异摘要字符串
+     */
     private String diffSummary(List<Long> before, List<Long> after) {
         LinkedHashSet<Long> beforeSet = new LinkedHashSet<>(normalizedIds(before));
         LinkedHashSet<Long> afterSet = new LinkedHashSet<>(normalizedIds(after));
@@ -280,7 +289,9 @@ public class SystemPermissionService {
         return "新增=" + compactIds(added) + "，移除=" + compactIds(removed);
     }
 
-    /** 紧凑化 ID 列表展示，超过 20 项截断并标注总数 */
+    /**
+     * 紧凑化 ID 列表展示，超过 20 项截断并标注总数
+     */
     private String compactIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return "无";
@@ -298,7 +309,9 @@ public class SystemPermissionService {
         systemPermissionMapper.insertUserPermission(idGenerator.nextId(), userId, permissionId, grantType, now, now);
     }
 
-    /** 从所有角色的菜单自动同步细粒度权限，确保新增权限授给已分配该菜单的角色 */
+    /**
+     * 从所有角色的菜单自动同步细粒度权限，确保新增权限授给已分配该菜单的角色
+     */
     private void syncRolePermissionsFromMenus() {
         List<PermissionVO> allPermissions = systemPermissionMapper.selectAllActivePermissions();
         // 构建 menuId → PermissionVO 的映射，只保留有 menu_id 的权限
@@ -333,7 +346,9 @@ public class SystemPermissionService {
         return total;
     }
 
-    /** 确保标准菜单记录存在于数据库，缺失则插入 */
+    /**
+     * 确保标准菜单记录存在于数据库，缺失则插入
+     */
     private void ensureStandardMenus() {
         Timestamp now = new Timestamp(System.currentTimeMillis());
         Long systemMenuId = null;
@@ -401,7 +416,9 @@ public class SystemPermissionService {
         }
     }
 
-    /** 确保每个菜单的权限目录完整（PAGE + 所有 action BUTTON），缺失则插入 */
+    /**
+     * 确保每个菜单的权限目录完整（PAGE + 所有 action BUTTON），缺失则插入
+     */
     private void ensurePermissionCatalog() {
         List<MenuVO> menus = systemPermissionMapper.selectAllActiveMenus();
         for (MenuVO menu : menus) {
@@ -432,7 +449,9 @@ public class SystemPermissionService {
         return permission;
     }
 
-    /** 插入权限记录（幂等：code 已存在时跳过） */
+    /**
+     * 插入权限记录（幂等：code 已存在时跳过）
+     */
     private void insertPermissionIfMissing(PermissionVO permission) {
         if (systemPermissionMapper.countPermissionByCode(permission.getPermissionCode()) > 0) {
             return;
@@ -455,7 +474,9 @@ public class SystemPermissionService {
         return systemPermissionMapper.countMenuById(menuId) > 0;
     }
 
-    /** 扁平菜单列表构建树形结构（按 parentId 嵌套） */
+    /**
+     * 扁平菜单列表构建树形结构（按 parentId 嵌套）
+     */
     private List<MenuVO> buildMenuTree(List<MenuVO> rows) {
         Map<Long, MenuVO> byId = new LinkedHashMap<>();
         rows.forEach(menu -> byId.put(menu.getId(), menu));
@@ -528,8 +549,8 @@ public class SystemPermissionService {
         if (value == null) {
             return null;
         }
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
+        if (value instanceof Number number) {
+            return number.longValue();
         }
         return Long.valueOf(String.valueOf(value));
     }
