@@ -45,7 +45,8 @@ export function statusLabel(value) {
   if (value === null || value === undefined || value === '') {
     return ''
   }
-  return statusMap[String(value)] || `未知状态(${value})`
+  const key = String(value)
+  return statusMap[key] || `未知状态(${value})`
 }
 
 export function formatDateTime(value) {
