@@ -209,6 +209,14 @@
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
+            <!-- Java 21 + Windows 本地 Maven 测试兼容：避免 Surefire manifest classpath 绝对路径检查导致 fork 失败。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>
