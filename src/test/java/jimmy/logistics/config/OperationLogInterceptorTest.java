@@ -292,7 +292,7 @@ class OperationLogInterceptorTest {
     private OperationLogInterceptor interceptor(OperationLogMapper mapper,
                                                 ColumnExistenceChecker columnChecker,
                                                 CompactSnowflakeIdGenerator idGenerator) {
-        return new OperationLogInterceptor(mapper, columnChecker, idGenerator, new TraceContextSupport(idGenerator));
+        return new OperationLogInterceptor(mapper, columnChecker, idGenerator, new TraceContextSupport(idGenerator), new OperationNameResolver());
     }
 
     private HandlerMethod handlerMethod() throws Exception {
