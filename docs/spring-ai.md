@@ -78,10 +78,17 @@ spring:
 启动成功后，控制台会输出 AI 配置摘要：
 
 ```text
-AI 配置摘要：configured=true, baseUrl=https://api.deepseek.com, model=deepseek-v4-flash, ...
+AI 配置摘要：configured=true, baseUrl=https://api.deepseek.com, model=deepseek-v4-flash, source=nacos:spring-ai.yml
 ```
 
-日志不会打印 API Key 明文。若 `model` 仍显示本地默认值，优先检查 Nacos 配置是否已发布、Data ID/Group/命名空间是否一致，以及启动参数是否关闭了 Nacos 配置。
+日志不会打印 API Key 明文。AI 模块会优先运行时读取 Nacos `spring-ai.yml`；若 Spring Cloud Alibaba 启动阶段的 ConfigDataLoader 提示配置为空，但最终“AI 配置摘要”里 `source=nacos:spring-ai.yml`，说明 AI 模块实际已经读取到远程配置。
+
+若 `model` 仍显示本地默认值，优先检查：
+
+- Nacos 配置是否已发布。
+- Data ID、Group、命名空间是否一致。
+- 启动参数是否关闭了 Nacos 配置。
+- `src/main/resources/application-dev.yml` 等本地 profile 文件是否写死了 `spring.ai.openai.*` 并覆盖远程配置。
 
 示例：
 
