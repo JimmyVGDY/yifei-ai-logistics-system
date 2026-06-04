@@ -23,7 +23,8 @@ authStore.saveAuthToken({
       ]
     },
     { path: '/orders', children: [] },
-    { path: '/tracks', children: [] }
+    { path: '/tracks', children: [] },
+    { path: '/ai-assistant', children: [] }
   ]
 })
 
@@ -32,6 +33,8 @@ assert.equal(authStore.hasPermission('order:create'), false)
 assert.equal(authStore.canVisit('/orders'), true)
 assert.equal(authStore.canVisit('/orders/detail'), true)
 assert.equal(authStore.canVisit('/fees'), false)
+assert.equal(authStore.canVisit('/ai-assistant'), true)
+assert.equal(authStore.hasPermission('ai:chat'), false)
 assert.equal(authStore.firstMenuPath(), '/system/users')
 
 assert.equal(permissions.actionPermissionFromRoutePermission('order:query', 'update'), 'order:update')

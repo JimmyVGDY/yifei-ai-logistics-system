@@ -4,6 +4,7 @@ import ResourcesView from '../views/ResourcesView.vue'
 import LoginView from '../views/LoginView.vue'
 import ModuleListView from '../views/ModuleListView.vue'
 import PermissionConfigView from '../views/PermissionConfigView.vue'
+import AiAssistantView from '../views/AiAssistantView.vue'
 import { fetchSession } from '../api/auth'
 import { canVisit, clearAuthToken, firstMenuPath, hasMenus, hasPermission, isAuthenticated, isSessionChecked, markSessionChecked, resetSessionChecked, saveAuthToken } from '../stores/auth-store'
 
@@ -26,7 +27,8 @@ const routes = [
   { path: '/system/permissions', component: PermissionConfigView, meta: { title: '权限配置', permission: 'system:permission:query' } },
   { path: '/system/operation-logs', component: ModuleListView, meta: { title: '操作日志', module: 'operationLogs', permission: 'system:log:view' } },
   { path: '/files', component: ModuleListView, meta: { title: '上传文件', module: 'files', permission: 'file:query' } },
-  { path: '/resources', component: ResourcesView, meta: { title: '资源中心', permission: 'resource:view' } }
+  { path: '/resources', component: ResourcesView, meta: { title: '资源中心', permission: 'resource:view' } },
+  { path: '/ai-assistant', component: AiAssistantView, meta: { title: 'AI助手', permission: 'ai:chat' } }
 ]
 
 const router = createRouter({

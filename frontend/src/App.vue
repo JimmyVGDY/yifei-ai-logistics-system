@@ -115,7 +115,8 @@ function iconName(path) {
     '/fees': 'Money',
     '/system/permissions': 'Lock',
     '/files': 'Upload',
-    '/resources': 'SetUp'
+    '/resources': 'SetUp',
+    '/ai-assistant': 'ChatDotRound'
   }
   return icons[path] || 'Menu'
 }
