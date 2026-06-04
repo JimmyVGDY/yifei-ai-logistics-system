@@ -131,6 +131,7 @@ src/main/resources/data.sql
 - [项目结构说明](docs/architecture.md)
 - [配置说明](docs/configuration.md)
 - [本地开发指南](docs/local-development.md)
+- [环境与中间件版本清单](docs/environment-versions.md)
 - [MyBatis 使用说明](docs/mybatis.md)
 - [前端新人接入手册](docs/frontend.md)
 - [需求匹配说明](docs/requirements-mapping.md)

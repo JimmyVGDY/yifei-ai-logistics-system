@@ -1,6 +1,6 @@
 # 配置说明
 
-项目使用 `bootstrap.yml` 管理应用名、环境和 Nacos，使用 `application.yml` 管理端口、数据源、Redis、RabbitMQ、Sentinel、Elasticsearch 和监控端点。
+项目使用 `bootstrap.yml` 管理应用名、环境和 Nacos，使用 `application.yml` 管理端口、数据源、Redis、RabbitMQ、Sentinel、Elasticsearch 和监控端点。组件安装版本和 Docker 镜像版本见 [环境与中间件版本清单](environment-versions.md)。
 
 ## 环境变量
 
@@ -186,6 +186,7 @@ falsePositiveProbability = 0.01
 ## 相关文档
 
 - [项目文档索引](README.md)
+- [环境与中间件版本清单](environment-versions.md)
 - [数据库增量迁移说明](incremental-migration.md)
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
 - [本地开发指南](local-development.md)

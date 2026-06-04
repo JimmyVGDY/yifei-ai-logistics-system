@@ -3,17 +3,17 @@
 ## 前置要求
 
 - JDK 8
-- Maven 3.6+
-- Node.js 16+
-- MySQL 8.0+
-- Nacos 2.x
-- Sentinel Dashboard
-- Elasticsearch 7.x
-- Redis 5.x
-- RabbitMQ 3.x+
+- Maven 3.8.x（最低 3.6+）
+- Node.js 18 LTS（最低 16+）
+- MySQL 8.4.9（兼容 MySQL 8.0+）
+- Nacos 2.4.3（兼容 Nacos 2.x）
+- Sentinel Dashboard 1.8.8
+- Elasticsearch 7.17.29（兼容 Elasticsearch 7.x）
+- Redis 5.0.14.1（兼容 Redis 5.x 到 7.x 的基础缓存能力）
+- RabbitMQ 4.1.8（基础 AMQP 能力兼容 RabbitMQ 3.x+）
 - XXL-Job 2.4.x（需要调度任务时启动）
 
-项目基于 Spring Boot `2.7.18`，依赖版本通过 `pom.xml` 中的 Spring Cloud 和 Spring Cloud Alibaba BOM 统一管理。
+项目基于 Spring Boot `2.7.18`，依赖版本通过 `pom.xml` 中的 Spring Cloud 和 Spring Cloud Alibaba BOM 统一管理。完整版本矩阵见 [环境与中间件版本清单](environment-versions.md)。
 
 ## 本地中间件位置（Windows）
 
@@ -248,6 +248,7 @@ XXL-Job 调度中心使用独立数据库 `xxl_job`，初始化 SQL 位于 `dock
 
 - [项目文档索引](README.md)
 - [新手快速上手指南](getting-started.md)
+- [环境与中间件版本清单](environment-versions.md)
 - [配置说明](configuration.md)
 - [数据库增量迁移说明](incremental-migration.md)
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)

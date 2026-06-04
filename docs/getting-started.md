@@ -5,12 +5,12 @@
 ## 前置条件
 
 - **JDK 8**（推荐 Zulu 8 / Corretto 8）
-- **Maven 3.6+**
-- **Node.js 16+**（仅前端开发需要）
+- **Maven 3.8.x**（最低 3.6+）
+- **Node.js 18 LTS**（最低 16+，仅前端开发需要）
 - **Git**（需要能访问 Gitee 仓库）
 - 本机已安装并启动以下中间件（Windows 环境路径见下文）
 
-> 💡 如果中间件还没安装，参考 [本地开发指南](local-development.md) 的「启动基础组件」一节。
+> 💡 如果中间件还没安装，先确认 [环境与中间件版本清单](environment-versions.md)，再参考 [本地开发指南](local-development.md) 的「启动基础组件」一节。
 
 ## 第一步：克隆仓库
 
@@ -21,17 +21,17 @@ cd practice-project-about-develop
 
 ## 第二步：确认中间件运行状态
 
-下表是本项目依赖的全部中间件，启动应用前确保它们都在运行：
+下表是本项目依赖的全部中间件，启动应用前确保它们都在运行。完整版本矩阵见 [环境与中间件版本清单](environment-versions.md)。
 
-| 中间件 | 端口 | 用途 | 启动命令（Windows PowerShell） |
-|--------|------|------|-------------------------------|
-| MySQL | 3306 | 主数据库 | `Start-Service MySQL84` |
-| Redis | 6379 | 订单缓存 | `F:\Development\Middleware\scripts\start-redis.ps1` |
-| RabbitMQ | 5672 | 订单事件消息 | `F:\Development\Middleware\scripts\start-rabbitmq.ps1` |
-| Elasticsearch | 9200 | 订单搜索 | 启动 ES 服务 |
-| Nacos | 8848 | 注册/配置中心 | `F:\Development\Middleware\scripts\start-nacos.ps1` |
-| Sentinel | 8858 | 流量控制 | `java -jar sentinel-dashboard-1.8.8.jar --server.port=8858` |
-| XXL-Job | 8081 | 定时任务（可选） | 按需启动 |
+| 中间件 | 推荐版本 | 端口 | 用途 | 启动命令（Windows PowerShell） |
+|--------|----------|------|------|-------------------------------|
+| MySQL | 8.4.9 | 3306 | 主数据库 | `Start-Service MySQL84` |
+| Redis | 5.0.14.1 | 6379 | 订单缓存 | `F:\Development\Middleware\scripts\start-redis.ps1` |
+| RabbitMQ | 4.1.8 | 5672 / 15672 | 订单事件消息 | `F:\Development\Middleware\scripts\start-rabbitmq.ps1` |
+| Elasticsearch | 7.17.29 | 9200 | 订单搜索 | 启动 ES 服务 |
+| Nacos | 2.4.3 | 8848 / 9848 / 9849 | 注册/配置中心 | `F:\Development\Middleware\scripts\start-nacos.ps1` |
+| Sentinel | 1.8.8 | 8858 | 流量控制 | `java -jar sentinel-dashboard-1.8.8.jar --server.port=8858` |
+| XXL-Job | 2.4.x | 8081 | 定时任务（可选） | 按需启动 |
 
 验证所有中间件是否就绪：
 
@@ -210,6 +210,7 @@ netstat -ano | findstr :8080
 
 - [项目文档索引](README.md)
 - [本地开发指南](local-development.md)
+- [环境与中间件版本清单](environment-versions.md)
 - [配置说明](configuration.md)
 - [数据库增量迁移说明](incremental-migration.md)
 - [前端新人接入手册](frontend.md)
