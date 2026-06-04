@@ -54,4 +54,13 @@ class AiQueryIntentParserTest {
         assertThat(intent.module()).isEqualTo("customers");
         assertThat(intent.keyword()).isEqualTo("陈土豆");
     }
+
+    @Test
+    void shouldCleanupNamePrefixWhenCustomerKeywordStartsWithNameLabel() {
+        AiQueryIntent intent = parser.parse("我需要知道客户 名称为唐若琳的相关信息");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("customers");
+        assertThat(intent.keyword()).isEqualTo("唐若琳");
+    }
 }

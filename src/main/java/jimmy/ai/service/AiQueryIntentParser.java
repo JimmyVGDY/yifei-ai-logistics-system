@@ -89,7 +89,8 @@ public class AiQueryIntentParser {
         }
         String keyword = value.trim()
                 .replaceAll("[，,。；;：:]+$", "")
-                .replaceAll("(的)?(相关)?(信息|资料|情况|记录|数据)$", "");
+                .replaceAll("(的)?(相关)?(信息|资料|情况|记录|数据)$", "")
+                .replaceAll("^(名称|名字|姓名)[是为:：\\s]*", "");
         return StringUtils.hasText(keyword) ? keyword : null;
     }
 
