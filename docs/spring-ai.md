@@ -126,6 +126,7 @@ mvn spring-boot:run
 | `AiLogAnalysisService` | 复用操作日志能力生成排障时间线 |
 | `AiConversationService` | 使用 Redis 保存当前用户短期会话 |
 | `AiMemoryService` | 管理账号级长期记忆画像、召回、自动写入、删除和审计事件 |
+| `AiMemoryExtractor` | 使用 LLM 判断对话是否包含用户偏好或习惯，替代关键词兜底规则 |
 | `AiQdrantMemoryClient` | 调用 Qdrant 创建集合、写入向量点、召回和删除记忆向量 |
 | `AiMemoryVectorEncoder` | 生成本地确定性向量，避免长期记忆强依赖模型 embedding 能力 |
 | `AiSensitiveDataMasker` | 模型输入前脱敏手机号、邮箱、token、密码等敏感数据 |
@@ -198,6 +199,16 @@ GET http://127.0.0.1:6333/readyz
 | `/ai/memory/items/{id}` | DELETE | `ai:memory:delete` | 删除当前账号单条长期记忆，并同步删除 Qdrant 向量 |
 | `/ai/memory/items` | DELETE | `ai:memory:delete` | 清空当前账号全部长期记忆 |
 | `/ai/memory/settings` | PUT | `ai:memory:settings` | 开启或关闭长期记忆，保留历史记忆直到用户主动清空 |
+
+### 记忆写入策略
+
+每次 AI 回答完成后，记忆提炼采用两层策略：
+
+1. **LLM 优先提炼**：通过一个轻量分类提示词（输入约 100 token），让模型判断对话中是否包含用户偏好、习惯或格式要求。模型需要区分"一次性业务查询"和"持续性偏好表达"——例如"查一下订单123"只是普通查询，不会被记；而"以后先给结论"或"我主要查异常"会触发记忆写入。LLM 返回 JSON 格式的 `memoryType`、`memoryTitle`、`memorySummary` 和 `confidence`。
+
+2. **关键词降级匹配**：当 LLM 未配置或调用失败时，自动降级为关键词匹配。仅匹配"以后都这样""我主要查""先给结论"等明确表达偏好的语句，不再使用"查什么存什么"的兜底规则。
+
+记忆写入前还需通过敏感内容过滤、去重检查（按 `userId/userCode/memoryType/memorySummary` 去重）和置信度阈值（< 0.72 跳过）。
 
 ### 工具能力清单
 

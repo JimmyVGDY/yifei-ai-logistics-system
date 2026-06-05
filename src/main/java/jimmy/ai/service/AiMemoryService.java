@@ -45,6 +45,7 @@ public class AiMemoryService {
     private final AiQdrantMemoryClient qdrantClient;
     private final ColumnExistenceChecker columnChecker;
     private final AiAuditLogService auditLogService;
+    private final AiMemoryExtractor memoryExtractor;
 
     public AiMemoryService(AiMemoryMapper memoryMapper,
                            CompactSnowflakeIdGenerator idGenerator,
@@ -52,7 +53,8 @@ public class AiMemoryService {
                            AiSensitiveDataMasker masker,
                            AiQdrantMemoryClient qdrantClient,
                            ColumnExistenceChecker columnChecker,
-                           AiAuditLogService auditLogService) {
+                           AiAuditLogService auditLogService,
+                           AiMemoryExtractor memoryExtractor) {
         this.memoryMapper = memoryMapper;
         this.idGenerator = idGenerator;
         this.traceContextSupport = traceContextSupport;
@@ -60,6 +62,7 @@ public class AiMemoryService {
         this.qdrantClient = qdrantClient;
         this.columnChecker = columnChecker;
         this.auditLogService = auditLogService;
+        this.memoryExtractor = memoryExtractor;
     }
 
     public AiMemoryProfileVO profile() {
@@ -210,30 +213,74 @@ public class AiMemoryService {
                 "AI 自动写入长期记忆：" + candidate.memoryType());
     }
 
+    /**
+     * 从一轮 AI 对话中提取长期记忆候选。
+     * <p>
+     * 优先级：LLM 提炼 > 关键词匹配降级。
+     * LLM 可用时由模型判断对话是否包含偏好/习惯，从根源上解决"查什么存什么"的问题。
+     * LLM 不可用时降级为关键词匹配，仅抓取用户明确表达偏好的语句，不再使用兜底规则。
+     */
     private List<AiMemoryCandidate> extractCandidates(String userMessage, String assistantMessage, List<AiToolCall> toolCalls) {
+        List<String> toolTargets = collectToolTargets(toolCalls);
+
+        // 1. 优先使用 LLM 提炼记忆
+        AiMemoryExtractor.ExtractionDecision decision = memoryExtractor.extract(userMessage, assistantMessage, toolTargets);
+        if (decision.processed()) {
+            if (decision.candidate() != null) {
+                return List.of(decision.candidate());
+            }
+            return List.of(); // LLM 判断该对话不值得记忆，不存任何内容
+        }
+
+        // 2. LLM 不可用时降级为关键词匹配（仅保留高置信度规则）
+        return keywordExtract(userMessage, assistantMessage, toolCalls);
+    }
+
+    /**
+     * 收集工具调用中的目标模块名，供 LLM 记忆提炼用。
+     */
+    private List<String> collectToolTargets(List<AiToolCall> toolCalls) {
+        List<String> targets = new ArrayList<>();
+        for (AiToolCall toolCall : toolCalls == null ? List.<AiToolCall>of() : toolCalls) {
+            if (StringUtils.hasText(toolCall.target())) {
+                targets.add(toolCall.target());
+            }
+        }
+        return targets;
+    }
+
+    /**
+     * 关键词匹配记忆提取 —— 仅当 LLM 不可用时的降级方案。
+     * <p>
+     * 只匹配用户明确表达偏好的语句（"以后都这样""我主要查"等），
+     * 不再使用兜底规则把每条消息都当成 QUERY_HABIT 存储。
+     */
+    private List<AiMemoryCandidate> keywordExtract(String userMessage, String assistantMessage, List<AiToolCall> toolCalls) {
         List<AiMemoryCandidate> candidates = new ArrayList<>();
         String message = normalize(userMessage);
         if (!StringUtils.hasText(message)) {
             return candidates;
         }
+        // 用户明确表达偏好意图
         if (containsAny(message, "以后", "以后都", "默认", "我希望", "我喜欢", "记住", "习惯")) {
-            candidates.add(new AiMemoryCandidate("ANSWER_STYLE", "用户表达了回答或服务偏好", message, 0.9));
+            candidates.add(new AiMemoryCandidate("ANSWER_STYLE", "用户表达了回答或服务偏好", message, 0.88));
         }
+        // 用户指定回答格式
         if (containsAny(message, "先给结论", "先说结论", "简短", "详细", "表格", "不要太长")) {
-            candidates.add(new AiMemoryCandidate("ANSWER_STYLE", "用户回答格式偏好", message, 0.92));
+            candidates.add(new AiMemoryCandidate("ANSWER_STYLE", "用户回答格式偏好", message, 0.90));
         }
-        if (containsAny(message, "待处理", "未收款", "异常", "费用", "订单", "运单", "轨迹")) {
-            candidates.add(new AiMemoryCandidate("QUERY_HABIT", "用户常用业务查询习惯", message, 0.82));
+        // 用户主动表达持续业务关注
+        if (containsAny(message, "我主要查", "我常看", "我关注", "我经常")) {
+            candidates.add(new AiMemoryCandidate("QUERY_HABIT", "用户主动表达持续业务关注", message, 0.86));
         }
+        // 工具调用过的模块
         for (AiToolCall toolCall : toolCalls == null ? List.<AiToolCall>of() : toolCalls) {
             if (StringUtils.hasText(toolCall.target())) {
                 candidates.add(new AiMemoryCandidate("FAVORITE_MODULE", "用户常查模块：" + toolCall.target(),
-                        "用户在 AI 助手中查询过 " + toolCall.target() + "，问题摘要：" + message, 0.76));
+                        "用户在 AI 助手中查询过 " + toolCall.target() + "，问题摘要：" + message, 0.74));
             }
         }
-        if (candidates.isEmpty() && StringUtils.hasText(assistantMessage) && message.length() >= 6) {
-            candidates.add(new AiMemoryCandidate("QUERY_HABIT", "用户业务查询偏好", message, 0.73));
-        }
+        // 不再使用兜底规则：没有命中任何关键词就意味着这只是一次普通的业务查询，不值得记录
         return candidates;
     }
 
