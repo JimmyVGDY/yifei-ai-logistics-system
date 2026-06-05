@@ -148,7 +148,7 @@
           :rows="3"
           resize="none"
           placeholder="输入问题、traceId、operationId 或 loginSessionId"
-          @keydown.ctrl.enter.prevent="sendMessage"
+          @keydown.enter.exact.prevent="sendMessage"
         />
         <el-button type="primary" :icon="Promotion" :loading="chatLoading" @click="sendMessage">发送</el-button>
       </div>
@@ -756,6 +756,9 @@ onBeforeUnmount(() => {
 .thinking-card {
   border: 1px solid #e2e8f0;
   background: #fff;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .message-row.user .message-body > p {
@@ -765,6 +768,8 @@ onBeforeUnmount(() => {
 
 .markdown-body {
   overflow-x: auto;
+  overflow-wrap: break-word;
+  word-break: break-word;
   color: #0f172a;
 }
 
@@ -890,7 +895,7 @@ onBeforeUnmount(() => {
 
 .stream-tool-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   padding: 6px 8px;
   margin-bottom: 4px;
@@ -898,6 +903,8 @@ onBeforeUnmount(() => {
   background: #f8fafc;
   font-size: 12px;
   line-height: 1.5;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .stream-tool-item.running {
@@ -926,17 +933,17 @@ onBeforeUnmount(() => {
 }
 
 .stream-tool-target {
+  flex: 1 1 auto;
+  min-width: 0;
   color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .stream-tool-result {
-  margin-left: auto;
+  flex: 0 0 auto;
   color: #64748b;
   font-size: 11px;
-  text-align: right;
   white-space: nowrap;
 }
 
