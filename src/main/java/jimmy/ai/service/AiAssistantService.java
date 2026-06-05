@@ -19,6 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -159,10 +160,10 @@ public class AiAssistantService {
      * @param request        用户请求
      * @param emitter        SSE 推送通道
      */
-    public void chatStream(AiChatRequest request, SseEmitter emitter, String loginId) {
+    public void chatStream(AiChatRequest request, SseEmitter emitter, String loginId, List<String> permissions) {
         long start = System.currentTimeMillis();
-        // 将 Controller 捕获的登录标识注入当前异步线程
-        SseChatContext.setLoginId(loginId);
+        // 将 Controller 捕获的登录标识和权限列表注入当前异步线程
+        SseChatContext.setLoginIdAndPermissions(loginId, permissions);
         String safeMessage = masker.mask(request.message());
         String conversationId = resolveConversationId(request.conversationId());
         List<AiCitation> citations = new ArrayList<>();

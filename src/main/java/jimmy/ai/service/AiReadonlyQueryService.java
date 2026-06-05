@@ -3,6 +3,7 @@ package jimmy.ai.service;
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiToolCall;
+import jimmy.ai.util.SseChatContext;
 import jimmy.logistics.model.LogisticsDashboardSummary;
 import jimmy.logistics.model.ModuleQueryDTO;
 import jimmy.logistics.model.ModuleRecordVO;
@@ -237,7 +238,7 @@ public class AiReadonlyQueryService {
     }
 
     private AiReadonlyQueryResult queryDashboard(AiQueryIntent intent) {
-        if (!StpUtil.hasPermission(intent.permission())) {
+        if (!hasPermission(intent.permission())) {
             return simpleResult("运营看板查询", intent.moduleName(), PERMISSION_DENIED_MESSAGE);
         }
         LogisticsDashboardSummary summary = logisticsRequirementService.dashboardSummary();
@@ -248,7 +249,7 @@ public class AiReadonlyQueryService {
     }
 
     private AiReadonlyQueryResult queryModule(SearchModule module, String keyword, String startTime, String endTime, int pageSize, String toolName) {
-        if (!StpUtil.hasPermission(module.permission())) {
+        if (!hasPermission(module.permission())) {
             log.info("AI 只读查询被权限拦截，module={}, permission={}", module.module(), module.permission());
             return simpleResult(toolName, module.moduleName(), PERMISSION_DENIED_MESSAGE);
         }
@@ -318,7 +319,7 @@ public class AiReadonlyQueryService {
             if (module.module().equals(excludedModule)) {
                 continue;
             }
-            if (!StpUtil.hasPermission(module.permission())) {
+            if (!hasPermission(module.permission())) {
                 continue;
             }
             AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 5, "全场景模糊搜索");
@@ -395,7 +396,7 @@ public class AiReadonlyQueryService {
         List<String> moduleCodes = JOINED_SCENES.getOrDefault(scene, JOINED_SCENES.get("business"));
         return moduleCodes.stream()
                 .map(this::findModule)
-                .filter(module -> module != null && StpUtil.hasPermission(module.permission()))
+                .filter(module -> module != null && hasPermission(module.permission()))
                 .toList();
     }
 
@@ -554,6 +555,20 @@ public class AiReadonlyQueryService {
 
     private AiQueryIntent nullToUnmatched(AiQueryIntent intent) {
         return intent == null ? AiQueryIntent.unmatched() : intent;
+    }
+
+    /**
+     * 权限检查：SSE 异步线程优先读 {@link SseChatContext}，
+     * 同步请求仍走 {@link StpUtil}。
+     */
+    private boolean hasPermission(String permission) {
+        String sseLoginId = SseChatContext.getLoginId();
+        if (sseLoginId != null) {
+            // SSE 异步线程：使用 Controller 预捕获的权限列表
+            return SseChatContext.hasPermission(permission);
+        }
+        // 同步 HTTP 请求：正常走 SaToken
+        return StpUtil.hasPermission(permission);
     }
 
     private AiCitation citation(String target, String snippet) {
