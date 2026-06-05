@@ -128,12 +128,17 @@ public class AiToolCallContext {
         if (current == null || current.emitter == null) {
             return;
         }
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("type", "error");
-        data.put("message", nullToEmpty(errorMessage));
-        data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
-        sendEvent(current, "error", data);
-        current.emitter.completeWithError(new RuntimeException(errorMessage));
+        try {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("type", "error");
+            data.put("message", nullToEmpty(errorMessage));
+            data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
+            sendEvent(current, "error", data);
+        } finally {
+            // 使用 complete() 而非 completeWithError()，避免异常传播到 GlobalExceptionHandler
+            // GlobalExceptionHandler 收到 completeWithError() 会尝试写 JSON 到 text/event-stream，导致二次报错
+            current.emitter.complete();
+        }
     }
 
     /**
