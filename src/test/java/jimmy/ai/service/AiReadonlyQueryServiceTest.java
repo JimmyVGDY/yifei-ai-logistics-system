@@ -18,6 +18,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 
 class AiReadonlyQueryServiceTest {
 
@@ -99,6 +100,81 @@ class AiReadonlyQueryServiceTest {
             assertThat(result.toolCalls().getFirst().target()).isEqualTo("异常管理");
             assertThat(result.toolCalls().getFirst().result()).contains("待处理");
             verify(requirementService).modulePage(org.mockito.ArgumentMatchers.eq("exceptions"), any(ModuleQueryDTO.class));
+        }
+    }
+
+    @Test
+    void shouldFallbackToGlobalSearchWhenCustomerKeywordHasNoResult() {
+        AiQueryIntentParser parser = new AiQueryIntentParser();
+        AiGeneratedSqlQueryService sqlQueryService = mock(AiGeneratedSqlQueryService.class);
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = new AiReadonlyQueryService(
+                parser,
+                sqlQueryService,
+                requirementService,
+                new AiQuerySummaryService(),
+                new AiSensitiveDataMasker()
+        );
+        when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenAnswer(invocation -> {
+            String module = invocation.getArgument(0);
+            if ("orders".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of(
+                        "order_no", "LO-TEST-001",
+                        "customer_name", "陈菲"
+                ))), 1, 5, 1);
+            }
+            return new PageResult<>(List.of(), 1, 5, 0);
+        });
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission(anyString())).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("陈菲");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.answerContext()).contains("全局只读查找", "运单管理", "陈菲");
+            assertThat(result.toolCalls()).anySatisfy(toolCall -> {
+                assertThat(toolCall.toolName()).isEqualTo("全局只读查找");
+                assertThat(toolCall.target()).isEqualTo("运单管理");
+            });
+            verify(requirementService).modulePage(eq("customers"), any(ModuleQueryDTO.class));
+            verify(requirementService).modulePage(eq("orders"), any(ModuleQueryDTO.class));
+        }
+    }
+
+    @Test
+    void shouldReusePreviousKeywordWhenUserRequestsGlobalSearch() {
+        AiQueryIntentParser parser = new AiQueryIntentParser();
+        AiGeneratedSqlQueryService sqlQueryService = mock(AiGeneratedSqlQueryService.class);
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = new AiReadonlyQueryService(
+                parser,
+                sqlQueryService,
+                requirementService,
+                new AiQuerySummaryService(),
+                new AiSensitiveDataMasker()
+        );
+        when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenAnswer(invocation -> {
+            String module = invocation.getArgument(0);
+            if ("orders".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of(
+                        "order_no", "LO-TEST-002",
+                        "customer_name", "陈菲"
+                ))), 1, 5, 1);
+            }
+            return new PageResult<>(List.of(), 1, 5, 0);
+        });
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission(anyString())).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("全局查找", "陈菲");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.answerContext()).contains("陈菲", "运单管理");
+            verify(requirementService).modulePage(eq("orders"), any(ModuleQueryDTO.class));
         }
     }
 }

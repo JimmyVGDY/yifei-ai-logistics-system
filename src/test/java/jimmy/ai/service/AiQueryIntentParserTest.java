@@ -136,6 +136,24 @@ class AiQueryIntentParserTest {
     }
 
     @Test
+    void shouldRouteOrderManagementToOrders() {
+        AiQueryIntent intent = parser.parse("查询订单管理里的陈菲");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("orders");
+        assertThat(intent.keyword()).isEqualTo("陈菲");
+    }
+
+    @Test
+    void shouldRouteWaybillCenterToWaybills() {
+        AiQueryIntent intent = parser.parse("查询运单中心里的陈菲");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("waybills");
+        assertThat(intent.keyword()).isEqualTo("陈菲");
+    }
+
+    @Test
     void shouldTreatStandaloneNameAsCustomerSearch() {
         AiQueryIntent intent = parser.parse("陈土豆");
 
@@ -169,5 +187,13 @@ class AiQueryIntentParserTest {
         assertThat(intent.matched()).isTrue();
         assertThat(intent.module()).isEqualTo("exceptions");
         assertThat(intent.keyword()).isEqualTo("待处理");
+    }
+
+    @Test
+    void shouldNotTreatGlobalSearchAsKeyword() {
+        AiQueryIntent intent = parser.parse("全局查找");
+
+        assertThat(intent.matched()).isFalse();
+        assertThat(intent.keyword()).isNull();
     }
 }

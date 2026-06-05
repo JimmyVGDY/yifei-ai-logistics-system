@@ -137,6 +137,7 @@ public class AiQueryIntentParser {
     private static final List<String> QUERY_STOP_WORDS = List.of(
             "帮我", "帮忙", "麻烦", "查询", "查一下", "查下", "查看", "看看", "看一下", "看下",
             "我要", "我想", "请问", "给我", "显示", "列出", "筛选",
+            "全局查找", "全局搜索", "全局查询", "全局",
             "所有的", "全部的", "所有", "全部", "全量", "任意", "不限",
             "今天", "今日", "昨天", "最近7天", "近7天", "最近30天", "近30天",
             "一个", "这个", "那个", "某个",
@@ -189,10 +190,10 @@ public class AiQueryIntentParser {
                     List.of("操作日志", "审计日志", "登录日志", "traceId", "operationId", "loginSessionId")),
 
             new ModuleRule("waybills", "运单中心", "waybill:query",
-                    List.of("运单中心", "运单号", "运单编号", "WB-")),
+                    List.of("运单中心", "运输单", "运输单号", "运单号", "运单编号", "WB-")),
 
             new ModuleRule("orders", "运单管理", "order:query",
-                    List.of("订单", "订单号", "运单", "运单管理", "下单", "LO-", "ORD-")),
+                    List.of("订单管理", "运单管理", "订单", "订单号", "运单", "下单", "LO-", "ORD-")),
 
             new ModuleRule("dispatches", "调度管理", "dispatch:query",
                     List.of("调度", "派车", "派单")),
