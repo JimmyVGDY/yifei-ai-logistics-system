@@ -7,8 +7,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +64,7 @@ public class AiToolCallContext {
         if (current == null || current.emitter == null) {
             return;
         }
-        sendEvent(current, "thinking", Collections.singletonMap("message", (Object) "正在分析问题"));
+        sendEvent(current, "thinking", Map.of("message", "正在分析问题"));
     }
 
     /**
@@ -77,13 +75,13 @@ public class AiToolCallContext {
         if (current == null || current.emitter == null) {
             return;
         }
-        Map<String, Object> data = new HashMap<>();
-        data.put("toolName", nullToEmpty(toolName));
-        data.put("target", nullToEmpty(target));
-        data.put("toolCallCount", current.callCount);
-        data.put("maxToolCalls", MAX_TOOL_CALLS);
-        data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
-        sendEvent(current, "tool_start", data);
+        sendEvent(current, "tool_start", Map.of(
+                "toolName", nullToEmpty(toolName),
+                "target", nullToEmpty(target),
+                "toolCallCount", current.callCount,
+                "maxToolCalls", MAX_TOOL_CALLS,
+                "elapsedMs", System.currentTimeMillis() - current.startTime
+        ));
     }
 
     /**
@@ -94,14 +92,14 @@ public class AiToolCallContext {
         if (current == null || current.emitter == null) {
             return;
         }
-        Map<String, Object> data = new HashMap<>();
-        data.put("toolName", nullToEmpty(toolName));
-        data.put("target", nullToEmpty(target));
-        data.put("result", nullToEmpty(result));
-        data.put("toolCallCount", current.callCount);
-        data.put("maxToolCalls", MAX_TOOL_CALLS);
-        data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
-        sendEvent(current, "tool_result", data);
+        sendEvent(current, "tool_result", Map.of(
+                "toolName", nullToEmpty(toolName),
+                "target", nullToEmpty(target),
+                "result", nullToEmpty(result),
+                "toolCallCount", current.callCount,
+                "maxToolCalls", MAX_TOOL_CALLS,
+                "elapsedMs", System.currentTimeMillis() - current.startTime
+        ));
     }
 
     /**
@@ -175,9 +173,9 @@ public class AiToolCallContext {
         Holder current = holder.get();
         holder.remove();
         if (current == null) {
-            return new Snapshot(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+            return new Snapshot(List.of(), List.of(), List.of());
         }
-        return new Snapshot(new ArrayList<>(current.citations), new ArrayList<>(current.toolCalls), new ArrayList<>(current.contexts));
+        return new Snapshot(List.copyOf(current.citations), List.copyOf(current.toolCalls), List.copyOf(current.contexts));
     }
 
     private static class Holder {
