@@ -12,7 +12,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * </p>
  */
 @SpringBootApplication
-@MapperScan({"jimmy.mapper", "jimmy.logistics.mapper"})
+@MapperScan({"jimmy.mapper", "jimmy.logistics.mapper", "jimmy.ai.mapper"})
 public class DemoApplication {
 
     public static void main(String[] args) {
