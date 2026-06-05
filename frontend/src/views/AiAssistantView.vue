@@ -569,8 +569,7 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
 }
 
 .chat-stream {
-  height: calc(100vh - 390px);
-  min-height: 420px;
+  height: 100%;
   padding: 16px;
   border: 1px solid #e5edf7;
   border-radius: 8px;
