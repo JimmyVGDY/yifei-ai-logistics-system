@@ -475,7 +475,8 @@ public class AiReadonlyQueryService {
     private List<String> expandKeywordCandidates(String keyword) {
         String cleaned = cleanupKeyword(keyword);
         if (!hasText(cleaned)) {
-            return List.of((String) null);
+            // List.of() 不允许 null 元素，使用空字符串作为单候选（无关键词时等价于不过滤）
+            return List.of("");
         }
         Set<String> candidates = new LinkedHashSet<>();
         candidates.add(cleaned);
