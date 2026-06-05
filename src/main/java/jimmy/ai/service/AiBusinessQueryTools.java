@@ -35,6 +35,7 @@ public class AiBusinessQueryTools {
             @ToolParam(description = "关键词，例如客户名、订单号、运单号、司机名、车牌号、地址、状态；没有关键词时传空字符串") String keyword,
             @ToolParam(description = "开始时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String startTime,
             @ToolParam(description = "结束时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String endTime) {
+        toolCallContext.incrementAndCheck();
         AiReadonlyQueryResult result = readonlyQueryService.queryModule(module, keyword, blankToNull(startTime), blankToNull(endTime));
         toolCallContext.record(result);
         return result.answerContext();
@@ -45,6 +46,7 @@ public class AiBusinessQueryTools {
             @ToolParam(description = "模糊搜索关键词，例如陈土豆、沪A12345、天盈广场、生气啦、待处理") String keyword,
             @ToolParam(description = "开始时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String startTime,
             @ToolParam(description = "结束时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String endTime) {
+        toolCallContext.incrementAndCheck();
         AiReadonlyQueryResult result = readonlyQueryService.globalSearch(keyword, blankToNull(startTime), blankToNull(endTime));
         toolCallContext.record(result);
         return result.answerContext();
@@ -56,6 +58,7 @@ public class AiBusinessQueryTools {
             @ToolParam(description = "关键词，例如客户名、订单号、司机名、车牌号、异常描述；没有关键词时传空字符串") String keyword,
             @ToolParam(description = "开始时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String startTime,
             @ToolParam(description = "结束时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String endTime) {
+        toolCallContext.incrementAndCheck();
         AiReadonlyQueryResult result = readonlyQueryService.joinedSearch(scene, keyword, blankToNull(startTime), blankToNull(endTime));
         toolCallContext.record(result);
         return result.answerContext();
@@ -63,6 +66,7 @@ public class AiBusinessQueryTools {
 
     @Tool(description = "查询运营看板聚合数据，例如今日订单、待调度、运输中、异常数、收入趋势等。")
     public String queryDashboard() {
+        toolCallContext.incrementAndCheck();
         AiReadonlyQueryResult result = readonlyQueryService.queryDashboard();
         toolCallContext.record(result);
         return result.answerContext();
@@ -71,6 +75,7 @@ public class AiBusinessQueryTools {
     @Tool(description = "复杂只读统计分析。只用于统计、排名、汇总、关联、连表等分析问题，禁止写操作。")
     public String readonlySqlAnalysis(
             @ToolParam(description = "用户原始统计或关联分析问题") String question) {
+        toolCallContext.incrementAndCheck();
         AiGeneratedSqlQueryResult sqlResult = generatedSqlQueryService.query(question);
         AiReadonlyQueryResult result = new AiReadonlyQueryResult(
                 sqlResult.executed(),

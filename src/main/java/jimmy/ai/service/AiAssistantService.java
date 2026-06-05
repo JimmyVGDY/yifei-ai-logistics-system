@@ -102,6 +102,7 @@ public class AiAssistantService {
                 涉及统计、排名、汇总、关联或连表分析时，才使用临时只读 SQL 工具。
                 如果上下文或工具结果提示权限不足，只能回复友好的中文权限提示，不要暴露权限码、内部模块名、字段名、SQL 或异常堆栈。
                 回答必须基于给定上下文或工具结果；不知道就说明需要进一步查询。
+                每次回答最多调用 5 次工具。能用一次查询回答的问题，不要拆分多次调用。
                 """;
         String userPrompt = "用户问题：" + safeMessage
                 + "\n页面上下文：" + nullToBlank(request.pageContext())

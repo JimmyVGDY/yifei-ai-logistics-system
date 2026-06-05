@@ -19,8 +19,35 @@ public class AiToolCallContext {
 
     private final ThreadLocal<Holder> holder = new ThreadLocal<>();
 
+    /** 当前会话工具调用上限 */
+    private static final int MAX_TOOL_CALLS = 8;
+
     public void begin() {
         holder.set(new Holder());
+    }
+
+    /**
+     * 记录本次工具调用，返回当前累计调用次数。超过上限时抛出异常让 LLM 用已有信息回答。
+     */
+    public int incrementAndCheck() {
+        Holder current = holder.get();
+        if (current == null) {
+            return 0;
+        }
+        int count = ++current.callCount;
+        if (count > MAX_TOOL_CALLS) {
+            throw new ToolCallLimitExceededException("已达到单次对话工具调用上限（" + MAX_TOOL_CALLS + "次），请基于已查询到的数据直接回答。");
+        }
+        return count;
+    }
+
+    /**
+     * 工具调用次数限制异常 —— Spring AI 会将异常信息传给 LLM，由 LLM 据此调整行为。
+     */
+    public static class ToolCallLimitExceededException extends RuntimeException {
+        public ToolCallLimitExceededException(String message) {
+            super(message);
+        }
     }
 
     public void record(AiReadonlyQueryResult result) {
@@ -45,6 +72,7 @@ public class AiToolCallContext {
     }
 
     private static class Holder {
+        private int callCount = 0;
         private final List<AiCitation> citations = new ArrayList<>();
         private final List<AiToolCall> toolCalls = new ArrayList<>();
         private final List<String> contexts = new ArrayList<>();

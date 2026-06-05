@@ -294,7 +294,7 @@ public class AiReadonlyQueryService {
             log.info("AI 只读查询被数据范围拦截，module={}, reason={}", module.module(), exception.getMessage());
             return simpleResult(toolName, module.moduleName(), CUSTOMER_NOT_BOUND_MESSAGE);
         } catch (RuntimeException exception) {
-            log.warn("AI 只读查询失败，module={}, reason={}", module.module(), exception.getMessage());
+            log.warn("AI 只读查询失败，module={}, reason={}", module.module(), exception.getMessage(), exception);
             return simpleResult(toolName, module.moduleName(), QUERY_FAILED_MESSAGE);
         }
     }
