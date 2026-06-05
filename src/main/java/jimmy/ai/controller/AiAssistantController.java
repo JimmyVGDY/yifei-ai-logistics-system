@@ -81,12 +81,17 @@ public class AiAssistantController {
         // 捕获当前 HTTP 线程的登录标识和权限列表，异步线程中 Sa-Token 上下文不可用
         String loginId = String.valueOf(StpUtil.getLoginIdDefaultNull());
         List<String> permissions = StpUtil.getPermissionList();
+        // 捕获 Session 属性（roleCode / customerId / username / userCode），用于数据权限隔离
+        String roleCode = String.valueOf(StpUtil.getSession().get("roleCode", ""));
+        String customerId = String.valueOf(StpUtil.getSession().get("customerId", ""));
+        String username = String.valueOf(StpUtil.getSession().get("username", ""));
+        String userCode = String.valueOf(StpUtil.getSession().get("userCode", ""));
 
         emitter.onTimeout(() -> log.info("SSE 连接超时，conversationId={}", conversationId));
         emitter.onError(throwable -> log.warn("SSE 连接异常，conversationId={}", conversationId, throwable));
         emitter.onCompletion(() -> log.info("SSE 连接正常关闭，conversationId={}", conversationId));
 
-        aiChatExecutor.execute(() -> aiAssistantService.chatStream(request, emitter, loginId, permissions));
+        aiChatExecutor.execute(() -> aiAssistantService.chatStream(request, emitter, loginId, permissions, roleCode, customerId, username, userCode));
         return emitter;
     }
 

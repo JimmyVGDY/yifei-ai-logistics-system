@@ -160,10 +160,15 @@ public class AiAssistantService {
      * @param request        用户请求
      * @param emitter        SSE 推送通道
      */
-    public void chatStream(AiChatRequest request, SseEmitter emitter, String loginId, List<String> permissions) {
+    public void chatStream(AiChatRequest request, SseEmitter emitter, String loginId, List<String> permissions,
+                           String roleCode, String customerId, String username, String userCode) {
         long start = System.currentTimeMillis();
-        // 将 Controller 捕获的登录标识和权限列表注入当前异步线程
+        // 将 Controller 捕获的登录标识、权限列表和 Session 属性注入当前异步线程
         SseChatContext.setLoginIdAndPermissions(loginId, permissions);
+        SseChatContext.setRoleCode(roleCode);
+        SseChatContext.setCustomerId(customerId);
+        SseChatContext.setUsername(username);
+        SseChatContext.setUserCode(userCode);
         String safeMessage = masker.mask(request.message());
         String conversationId = resolveConversationId(request.conversationId());
         List<AiCitation> citations = new ArrayList<>();

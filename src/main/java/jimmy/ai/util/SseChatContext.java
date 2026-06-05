@@ -16,13 +16,17 @@ public final class SseChatContext {
 
     private static final ThreadLocal<String> LOGIN_ID = new ThreadLocal<>();
     private static final ThreadLocal<List<String>> PERMISSIONS = new ThreadLocal<>();
+    private static final ThreadLocal<String> ROLE_CODE = new ThreadLocal<>();
+    private static final ThreadLocal<String> CUSTOMER_ID = new ThreadLocal<>();
+    private static final ThreadLocal<String> USERNAME = new ThreadLocal<>();
+    private static final ThreadLocal<String> USER_CODE = new ThreadLocal<>();
 
     private SseChatContext() {
     }
 
     /**
      * 在异步任务开始时设置当前线程的登录用户标识。
-     * 如果还需要权限信息，请使用 {@link #setLoginIdAndPermissions(String, List)}。
+     * 如果还需要权限/角色/客户等信息，请使用 {@link #setLoginIdAndPermissions(String, List)} 配合各独立 setter。
      */
     public static void setLoginId(String loginId) {
         LOGIN_ID.set(loginId);
@@ -31,27 +35,50 @@ public final class SseChatContext {
     /**
      * 在异步任务开始时设置登录用户标识和权限列表，
      * 供下游服务在 SSE 异步线程中做权限校验（替代 StpUtil.hasPermission）。
-     *
-     * @param loginId     登录用户标识（可为 null）
-     * @param permissions 用户的权限码列表（为空时自动用空列表兜底，避免 NPE）
      */
     public static void setLoginIdAndPermissions(String loginId, List<String> permissions) {
         LOGIN_ID.set(loginId);
         PERMISSIONS.set(permissions != null ? permissions : Collections.emptyList());
     }
 
-    /**
-     * 获取由 Controller 传递过来的登录用户标识，可能为 null。
-     */
+    // ---- Session 属性（异步线程中 StpUtil.getSession() 不可用，需由 Controller 预捕获） ----
+
+    public static void setRoleCode(String roleCode) {
+        ROLE_CODE.set(roleCode);
+    }
+
+    public static void setCustomerId(String customerId) {
+        CUSTOMER_ID.set(customerId);
+    }
+
+    public static void setUsername(String username) {
+        USERNAME.set(username);
+    }
+
+    public static void setUserCode(String userCode) {
+        USER_CODE.set(userCode);
+    }
+
     public static String getLoginId() {
         return LOGIN_ID.get();
     }
 
-    /**
-     * 在 SSE 异步线程中检查当前用户是否拥有指定权限。
-     * 只有当上下文已初始化（即 {@link #getLoginId()} 不为 null）时才有意义，
-     * 否则调用方应退回到 {@code StpUtil.hasPermission()}。
-     */
+    public static String getRoleCode() {
+        return ROLE_CODE.get();
+    }
+
+    public static String getCustomerId() {
+        return CUSTOMER_ID.get();
+    }
+
+    public static String getUsername() {
+        return USERNAME.get();
+    }
+
+    public static String getUserCode() {
+        return USER_CODE.get();
+    }
+
     public static boolean hasPermission(String permission) {
         List<String> perms = PERMISSIONS.get();
         return perms != null && perms.contains(permission);
@@ -63,5 +90,9 @@ public final class SseChatContext {
     public static void clear() {
         LOGIN_ID.remove();
         PERMISSIONS.remove();
+        ROLE_CODE.remove();
+        CUSTOMER_ID.remove();
+        USERNAME.remove();
+        USER_CODE.remove();
     }
 }

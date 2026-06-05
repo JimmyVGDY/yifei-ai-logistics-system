@@ -196,9 +196,29 @@ public class LogisticsRequirementService {
     }
 
     /**
-     * 获取当前登录用户的客户ID，用于客户角色数据权限隔离
+     * 获取当前登录用户的客户ID，用于客户角色数据权限隔离。
+     * SSE 异步线程优先读 {@link jimmy.ai.util.SseChatContext}，同步请求仍走 StpUtil。
      */
     private Long getCurrentCustomerId() {
+        // SSE 异步线程：使用 Controller 预捕获的 Session 属性
+        String sseLoginId = jimmy.ai.util.SseChatContext.getLoginId();
+        if (sseLoginId != null) {
+            String roleCode = jimmy.ai.util.SseChatContext.getRoleCode();
+            if (!"CUSTOMER".equals(roleCode)) {
+                return null; // 非客户角色，不追加 customerId 过滤
+            }
+            String customerId = jimmy.ai.util.SseChatContext.getCustomerId();
+            if (customerId != null && !customerId.isEmpty() && !"null".equals(customerId)) {
+                try {
+                    return Long.valueOf(customerId);
+                } catch (NumberFormatException e) {
+                    throw new IllegalStateException("客户账号未绑定客户档案，禁止查询业务数据");
+                }
+            }
+            throw new IllegalStateException("客户账号未绑定客户档案，禁止查询业务数据");
+        }
+
+        // 同步 HTTP 请求：正常走 StpUtil
         try {
             Object loginId = StpUtil.getLoginIdDefaultNull();
             if (loginId == null) {
