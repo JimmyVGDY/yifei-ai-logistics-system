@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,7 +29,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -71,12 +72,15 @@ public class AiAssistantController {
      * 参数通过 query string 传递（EventSource 不支持 POST body）。
      * </p>
      */
+    /**
+     * SSE 流式对话端点 —— 使用 StreamingResponseBody 直接写输出流，
+     * 彻底消除 SseEmitter.send()/complete() 的异步 dispatch 竞态。
+     */
     @OperationLog("AI助手-SSE流式问答")
     @GetMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter chatStream(@RequestParam String message,
-                                 @RequestParam(required = false) String conversationId,
-                                 @RequestParam(required = false) String pageContext) {
-        SseEmitter emitter = new SseEmitter(120_000L); // 2 分钟超时
+    public ResponseEntity<StreamingResponseBody> chatStream(@RequestParam String message,
+                                                             @RequestParam(required = false) String conversationId,
+                                                             @RequestParam(required = false) String pageContext) {
         AiChatRequest request = new AiChatRequest(message, conversationId, pageContext);
         // 捕获当前 HTTP 线程的登录标识和权限列表，异步线程中 Sa-Token 上下文不可用
         String loginId = String.valueOf(StpUtil.getLoginIdDefaultNull());
@@ -87,12 +91,11 @@ public class AiAssistantController {
         String username = String.valueOf(StpUtil.getSession().get("username", ""));
         String userCode = String.valueOf(StpUtil.getSession().get("userCode", ""));
 
-        emitter.onTimeout(() -> log.info("SSE 连接超时，conversationId={}", conversationId));
-        emitter.onError(throwable -> log.warn("SSE 连接异常，conversationId={}", conversationId, throwable));
-        emitter.onCompletion(() -> log.info("SSE 连接正常关闭，conversationId={}", conversationId));
-
-        aiChatExecutor.execute(() -> aiAssistantService.chatStream(request, emitter, loginId, permissions, roleCode, customerId, username, userCode));
-        return emitter;
+        StreamingResponseBody stream = outputStream ->
+                aiAssistantService.chatStream(request, outputStream, loginId, permissions, roleCode, customerId, username, userCode);
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .body(stream);
     }
 
     @OperationLog("AI助手-日志分析")

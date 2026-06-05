@@ -1,12 +1,14 @@
 package jimmy.ai.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiToolCall;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,13 +21,17 @@ import java.util.Map;
  * 前端和审计日志还需要知道"调用了哪个工具、查了哪个模块、命中了多少数据"，
  * 因此这里用 ThreadLocal 在同一次 HTTP 请求内收集工具执行结果。
  * <p>
- * 支持 SSE 流式推送：当设置了 SseEmitter 时，每次工具调用完成后自动推送进度事件给前端。
+ * 支持 SSE 流式推送：当设置了 OutputStream 时，每次工具调用完成后自动推送进度事件给前端。
+ * <p>
+ * 直接写 OutputStream 字节的方式替代了 SseEmitter.send()，彻底消除 Spring MVC
+ * 异步 dispatch 的 send()/complete() 竞态问题。
  */
 @Slf4j
 @Component
 public class AiToolCallContext {
 
     private final ThreadLocal<Holder> holder = new ThreadLocal<>();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 当前会话工具调用上限 */
     static final int MAX_TOOL_CALLS = 8;
@@ -33,19 +39,21 @@ public class AiToolCallContext {
     public void begin() {
         Holder existing = holder.get();
         Holder h = new Holder();
-        // 如果外层已通过 begin(emitter) 绑定 SSE 通道，新 Holder 应继承 emitter 以保证工具通知能被推送
+        // 如果外层已通过 begin(outputStream) 绑定通道，新 Holder 应继承 outputStream 以保证工具通知能被推送
         if (existing != null) {
-            h.emitter = existing.emitter;
+            h.outputStream = existing.outputStream;
         }
         holder.set(h);
     }
 
     /**
-     * 开启 SSE 流式推送模式。后续的每次工具调用都会自动向 emitter 推送事件。
+     * 开启 SSE 流式推送模式。后续的每次工具调用都会自动向 outputStream 推送事件。
+     *
+     * @param outputStream HTTP 响应输出流（由 StreamingResponseBody 提供）
      */
-    public void begin(SseEmitter emitter) {
+    public void begin(OutputStream outputStream) {
         Holder h = new Holder();
-        h.emitter = emitter;
+        h.outputStream = outputStream;
         holder.set(h);
     }
 
@@ -69,7 +77,7 @@ public class AiToolCallContext {
      */
     public void notifyThinking() {
         Holder current = holder.get();
-        if (current == null || current.emitter == null) {
+        if (current == null || current.outputStream == null) {
             return;
         }
         sendEvent(current, "thinking", Map.of("message", "正在分析问题"));
@@ -80,7 +88,7 @@ public class AiToolCallContext {
      */
     public void notifyToolStart(String toolName, String target) {
         Holder current = holder.get();
-        if (current == null || current.emitter == null) {
+        if (current == null || current.outputStream == null) {
             return;
         }
         sendEvent(current, "tool_start", Map.of(
@@ -97,7 +105,7 @@ public class AiToolCallContext {
      */
     public void notifyToolResult(String toolName, String target, String result) {
         Holder current = holder.get();
-        if (current == null || current.emitter == null) {
+        if (current == null || current.outputStream == null) {
             return;
         }
         sendEvent(current, "tool_result", Map.of(
@@ -112,11 +120,14 @@ public class AiToolCallContext {
 
     /**
      * 推送"流式完成"事件，携带最终答案。
+     * <p>
+     * 事件发送后立即 flush 确保数据到达客户端。不再调用 complete()——
+     * StreamingResponseBody lambda 返回后 Spring MVC 会自动关闭输出流。
      */
     public void notifyDone(String answer, List<AiCitation> citations, List<AiToolCall> toolCalls) {
         Holder current = holder.get();
-        if (current == null || current.emitter == null) {
-            log.warn("SSE notifyDone 跳过（holder 为空或 emitter 为 null），holder={}", current);
+        if (current == null || current.outputStream == null) {
+            log.warn("SSE notifyDone 跳过（holder 为空或 outputStream 为 null），holder={}", current);
             return;
         }
         Map<String, Object> data = new LinkedHashMap<>();
@@ -127,26 +138,21 @@ public class AiToolCallContext {
         data.put("toolCallCount", toolCalls == null ? 0 : toolCalls.size());
         log.info("SSE notifyDone 准备推送，answerLength={}", answer == null ? 0 : answer.length());
         sendEvent(current, "done", data);
-        // complete() 由上层 chatStream() 统一调用，避免 send()/complete() 竞态
     }
 
     /**
-     * 推送错误事件并关闭 SSE 连接。
+     * 推送错误事件。
      */
     public void notifyError(String errorMessage) {
         Holder current = holder.get();
-        if (current == null || current.emitter == null) {
+        if (current == null || current.outputStream == null) {
             return;
         }
-        try {
-            Map<String, Object> data = new LinkedHashMap<>();
-            data.put("type", "error");
-            data.put("message", nullToEmpty(errorMessage));
-            data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
-            sendEvent(current, "error", data);
-        } finally {
-            // complete() 由上层 chatStream() 统一调用
-        }
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("type", "error");
+        data.put("message", nullToEmpty(errorMessage));
+        data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
+        sendEvent(current, "error", data);
     }
 
     /**
@@ -156,11 +162,34 @@ public class AiToolCallContext {
         notifyError("系统响应超时，请稍后重试");
     }
 
+    /**
+     * 直接写 SSE 字节到 OutputStream，同步 + flush，消除 SseEmitter.send() 的异步 dispatch 竞态。
+     * <p>
+     * SSE 格式：
+     * <pre>
+     * event:&lt;name&gt;\n
+     * data:&lt;json&gt;\n
+     * \n
+     * </pre>
+     */
     private void sendEvent(Holder current, String name, Object data) {
         try {
-            current.emitter.send(SseEmitter.event().name(name).data(data));
+            String json = objectMapper.writeValueAsString(data);
+            // SSE 要求 data 中的 \n 展开为多行 data: 前缀（标准 SSE 多行数据格式）
+            String[] jsonLines = json.split("\n", -1);
+            StringBuilder sse = new StringBuilder(128 + json.length());
+            sse.append("event:").append(name).append("\n");
+            for (String line : jsonLines) {
+                sse.append("data:").append(line).append("\n");
+            }
+            sse.append("\n"); // 空行分隔事件
+            byte[] bytes = sse.toString().getBytes(StandardCharsets.UTF_8);
+            synchronized (current.outputStream) {
+                current.outputStream.write(bytes);
+                current.outputStream.flush();
+            }
         } catch (IOException e) {
-            log.warn("SSE 事件发送失败，event={}, reason={}", name, e.getMessage());
+            log.warn("SSE 事件写入失败，event={}, reason={}", name, e.getMessage());
         }
     }
 
@@ -186,7 +215,8 @@ public class AiToolCallContext {
     }
 
     private static class Holder {
-        private SseEmitter emitter;
+        /** 直接 HTTP 响应输出流，不用 SseEmitter 避免异步 dispatch 竞态 */
+        private OutputStream outputStream;
         private int callCount = 0;
         private final long startTime = System.currentTimeMillis();
         private final List<AiCitation> citations = new ArrayList<>();

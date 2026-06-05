@@ -15,7 +15,8 @@ import jimmy.config.TraceContextSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.io.OutputStream;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -160,7 +161,7 @@ public class AiAssistantService {
      * @param request        用户请求
      * @param emitter        SSE 推送通道
      */
-    public void chatStream(AiChatRequest request, SseEmitter emitter, String loginId, List<String> permissions,
+    public void chatStream(AiChatRequest request, OutputStream outputStream, String loginId, List<String> permissions,
                            String roleCode, String customerId, String username, String userCode) {
         long start = System.currentTimeMillis();
         // 将 Controller 捕获的登录标识、权限列表和 Session 属性注入当前异步线程
@@ -175,8 +176,8 @@ public class AiAssistantService {
         List<AiToolCall> toolCalls = new ArrayList<>();
 
         try {
-            // 初始化 SSE 上下文
-            toolCallContext.begin(emitter);
+            // 初始化 SSE 上下文——使用 OutputStream 直接写字节，无异步 dispatch 竞态
+            toolCallContext.begin(outputStream);
             toolCallContext.notifyThinking();
 
             auditLogService.recordUserQuestion(conversationId, safeMessage);
@@ -211,9 +212,9 @@ public class AiAssistantService {
 
             // 模型调用 —— 工具方法内部会通过 AiToolCallContext 自动推送 tool_start / tool_result 事件
             Optional<String> modelAnswer = safeChatWithTools(systemPrompt, userPrompt);
-            // snapshotAndClear() 会移出 Holder，需要立即重新绑定 emitter 以保证 notifyDone() 能推送最终事件
+            // snapshotAndClear() 会移出 Holder，需要立即重新绑定 outputStream 以保证 notifyDone() 能推送最终事件
             AiToolCallContext.Snapshot toolSnapshot = toolCallContext.snapshotAndClear();
-            toolCallContext.begin(emitter);
+            toolCallContext.begin(outputStream);
             citations.addAll(toolSnapshot.citations());
             toolCalls.addAll(toolSnapshot.toolCalls());
             toolSnapshot.contexts().forEach(toolContext -> context.append("\nAI 工具调用摘要：").append(toolContext).append("\n"));
@@ -248,10 +249,7 @@ public class AiAssistantService {
             log.error("AI助手SSE问答异常，conversationId={}, message={}", conversationId, exception.getMessage(), exception);
             toolCallContext.notifyError("系统响应超时，请稍后重试");
         } finally {
-            // 统一关闭 SSE 连接：延迟 complete 以确保所有 send() 事件的异步分派已完成。
-            // send() 和 complete() 分别触发 Spring MVC 的异步 dispatch，极短时间内连续调用会导致
-            // complete() dispatch 覆写尚未执行完的 send() dispatch，最终 done 事件无法到达前端。
-            safeCompleteEmitter(emitter);
+            // StreamingResponseBody lambda 返回后 Spring MVC 会自动关闭输出流，无需手动 complete()
             SseChatContext.clear();
             toolCallContext.snapshotAndClear();
         }
@@ -280,28 +278,6 @@ public class AiAssistantService {
                 回答必须基于给定上下文或工具结果；不知道就说明需要进一步查询。
                 每次回答最多调用 5 次工具。能用一次查询回答的问题，不要拆分多次调用。
                 """;
-    }
-
-    /**
-     * 安全关闭 SSE 连接。
-     * <p>
-     * SseEmitter.send() 与 complete() 各自触发独立的 Spring MVC 异步 dispatch。
-     * 如果两者间隔极短，complete() 的 dispatch 可能覆写尚未执行的 send() dispatch，
-     * 导致最后的 done/error 事件无法到达前端。
-     * <p>
-     * 延迟 500ms 确保所有 send() 事件的 dispatch 都有足够时间被 MVC 异步执行器消费。
-     */
-    private void safeCompleteEmitter(SseEmitter emitter) {
-        try {
-            Thread.sleep(500);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        try {
-            emitter.complete();
-        } catch (Exception e) {
-            log.warn("SSE emitter.complete() 失败，conversationId 未知", e);
-        }
     }
 
     private Optional<String> callModelWithTools(String systemPrompt, String userPrompt) {
