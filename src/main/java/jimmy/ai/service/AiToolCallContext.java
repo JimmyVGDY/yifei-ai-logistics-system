@@ -127,9 +127,7 @@ public class AiToolCallContext {
         data.put("toolCallCount", toolCalls == null ? 0 : toolCalls.size());
         log.info("SSE notifyDone 准备推送，answerLength={}", answer == null ? 0 : answer.length());
         sendEvent(current, "done", data);
-        // 等待 200ms 确保 SSE 事件已刷新到客户端，避免 send()/complete() 竞态导致前端收不到 done 事件
-        sleepBeforeComplete();
-        current.emitter.complete();
+        // complete() 由上层 chatStream() 统一调用，避免 send()/complete() 竞态
     }
 
     /**
@@ -147,10 +145,7 @@ public class AiToolCallContext {
             data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
             sendEvent(current, "error", data);
         } finally {
-            // 使用 complete() 而非 completeWithError()，避免异常传播到 GlobalExceptionHandler
-            // GlobalExceptionHandler 收到 completeWithError() 会尝试写 JSON 到 text/event-stream，导致二次报错
-            sleepBeforeComplete();
-            current.emitter.complete();
+            // complete() 由上层 chatStream() 统一调用
         }
     }
 
@@ -166,18 +161,6 @@ public class AiToolCallContext {
             current.emitter.send(SseEmitter.event().name(name).data(data));
         } catch (IOException e) {
             log.warn("SSE 事件发送失败，event={}, reason={}", name, e.getMessage());
-        }
-    }
-
-    /**
-     * 短暂等待以确保 SSE 事件已通过 Spring MVC 异步分派刷写到客户端。
-     * 避免 SseEmitter.send() 与 complete() 的竞态条件。
-     */
-    private void sleepBeforeComplete() {
-        try {
-            Thread.sleep(200);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
         }
     }
 

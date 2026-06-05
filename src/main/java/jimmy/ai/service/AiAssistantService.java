@@ -248,6 +248,10 @@ public class AiAssistantService {
             log.error("AI助手SSE问答异常，conversationId={}, message={}", conversationId, exception.getMessage(), exception);
             toolCallContext.notifyError("系统响应超时，请稍后重试");
         } finally {
+            // 统一关闭 SSE 连接：延迟 complete 以确保所有 send() 事件的异步分派已完成。
+            // send() 和 complete() 分别触发 Spring MVC 的异步 dispatch，极短时间内连续调用会导致
+            // complete() dispatch 覆写尚未执行完的 send() dispatch，最终 done 事件无法到达前端。
+            safeCompleteEmitter(emitter);
             SseChatContext.clear();
             toolCallContext.snapshotAndClear();
         }
@@ -276,6 +280,28 @@ public class AiAssistantService {
                 回答必须基于给定上下文或工具结果；不知道就说明需要进一步查询。
                 每次回答最多调用 5 次工具。能用一次查询回答的问题，不要拆分多次调用。
                 """;
+    }
+
+    /**
+     * 安全关闭 SSE 连接。
+     * <p>
+     * SseEmitter.send() 与 complete() 各自触发独立的 Spring MVC 异步 dispatch。
+     * 如果两者间隔极短，complete() 的 dispatch 可能覆写尚未执行的 send() dispatch，
+     * 导致最后的 done/error 事件无法到达前端。
+     * <p>
+     * 延迟 500ms 确保所有 send() 事件的 dispatch 都有足够时间被 MVC 异步执行器消费。
+     */
+    private void safeCompleteEmitter(SseEmitter emitter) {
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        try {
+            emitter.complete();
+        } catch (Exception e) {
+            log.warn("SSE emitter.complete() 失败，conversationId 未知", e);
+        }
     }
 
     private Optional<String> callModelWithTools(String systemPrompt, String userPrompt) {
