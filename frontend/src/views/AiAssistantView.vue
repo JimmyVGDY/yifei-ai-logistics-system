@@ -158,6 +158,7 @@
         <el-button type="primary" size="small" :icon="Search" :loading="logLoading" @click="analyzeLogs">分析</el-button>
       </div>
 
+      <el-scrollbar class="log-body">
       <el-form :model="logForm" label-width="82px" class="log-form">
         <el-form-item label="Trace ID">
           <el-input v-model="logForm.traceId" clearable />
@@ -203,6 +204,7 @@
           </el-timeline-item>
         </el-timeline>
       </div>
+      </el-scrollbar>
     </aside>
   </section>
 </template>
@@ -384,7 +386,8 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
   display: grid;
   grid-template-columns: 260px minmax(620px, 1fr) 420px;
   gap: 16px;
-  min-height: calc(100vh - 112px);
+  height: calc(100vh - 112px);
+  overflow: hidden;
 }
 
 .ai-sidebar,
@@ -397,9 +400,18 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
 
-.ai-sidebar,
-.log-panel {
+.ai-sidebar {
+  display: flex;
+  flex-direction: column;
   padding: 16px;
+  overflow: hidden;
+}
+
+.log-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow: hidden;
 }
 
 .ai-workspace {
@@ -442,6 +454,7 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
 }
 
 .memory-card {
+  flex-shrink: 0;
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid #edf2f7;
@@ -522,7 +535,9 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
 }
 
 .conversation-list {
-  height: calc(100vh - 190px);
+  flex: 1;
+  min-height: 0;
+  height: auto;
 }
 
 .conversation-item {
@@ -862,6 +877,11 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
   padding-bottom: 4px;
 }
 
+.log-body {
+  flex: 1;
+  min-height: 0;
+}
+
 .log-loading {
   justify-content: center;
   margin: 10px 0 16px;
@@ -904,16 +924,31 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
 @media (max-width: 1360px) {
   .ai-page {
     grid-template-columns: 230px 1fr;
+    height: auto;
+    min-height: calc(100vh - 112px);
+    overflow: visible;
   }
 
   .log-panel {
     grid-column: 1 / -1;
+    max-height: 420px;
   }
 }
 
 @media (max-width: 900px) {
   .ai-page {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: calc(100vh - 112px);
+    overflow: visible;
+  }
+
+  .ai-sidebar {
+    max-height: 360px;
+  }
+
+  .log-panel {
+    max-height: 420px;
   }
 
   .composer,
