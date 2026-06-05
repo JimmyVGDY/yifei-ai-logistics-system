@@ -78,24 +78,29 @@
           <div v-if="chatLoading" class="message-row assistant pending">
             <div class="avatar">AI</div>
             <div class="message-body">
-              <div class="message-meta">物流AI助手正在处理</div>
+              <div class="message-meta">
+                物流AI助手正在处理
+                <span class="elapsed-time">{{ formatElapsed(streamElapsed) }}</span>
+              </div>
               <div class="thinking-card">
-                <div class="typing-line">
-                  <span>正在组织回答</span>
-                  <i></i>
-                  <i></i>
-                  <i></i>
+                <!-- 思考 / 调用工具阶段 -->
+                <div class="typing-line" v-if="streamProgress === 'thinking'">
+                  <span>正在分析问题</span>
+                  <i></i><i></i><i></i>
                 </div>
-                <div class="thinking-steps">
-                  <div
-                    v-for="(step, index) in thinkingSteps"
-                    :key="step"
-                    class="thinking-step"
-                    :class="{ active: index === thinkingStepIndex, done: index < thinkingStepIndex }"
-                  >
-                    <span>{{ index + 1 }}</span>
-                    <p>{{ step }}</p>
+                <!-- 工具调用日志 -->
+                <div v-if="streamToolLog.length" class="stream-tool-log">
+                  <div v-for="(item, i) in streamToolLog" :key="i" class="stream-tool-item" :class="item.status">
+                    <span class="stream-tool-icon">{{ item.status === 'running' ? '⏳' : '✅' }}</span>
+                    <span class="stream-tool-name">{{ item.name }}</span>
+                    <span class="stream-tool-target">{{ item.target }}</span>
+                    <span class="stream-tool-result" v-if="item.result">{{ item.result }}</span>
                   </div>
+                </div>
+                <!-- 进度条 -->
+                <div class="stream-progress-bar" v-if="streamStepIndex > 0">
+                  <div class="stream-progress-fill" :style="{ width: (streamStepIndex / 8 * 100) + '%' }"></div>
+                  <span class="stream-progress-text">{{ streamStepIndex }}/8 工具调用</span>
                 </div>
               </div>
             </div>
@@ -217,7 +222,7 @@ import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
 import {
   analyzeAiLogs,
-  chatWithAi,
+  chatWithAiStream,
   clearAiMemories,
   deleteAiMemoryItem,
   fetchAiConversation,
@@ -240,9 +245,14 @@ const memoryItems = ref([])
 const memoryEnabled = ref(true)
 const memoryLoading = ref(false)
 const chatScrollbarRef = ref(null)
-const thinkingStepIndex = ref(0)
-const thinkingSteps = ['理解你的问题', '检索系统文档和上下文', '整理引用和工具结果', '生成只读回答']
-let thinkingTimer = null
+
+/** SSE 流式进度状态 */
+const streamProgress = ref(null)
+const streamStepIndex = ref(0)
+const streamElapsed = ref(0)
+const streamToolLog = ref([])
+let streamElapsedTimer = null
+let streamAbort = null
 const markdown = new MarkdownIt({
   html: false,
   linkify: true,
@@ -277,23 +287,97 @@ async function sendMessage() {
   messages.value.push({ role: 'user', content })
   message.value = ''
   lastResponse.value = null
-  startThinking()
+
+  // 初始化流式进度
+  chatLoading.value = true
+  streamProgress.value = 'thinking'
+  streamStepIndex.value = 0
+  streamElapsed.value = 0
+  streamToolLog.value = []
+  startElapsedTimer()
   await scrollToBottom()
+
+  const stream = chatWithAiStream({
+    message: content,
+    conversationId: conversationId.value,
+    pageContext: window.location.pathname,
+    onEvent: handleStreamEvent
+  })
+  streamAbort = stream.abort
+
   try {
-    const response = await chatWithAi({
-      message: content,
-      conversationId: conversationId.value,
-      pageContext: window.location.pathname
-    })
+    const response = await stream.promise
     conversationId.value = response.conversationId
     lastResponse.value = response
     messages.value.push({ role: 'assistant', content: response.answer })
     await loadConversations()
     await loadMemory()
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      const errorMsg = err.message || '系统响应超时，请稍后重试'
+      messages.value.push({ role: 'assistant', content: errorMsg })
+      ElMessage.error(errorMsg)
+    }
   } finally {
-    stopThinking()
+    chatLoading.value = false
+    streamProgress.value = null
+    streamAbort = null
+    stopElapsedTimer()
     await scrollToBottom()
   }
+}
+
+function handleStreamEvent(event) {
+  switch (event.type) {
+    case 'thinking':
+      streamProgress.value = 'thinking'
+      streamStepIndex.value = 1
+      break
+    case 'tool_start':
+      streamProgress.value = 'calling'
+      streamStepIndex.value = Math.min((event.toolCallCount || 0) + 1, 8)
+      streamToolLog.value.push({
+        name: event.toolName || '查询',
+        target: event.target || '',
+        result: '',
+        status: 'running'
+      })
+      break
+    case 'tool_result':
+      streamStepIndex.value = Math.min((event.toolCallCount || 0) + 1, 8)
+      // 更新最近一条 running 的工具日志
+      for (let i = streamToolLog.value.length - 1; i >= 0; i--) {
+        if (streamToolLog.value[i].status === 'running') {
+          streamToolLog.value[i].result = event.result || ''
+          streamToolLog.value[i].status = 'done'
+          break
+        }
+      }
+      break
+    case 'done':
+      streamProgress.value = 'done'
+      streamElapsed.value = event.elapsedMs || 0
+      break
+    case 'error':
+      streamProgress.value = 'error'
+      streamElapsed.value = event.elapsedMs || 0
+      break
+    default:
+      break
+  }
+}
+
+function startElapsedTimer() {
+  streamElapsed.value = 0
+  window.clearInterval(streamElapsedTimer)
+  streamElapsedTimer = window.setInterval(() => {
+    streamElapsed.value += 100
+  }, 100)
+}
+
+function stopElapsedTimer() {
+  window.clearInterval(streamElapsedTimer)
+  streamElapsedTimer = null
 }
 
 async function analyzeLogs() {
@@ -367,6 +451,11 @@ function renderMarkdown(content) {
   })
 }
 
+function formatElapsed(ms) {
+  if (ms < 1000) return (ms / 1000).toFixed(1) + 's'
+  return (ms / 1000).toFixed(1) + 's'
+}
+
 async function scrollToBottom() {
   await nextTick()
   const scrollbar = chatScrollbarRef.value
@@ -378,7 +467,10 @@ async function scrollToBottom() {
 onMounted(async () => {
   await Promise.all([loadConversations(), loadMemory()])
 })
-onBeforeUnmount(() => window.clearInterval(thinkingTimer))
+onBeforeUnmount(() => {
+  window.clearInterval(streamElapsedTimer)
+  if (streamAbort) streamAbort()
+})
 </script>
 
 <style scoped>
@@ -759,6 +851,17 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
   align-items: center;
   gap: 6px;
   color: #334155;
+  margin-bottom: 10px;
+}
+
+.elapsed-time {
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .typing-line i,
@@ -780,57 +883,94 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
   animation-delay: 0.3s;
 }
 
-.thinking-steps {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 12px;
+/* 工具调用日志 */
+.stream-tool-log {
+  margin-top: 8px;
 }
 
-.thinking-step {
+.stream-tool-item {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 34px;
-  padding: 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  color: #64748b;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
   background: #f8fafc;
-}
-
-.thinking-step span {
-  display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  border-radius: 50%;
-  background: #e2e8f0;
-  font-size: 11px;
-}
-
-.thinking-step p {
-  padding: 0;
-  border: 0;
-  background: transparent;
   font-size: 12px;
-  line-height: 1.35;
+  line-height: 1.5;
 }
 
-.thinking-step.active {
-  border-color: #93c5fd;
-  color: #1d4ed8;
+.stream-tool-item.running {
   background: #eff6ff;
+  border: 1px solid #bfdbfe;
 }
 
-.thinking-step.done {
-  color: #047857;
-  background: #ecfdf5;
+.stream-tool-item.done {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
 }
 
-.thinking-step.done span {
+.stream-tool-icon {
+  flex: 0 0 16px;
+  font-size: 12px;
+}
+
+.stream-tool-name {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stream-tool-target {
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stream-tool-result {
+  margin-left: auto;
+  color: #64748b;
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 进度条 */
+.stream-progress-bar {
+  position: relative;
+  height: 20px;
+  margin-top: 10px;
+  border-radius: 10px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.stream-progress-fill {
+  height: 100%;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  transition: width 0.4s ease;
+  min-width: 32px;
+}
+
+.stream-progress-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #fff;
-  background: #10b981;
+  font-size: 11px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .ai-meta {
@@ -951,8 +1091,7 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
     max-height: 420px;
   }
 
-  .composer,
-  .thinking-steps {
+  .composer {
     grid-template-columns: 1fr;
   }
 

@@ -1,7 +1,110 @@
 import http from './http'
+import { getAuthToken } from '../stores/auth-store'
 
 export function chatWithAi(payload) {
   return http.post('/ai/chat', payload)
+}
+
+/**
+ * SSE 流式对话 —— 使用 fetch + ReadableStream 替代 EventSource，
+ * 以便在请求头中携带 Sa-Token 认证信息。
+ * <p>
+ * 返回一个对象 { abort, promise }：
+ * - abort(): 取消当前对话
+ * - promise: Promise<{conversationId, answer, citations, toolCalls}>
+ * <p>
+ * onEvent 回调在收到每个 SSE 事件时被调用，用于更新 UI 进度：
+ * - { type: 'thinking', message: '...' }
+ * - { type: 'tool_start', toolName, target, toolCallCount, maxToolCalls, elapsedMs }
+ * - { type: 'tool_result', toolName, target, result, toolCallCount, maxToolCalls, elapsedMs }
+ * - { type: 'done', answer, elapsedMs, citationCount, toolCallCount }
+ * - { type: 'error', message, elapsedMs }
+ */
+export function chatWithAiStream({ message, conversationId, pageContext, onEvent }) {
+  const controller = new AbortController()
+  const { tokenName, tokenValue } = getAuthToken()
+  const baseURL = import.meta.env.VITE_API_BASE || '/api'
+
+  const params = new URLSearchParams()
+  params.set('message', message)
+  if (conversationId) params.set('conversationId', conversationId)
+  if (pageContext) params.set('pageContext', pageContext)
+
+  const url = `${baseURL}/ai/chat/stream?${params.toString()}`
+
+  const promise = (async () => {
+    const headers = { 'Accept': 'text/event-stream' }
+    if (tokenName && tokenValue) {
+      headers[tokenName] = tokenValue
+    }
+
+    const response = await fetch(url, {
+      headers,
+      signal: controller.signal
+    })
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      throw new Error(text || `HTTP ${response.status}`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let result = null
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      // 最后一行可能不完整，保留在 buffer 中
+      buffer = lines.pop() || ''
+
+      let eventName = ''
+      let eventData = ''
+
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          eventName = line.slice(6).trim()
+        } else if (line.startsWith('data:')) {
+          eventData = line.slice(5).trim()
+        } else if (line === '' && eventName && eventData) {
+          // 空行表示事件结束
+          try {
+            const data = JSON.parse(eventData)
+            if (eventName === 'done') {
+              result = {
+                conversationId: conversationId || '',
+                answer: data.answer || '',
+                citations: [],
+                toolCalls: [],
+                elapsedMs: data.elapsedMs || 0
+              }
+            }
+            if (onEvent) {
+              onEvent({ type: eventName, ...data })
+            }
+          } catch (e) {
+            // JSON 解析失败，跳过
+          }
+          eventName = ''
+          eventData = ''
+        }
+      }
+    }
+
+    if (!result) {
+      throw new Error('SSE 连接意外关闭，未收到最终结果')
+    }
+    return result
+  })()
+
+  return {
+    abort: () => controller.abort(),
+    promise
+  }
 }
 
 export function analyzeAiLogs(payload) {

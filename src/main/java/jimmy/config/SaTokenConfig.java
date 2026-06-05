@@ -104,6 +104,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
         SaRouter.match("/infra", r -> StpUtil.checkPermission("resource:view"));
         SaRouter.match("/infra/**", r -> StpUtil.checkPermission("resource:view"));
         SaRouter.match("/ai/chat", r -> StpUtil.checkPermission("ai:chat"));
+        SaRouter.match("/ai/chat/stream", r -> StpUtil.checkPermission("ai:chat"));
         SaRouter.match("/ai/logs/analyze", r -> StpUtil.checkPermission("ai:log:analyze"));
         SaRouter.match("/ai/conversations", r -> StpUtil.checkPermission("ai:conversation:query"));
         SaRouter.match("/ai/conversations/**", r -> StpUtil.checkPermission("ai:conversation:query"));
@@ -175,7 +176,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
         if (uri.startsWith("/rabbitmq")) {
             return "resource:view";
         }
-        if (uri.equals("/ai/chat")) {
+        if (uri.equals("/ai/chat") || uri.equals("/ai/chat/stream")) {
             return "ai:chat";
         }
         if (uri.equals("/ai/logs/analyze")) {

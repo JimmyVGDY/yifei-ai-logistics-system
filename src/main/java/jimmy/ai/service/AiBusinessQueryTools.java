@@ -13,6 +13,9 @@ import java.util.List;
  * <p>
  * 这些工具只开放只读能力。模型负责选择工具和传递自然语言参数，
  * 但真正执行前仍由 {@link AiReadonlyQueryService} 做权限、数据范围、白名单和脱敏兜底。
+ * <p>
+ * 每次工具调用会通过 {@link AiToolCallContext} 推送 SSE 事件给前端，
+ * 用于展示实时进度（tool_start / tool_result）。
  */
 @Component
 public class AiBusinessQueryTools {
@@ -35,9 +38,12 @@ public class AiBusinessQueryTools {
             @ToolParam(description = "关键词，例如客户名、订单号、运单号、司机名、车牌号、地址、状态；没有关键词时传空字符串") String keyword,
             @ToolParam(description = "开始时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String startTime,
             @ToolParam(description = "结束时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String endTime) {
+        String target = nullToEmpty(module);
         toolCallContext.incrementAndCheck();
+        toolCallContext.notifyToolStart("业务数据查询", target);
         AiReadonlyQueryResult result = readonlyQueryService.queryModule(module, keyword, blankToNull(startTime), blankToNull(endTime));
         toolCallContext.record(result);
+        toolCallContext.notifyToolResult("业务数据查询", target, toolResultSummary(result));
         return result.answerContext();
     }
 
@@ -47,8 +53,10 @@ public class AiBusinessQueryTools {
             @ToolParam(description = "开始时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String startTime,
             @ToolParam(description = "结束时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String endTime) {
         toolCallContext.incrementAndCheck();
+        toolCallContext.notifyToolStart("全场景模糊搜索", "业务模块");
         AiReadonlyQueryResult result = readonlyQueryService.globalSearch(keyword, blankToNull(startTime), blankToNull(endTime));
         toolCallContext.record(result);
+        toolCallContext.notifyToolResult("全场景模糊搜索", "业务模块", toolResultSummary(result));
         return result.answerContext();
     }
 
@@ -58,17 +66,22 @@ public class AiBusinessQueryTools {
             @ToolParam(description = "关键词，例如客户名、订单号、司机名、车牌号、异常描述；没有关键词时传空字符串") String keyword,
             @ToolParam(description = "开始时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String startTime,
             @ToolParam(description = "结束时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String endTime) {
+        String target = nullToEmpty(scene);
         toolCallContext.incrementAndCheck();
+        toolCallContext.notifyToolStart("业务联合查询", target);
         AiReadonlyQueryResult result = readonlyQueryService.joinedSearch(scene, keyword, blankToNull(startTime), blankToNull(endTime));
         toolCallContext.record(result);
+        toolCallContext.notifyToolResult("业务联合查询", target, toolResultSummary(result));
         return result.answerContext();
     }
 
     @Tool(description = "查询运营看板聚合数据，例如今日订单、待调度、运输中、异常数、收入趋势等。")
     public String queryDashboard() {
         toolCallContext.incrementAndCheck();
+        toolCallContext.notifyToolStart("运营看板查询", "运营看板");
         AiReadonlyQueryResult result = readonlyQueryService.queryDashboard();
         toolCallContext.record(result);
+        toolCallContext.notifyToolResult("运营看板查询", "运营看板", toolResultSummary(result));
         return result.answerContext();
     }
 
@@ -76,6 +89,7 @@ public class AiBusinessQueryTools {
     public String readonlySqlAnalysis(
             @ToolParam(description = "用户原始统计或关联分析问题") String question) {
         toolCallContext.incrementAndCheck();
+        toolCallContext.notifyToolStart("只读SQL分析", "关联查询");
         AiGeneratedSqlQueryResult sqlResult = generatedSqlQueryService.query(question);
         AiReadonlyQueryResult result = new AiReadonlyQueryResult(
                 sqlResult.executed(),
@@ -84,10 +98,26 @@ public class AiBusinessQueryTools {
                 sqlResult.executed() ? List.of(new AiToolCall("临时只读 SQL 查询", "关联查询", sqlResult.message())) : List.of()
         );
         toolCallContext.record(result);
+        toolCallContext.notifyToolResult("只读SQL分析", "关联查询", toolResultSummary(result));
         return sqlResult.message();
+    }
+
+    /**
+     * 从查询结果中提取简短的摘要，用于前端进度展示。
+     * 例如："命中 3 条记录"、"权限不足"。
+     */
+    private String toolResultSummary(AiReadonlyQueryResult result) {
+        if (result == null || result.toolCalls() == null || result.toolCalls().isEmpty()) {
+            return "查询完成";
+        }
+        return result.toolCalls().get(0).result();
     }
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 }

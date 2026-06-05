@@ -3,16 +3,22 @@ package jimmy.ai.service;
 import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiToolCall;
 import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Spring AI 工具调用上下文。
  * <p>
  * Spring AI 调用 @Tool 方法时，最终只会把工具返回文本交给模型继续组织答案。
- * 前端和审计日志还需要知道“调用了哪个工具、查了哪个模块、命中了多少数据”，
+ * 前端和审计日志还需要知道"调用了哪个工具、查了哪个模块、命中了多少数据"，
  * 因此这里用 ThreadLocal 在同一次 HTTP 请求内收集工具执行结果。
+ * <p>
+ * 支持 SSE 流式推送：当设置了 SseEmitter 时，每次工具调用完成后自动推送进度事件给前端。
  */
 @Component
 public class AiToolCallContext {
@@ -20,10 +26,19 @@ public class AiToolCallContext {
     private final ThreadLocal<Holder> holder = new ThreadLocal<>();
 
     /** 当前会话工具调用上限 */
-    private static final int MAX_TOOL_CALLS = 8;
+    static final int MAX_TOOL_CALLS = 8;
 
     public void begin() {
         holder.set(new Holder());
+    }
+
+    /**
+     * 开启 SSE 流式推送模式。后续的每次工具调用都会自动向 emitter 推送事件。
+     */
+    public void begin(SseEmitter emitter) {
+        Holder h = new Holder();
+        h.emitter = emitter;
+        holder.set(h);
     }
 
     /**
@@ -42,11 +57,103 @@ public class AiToolCallContext {
     }
 
     /**
-     * 工具调用次数限制异常 —— Spring AI 会将异常信息传给 LLM，由 LLM 据此调整行为。
+     * 推送"思考中"事件，告知前端 AI 正在处理。
      */
-    public static class ToolCallLimitExceededException extends RuntimeException {
-        public ToolCallLimitExceededException(String message) {
-            super(message);
+    public void notifyThinking() {
+        Holder current = holder.get();
+        if (current == null || current.emitter == null) {
+            return;
+        }
+        sendEvent(current, "thinking", Map.of("message", "正在分析问题"));
+    }
+
+    /**
+     * 推送"工具调用开始"事件。
+     */
+    public void notifyToolStart(String toolName, String target) {
+        Holder current = holder.get();
+        if (current == null || current.emitter == null) {
+            return;
+        }
+        sendEvent(current, "tool_start", Map.of(
+                "toolName", nullToEmpty(toolName),
+                "target", nullToEmpty(target),
+                "toolCallCount", current.callCount,
+                "maxToolCalls", MAX_TOOL_CALLS,
+                "elapsedMs", System.currentTimeMillis() - current.startTime
+        ));
+    }
+
+    /**
+     * 推送"工具调用结果"事件。
+     */
+    public void notifyToolResult(String toolName, String target, String result) {
+        Holder current = holder.get();
+        if (current == null || current.emitter == null) {
+            return;
+        }
+        sendEvent(current, "tool_result", Map.of(
+                "toolName", nullToEmpty(toolName),
+                "target", nullToEmpty(target),
+                "result", nullToEmpty(result),
+                "toolCallCount", current.callCount,
+                "maxToolCalls", MAX_TOOL_CALLS,
+                "elapsedMs", System.currentTimeMillis() - current.startTime
+        ));
+    }
+
+    /**
+     * 推送"流式完成"事件，携带最终答案。
+     */
+    public void notifyDone(String answer, List<AiCitation> citations, List<AiToolCall> toolCalls) {
+        Holder current = holder.get();
+        if (current == null || current.emitter == null) {
+            return;
+        }
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("type", "done");
+        data.put("answer", nullToEmpty(answer));
+        data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
+        data.put("citationCount", citations == null ? 0 : citations.size());
+        data.put("toolCallCount", toolCalls == null ? 0 : toolCalls.size());
+        sendEvent(current, "done", data);
+        try {
+            current.emitter.complete();
+        } catch (IOException ignored) {
+        }
+    }
+
+    /**
+     * 推送错误事件并关闭 SSE 连接。
+     */
+    public void notifyError(String errorMessage) {
+        Holder current = holder.get();
+        if (current == null || current.emitter == null) {
+            return;
+        }
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("type", "error");
+        data.put("message", nullToEmpty(errorMessage));
+        data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
+        sendEvent(current, "error", data);
+        try {
+            current.emitter.completeWithError(new RuntimeException(errorMessage));
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * 推送"聊天超时"事件，使用对用户友好的提示语。
+     */
+    public void notifyTimeout() {
+        notifyError("系统响应超时，请稍后重试");
+    }
+
+    private void sendEvent(Holder current, String name, Object data) {
+        try {
+            current.emitter.send(SseEmitter.event().name(name).data(data));
+        } catch (IOException e) {
+            // 客户端断开连接，忽略
         }
     }
 
@@ -72,12 +179,24 @@ public class AiToolCallContext {
     }
 
     private static class Holder {
+        private SseEmitter emitter;
         private int callCount = 0;
+        private final long startTime = System.currentTimeMillis();
         private final List<AiCitation> citations = new ArrayList<>();
         private final List<AiToolCall> toolCalls = new ArrayList<>();
         private final List<String> contexts = new ArrayList<>();
     }
 
     public record Snapshot(List<AiCitation> citations, List<AiToolCall> toolCalls, List<String> contexts) {
+    }
+
+    public static class ToolCallLimitExceededException extends RuntimeException {
+        public ToolCallLimitExceededException(String message) {
+            super(message);
+        }
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 }

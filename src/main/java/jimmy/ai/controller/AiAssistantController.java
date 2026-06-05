@@ -1,5 +1,6 @@
 package jimmy.ai.controller;
 
+import jakarta.validation.Valid;
 import jimmy.ai.model.AiChatRequest;
 import jimmy.ai.model.AiChatResponse;
 import jimmy.ai.model.AiConversationVO;
@@ -13,7 +14,10 @@ import jimmy.ai.service.AiMemoryService;
 import jimmy.logistics.annotation.OperationLog;
 import jimmy.model.ApiResponse;
 import jimmy.model.PageResult;
-import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,8 +27,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
  * AI 助手接口 —— 仅开放只读问答、日志排障和当前用户会话查询。
@@ -33,19 +39,54 @@ import java.util.List;
 @RequestMapping("/ai")
 public class AiAssistantController {
 
+    private static final Logger log = LoggerFactory.getLogger(AiAssistantController.class);
+
     private final AiAssistantService aiAssistantService;
     private final AiMemoryService aiMemoryService;
+    private final Executor aiChatExecutor;
 
     public AiAssistantController(AiAssistantService aiAssistantService,
-                                 AiMemoryService aiMemoryService) {
+                                 AiMemoryService aiMemoryService,
+                                 @Qualifier("aiChatExecutor") Executor aiChatExecutor) {
         this.aiAssistantService = aiAssistantService;
         this.aiMemoryService = aiMemoryService;
+        this.aiChatExecutor = aiChatExecutor;
     }
 
     @OperationLog("AI助手-普通问答")
     @PostMapping("/chat")
     public ApiResponse<AiChatResponse> chat(@Valid @RequestBody AiChatRequest request) {
         return ApiResponse.success(aiAssistantService.chat(request));
+    }
+
+    /**
+     * SSE 流式对话端点。
+     * <p>
+     * 前端通过 EventSource 连接此端点，后端在后台线程中处理 AI 对话，
+     * 实时推送工具调用进度（thinking / tool_start / tool_result / done / error）。
+     * 相比普通 POST /chat，用户可以看到 AI 当前在查什么、命中多少条数据、已用时多少。
+     * </p>
+     * <p>
+     * 参数通过 query string 传递（EventSource 不支持 POST body）。
+     * </p>
+     */
+    @OperationLog("AI助手-SSE流式问答")
+    @GetMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter chatStream(@RequestParam String message,
+                                 @RequestParam(required = false) String conversationId,
+                                 @RequestParam(required = false) String pageContext) {
+        SseEmitter emitter = new SseEmitter(120_000L); // 2 分钟超时
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage(message);
+        request.setConversationId(conversationId);
+        request.setPageContext(pageContext);
+
+        emitter.onTimeout(() -> log.info("SSE 连接超时，conversationId={}", conversationId));
+        emitter.onError(throwable -> log.warn("SSE 连接异常，conversationId={}", conversationId, throwable));
+        emitter.onCompletion(() -> log.info("SSE 连接正常关闭，conversationId={}", conversationId));
+
+        aiChatExecutor.execute(() -> aiAssistantService.chatStream(request, emitter));
+        return emitter;
     }
 
     @OperationLog("AI助手-日志分析")

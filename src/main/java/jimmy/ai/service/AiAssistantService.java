@@ -14,6 +14,7 @@ import jimmy.config.TraceContextSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -95,15 +96,7 @@ public class AiAssistantService {
             toolCalls.add(logToolCall);
         }
 
-        String systemPrompt = """
-                你是物流管理系统的 AI 助手，只能做只读问答、系统使用说明、业务数据摘要和日志排障。
-                你可以调用后端只读工具查询业务数据，但不能承诺已经新增、修改、删除、导入、导出或上传数据。
-                用户说得模糊时，优先使用全场景模糊搜索；用户提到客户全貌、订单完整链路、司机任务链路、车辆任务链路或异常影响时，使用业务联合查询。
-                涉及统计、排名、汇总、关联或连表分析时，才使用临时只读 SQL 工具。
-                如果上下文或工具结果提示权限不足，只能回复友好的中文权限提示，不要暴露权限码、内部模块名、字段名、SQL 或异常堆栈。
-                回答必须基于给定上下文或工具结果；不知道就说明需要进一步查询。
-                每次回答最多调用 5 次工具。能用一次查询回答的问题，不要拆分多次调用。
-                """;
+        String systemPrompt = buildSystemPrompt();
         String userPrompt = "用户问题：" + safeMessage
                 + "\n页面上下文：" + nullToBlank(request.pageContext())
                 + "\n上一轮用户问题：" + nullToBlank(previousUserMessage)
@@ -148,6 +141,129 @@ public class AiAssistantService {
                 traceContextSupport.currentOrNewTraceId(),
                 traceContextSupport.currentOrNewOperationId()
         );
+    }
+
+    /**
+     * SSE 流式对话：在后台线程中运行 AI 处理，通过 SseEmitter 实时推送工具调用进度和最终答案。
+     * <p>
+     * 工具调用过程中会推送 thinking / tool_start / tool_result 事件，
+     * 完成时推送 done 事件包含完整答案，异常时推送 error 事件。
+     * 前端通过 EventSource 接收这些事件，实现进度条、工具调用日志等实时展示。
+     * </p>
+     * <p>
+     * 业务逻辑与 {@link #chat(AiChatRequest)} 一致，复用了知识检索、记忆召回、
+     * 日志排障、模型调用、兜底查询、会话保存和审计日志等全流程。
+     * </p>
+     *
+     * @param request        用户请求
+     * @param emitter        SSE 推送通道
+     */
+    public void chatStream(AiChatRequest request, SseEmitter emitter) {
+        long start = System.currentTimeMillis();
+        String safeMessage = masker.mask(request.message());
+        String conversationId = resolveConversationId(request.conversationId());
+        List<AiCitation> citations = new ArrayList<>();
+        List<AiToolCall> toolCalls = new ArrayList<>();
+
+        try {
+            // 初始化 SSE 上下文
+            toolCallContext.begin(emitter);
+            toolCallContext.notifyThinking();
+
+            auditLogService.recordUserQuestion(conversationId, safeMessage);
+            citations.addAll(new ArrayList<>(knowledgeService.search(safeMessage)));
+            AiConversationVO currentConversation = currentConversation(conversationId);
+            String previousUserMessage = latestUserMessage(currentConversation);
+            AiMemoryRecallResult memoryRecall = memoryService.recall(safeMessage, conversationId);
+
+            StringBuilder context = new StringBuilder(contextText(citations));
+            if (memoryRecall.hitCount() > 0) {
+                citations.addAll(memoryRecall.citations());
+                context.append("\nAI 长期记忆召回摘要：").append(memoryRecall.context()).append("\n");
+                toolCalls.add(new AiToolCall("长期记忆召回", "当前账号长期偏好", "命中 " + memoryRecall.hitCount() + " 条长期记忆"));
+            }
+
+            if (looksLikeLogQuestion(safeMessage)) {
+                AiLogAnalysisResponse analysis = logAnalysisService.analyze(new AiLogAnalyzeRequest(
+                        extractToken(safeMessage, "traceId"),
+                        extractToken(safeMessage, "operationId"),
+                        extractToken(safeMessage, "loginSessionId"),
+                        null, null, null, null
+                ));
+                context.append("\n日志排障摘要：").append(analysis.summary()).append("\n");
+                toolCalls.add(new AiToolCall("日志排障", "操作日志", analysis.summary()));
+            }
+
+            String systemPrompt = buildSystemPrompt();
+            String userPrompt = "用户问题：" + safeMessage
+                    + "\n页面上下文：" + nullToBlank(request.pageContext())
+                    + "\n上一轮用户问题：" + nullToBlank(previousUserMessage)
+                    + "\n参考资料：\n" + context;
+
+            // 模型调用 —— 工具方法内部会通过 AiToolCallContext 自动推送 tool_start / tool_result 事件
+            Optional<String> modelAnswer = safeChatWithTools(systemPrompt, userPrompt);
+            AiToolCallContext.Snapshot toolSnapshot = toolCallContext.snapshotAndClear();
+            citations.addAll(toolSnapshot.citations());
+            toolCalls.addAll(toolSnapshot.toolCalls());
+            toolSnapshot.contexts().forEach(toolContext -> context.append("\nAI 工具调用摘要：").append(toolContext).append("\n"));
+
+            // 兜底查询
+            boolean fallbackQueryExecuted = false;
+            if (toolCalls.isEmpty()) {
+                AiReadonlyQueryResult queryResult = readonlyQueryService.query(safeMessage, previousUserMessage);
+                if (queryResult.executed()) {
+                    fallbackQueryExecuted = true;
+                    citations.addAll(queryResult.citations());
+                    toolCalls.addAll(queryResult.toolCalls());
+                    context.append("\n业务只读查询摘要：").append(queryResult.answerContext()).append("\n");
+                }
+            }
+
+            for (AiToolCall toolCall : toolCalls) {
+                auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
+            }
+            String answer = fallbackQueryExecuted ? fallbackAnswer(citations, toolCalls) : modelAnswer.orElseGet(() -> fallbackAnswer(citations, toolCalls));
+            AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer);
+            memoryService.rememberInteraction(conversation.conversationId(), safeMessage, answer, toolCalls);
+            auditLogService.recordResponse(conversation.conversationId(), safeMessage,
+                    "引用来源=" + citations.size() + "，工具调用=" + toolCalls.size() + "，模型已配置=" + modelGateway.configured(),
+                    System.currentTimeMillis() - start);
+            log.info("AI助手SSE问答完成，conversationId={}, modelConfigured={}, citationCount={}, toolCallCount={}, costMs={}",
+                    conversation.conversationId(), modelGateway.configured(), citations.size(), toolCalls.size(), System.currentTimeMillis() - start);
+
+            // 推送最终答案
+            toolCallContext.notifyDone(answer, citations, toolCalls);
+        } catch (Exception exception) {
+            log.error("AI助手SSE问答异常，conversationId={}, message={}", conversationId, exception.getMessage(), exception);
+            toolCallContext.notifyError("系统响应超时，请稍后重试");
+        } finally {
+            toolCallContext.snapshotAndClear();
+        }
+    }
+
+    /**
+     * 安全的模型调用：与 callModelWithTools 相同但不抛出异常。
+     * 异常时返回 empty，由调用方走 fallbackAnswer 兜底。
+     */
+    private Optional<String> safeChatWithTools(String systemPrompt, String userPrompt) {
+        try {
+            return callModelWithTools(systemPrompt, userPrompt);
+        } catch (RuntimeException exception) {
+            log.warn("SSE 模型调用失败，将使用兜底回答，reason={}", exception.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private String buildSystemPrompt() {
+        return """
+                你是物流管理系统的 AI 助手，只能做只读问答、系统使用说明、业务数据摘要和日志排障。
+                你可以调用后端只读工具查询业务数据，但不能承诺已经新增、修改、删除、导入、导出或上传数据。
+                用户说得模糊时，优先使用全场景模糊搜索；用户提到客户全貌、订单完整链路、司机任务链路、车辆任务链路或异常影响时，使用业务联合查询。
+                涉及统计、排名、汇总、关联或连表分析时，才使用临时只读 SQL 工具。
+                如果上下文或工具结果提示权限不足，只能回复友好的中文权限提示，不要暴露权限码、内部模块名、字段名、SQL 或异常堆栈。
+                回答必须基于给定上下文或工具结果；不知道就说明需要进一步查询。
+                每次回答最多调用 5 次工具。能用一次查询回答的问题，不要拆分多次调用。
+                """;
     }
 
     private Optional<String> callModelWithTools(String systemPrompt, String userPrompt) {
