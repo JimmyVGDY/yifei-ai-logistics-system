@@ -9,7 +9,7 @@
 | [getting-started.md](getting-started.md) | 从拉取代码到启动前后端的快速上手指南 |
 | [development-guide.md](development-guide.md) | 编码规范、Git 提交规范、SQL 规范、测试要求和代码审查清单 |
 | [local-development.md](local-development.md) | 本地开发环境、中间件、IDE 和启动参数说明 |
-| [environment-versions.md](environment-versions.md) | JDK、Maven、Node、MySQL、Redis、RabbitMQ、ES、Nacos、Sentinel、XXL-Job 和 Docker 镜像版本清单 |
+| [environment-versions.md](environment-versions.md) | JDK、Maven、Node、MySQL、Redis、RabbitMQ、ES、Qdrant、Nacos、Sentinel、XXL-Job 和 Docker 镜像版本清单 |
 | [configuration.md](configuration.md) | Spring Boot、Nacos、Redis、RabbitMQ、ES、XXL-Job 等配置说明 |
 | [java21-springboot3-upgrade.md](java21-springboot3-upgrade.md) | Java 21 与 Spring Boot 3 升级范围、验证结果和后续注意事项 |
 
@@ -21,7 +21,7 @@
 | [requirements-mapping.md](requirements-mapping.md) | 物流管理需求与当前实现模块的对应关系 |
 | [frontend.md](frontend.md) | 前端新人接入手册，覆盖 Vue3 工程、路由、权限、接口、通用管理页和开发检查清单 |
 | [mybatis.md](mybatis.md) | MyBatis Mapper XML 使用规范和 SQL 维护约定 |
-| [spring-ai.md](spring-ai.md) | Spring AI 当前接入状态、配置项、接口、权限、只读 SQL 网关和本地验证说明 |
+| [spring-ai.md](spring-ai.md) | Spring AI 当前接入状态、配置项、接口、权限、只读 SQL 网关、Qdrant 长期记忆和本地验证说明 |
 
 ## 业务与接口
 
@@ -50,7 +50,7 @@
 
 | 文档 | 用途 |
 | --- | --- |
-| [spring-ai.md](spring-ai.md) | 已落地的 Spring AI 只读助手、业务查询和临时只读 SQL 接入说明 |
+| [spring-ai.md](spring-ai.md) | 已落地的 Spring AI 只读助手、业务查询、临时只读 SQL、长期记忆和 Qdrant 接入说明 |
 | [ai-assistant-design.md](ai-assistant-design.md) | AI 助手整体设计、现有组件编排、权限审计、只读 SQL 边界和后续演进方案 |
 
 ## 阅读建议
@@ -58,7 +58,7 @@
 - 新开发者先看“新人接入”和“系统设计”，搭环境前先确认 [environment-versions.md](environment-versions.md)，前端开发者还应重点阅读 [frontend.md](frontend.md)，再按负责模块阅读接口和数据库文档。
 - 做后端业务开发前必须阅读 [development-guide.md](development-guide.md) 和 [mybatis.md](mybatis.md)。
 - 做权限、日志、审计相关功能前必须阅读 [logistics-rbac-structured-log.md](logistics-rbac-structured-log.md) 和 [trace-context-audit.md](trace-context-audit.md)。
-- 使用或继续开发 AI 助手前先阅读 [spring-ai.md](spring-ai.md)，再阅读 [ai-assistant-design.md](ai-assistant-design.md)；涉及 AI 生成临时查询时还必须阅读 [mybatis.md](mybatis.md) 中的例外边界。
+- 使用或继续开发 AI 助手前先阅读 [spring-ai.md](spring-ai.md)，再阅读 [ai-assistant-design.md](ai-assistant-design.md)；涉及 AI 生成临时查询时还必须阅读 [mybatis.md](mybatis.md) 中的例外边界，涉及长期记忆时还要确认 Qdrant 版本和 `ai_user_memory` 相关增量脚本。
 
 ## 文档维护约定
 

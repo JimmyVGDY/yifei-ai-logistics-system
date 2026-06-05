@@ -38,6 +38,12 @@ password: 空（按实际配置）
 - `sys_operation_log`: 操作审计日志，含 `error_message` 字段用于排障。
 - `sys_uploaded_file`: 上传文件记录。
 
+### AI 长期记忆表
+
+- `ai_user_profile`: 账号级 AI 画像，保存长期记忆开关、默认回答风格、常用模块、常用查询习惯、记忆数量和最近召回时间。
+- `ai_user_memory`: 账号级长期记忆主表，保存记忆分类、置信度、脱敏标题、脱敏摘要、Qdrant 向量点 ID、创建来源会话和逻辑删除字段。
+- `ai_memory_event`: 长期记忆审计事件表，记录创建、召回、跳过写入、删除、清空和设置变更，并保留 `traceId`、`operationId`、`loginSessionId`、`aiConversationId`。
+
 ### 增量字段说明
 
 核心业务表和系统表通过增量脚本补齐通用审计字段：
@@ -65,6 +71,7 @@ password: 空（按实际配置）
 - `target_id`：操作对象 ID，例如记录 ID、角色 ID、订单号
 - `change_summary`：脱敏后的操作前后变化摘要（使用 LogMaskUtils.maskId/maskName 等），ID/编号仅保留后 4 位，密码/token 不记录，姓名、手机号、邮箱、地址等敏感信息只记录掩码值
 - `operation_source`、`executor_type`、`ai_conversation_id`、`ai_tool_name`、`ai_tool_target`、`ai_prompt_summary`、`ai_result_summary`：AI 分层审计字段，用于区分用户提问、AI 只读工具调用和 AI 生成回答
+- `ai_memory_id`、`ai_memory_event_type`、`ai_memory_source`、`ai_memory_hit_count`、`ai_memory_trace_summary`：AI 长期记忆审计字段，用于区分记忆召回、写入、删除、清空和降级事件
 - `create_by`、`update_by`、`deleted`、`version`：通用审计字段
 
 ## 模拟数据规模
@@ -108,6 +115,14 @@ mysql -uroot logistics_management < scripts/sql/20260602_incremental_operation_l
 ```bash
 mysql -uroot logistics_management < scripts/sql/20260605_incremental_ai_operation_audit.sql
 ```
+
+如果需要启用 AI 账号级长期记忆和 Qdrant 向量召回审计，可继续执行：
+
+```bash
+mysql -uroot logistics_management < scripts/sql/20260605_incremental_ai_long_term_memory.sql
+```
+
+该脚本只新增 `ai_user_profile`、`ai_user_memory`、`ai_memory_event` 表，并补齐 `sys_operation_log` 的 AI 记忆审计字段；不会清空或重建现有物流业务表。
 
 如果需要补齐客户数据隔离、手机号查重摘要和逻辑删除安全字段，可执行：
 

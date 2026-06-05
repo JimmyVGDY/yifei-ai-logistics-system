@@ -214,16 +214,28 @@ GET  http://127.0.0.1:8080/infra/sentinel/ping
 GET  http://127.0.0.1:8080/infra/elasticsearch/client
 GET  http://127.0.0.1:8080/infra/redis/client
 GET  http://127.0.0.1:8080/infra/rabbitmq/client
+GET  http://127.0.0.1:6333/readyz
 GET  http://127.0.0.1:8080/demo-users
 POST http://127.0.0.1:8080/auth/login  {"username":"admin","password":"***"}
 GET  http://127.0.0.1:8080/logistics/dashboard
 POST http://127.0.0.1:8080/ai/chat  {"message":"系统有哪些文档？"}
 POST http://127.0.0.1:8080/ai/logs/analyze  {"traceId":"..."}
+GET  http://127.0.0.1:8080/ai/memory/profile
 GET  http://127.0.0.1:8080/actuator/health
 GET  http://127.0.0.1:8080/actuator/prometheus
 ```
 
 AI 助手未配置模型密钥时仍可启动，接口会返回本地文档检索和明确的配置提示。需要真实模型回答时设置 `SPRING_AI_OPENAI_API_KEY` 等变量，详见 [Spring AI 接入说明](spring-ai.md)。
+
+AI 长期记忆使用 Qdrant 做向量召回，本地脚本如下：
+
+```cmd
+ops\start-qdrant.bat
+ops\status-qdrant.bat
+ops\stop-qdrant.bat
+```
+
+默认安装路径为 `F:\Development\Middleware\qdrant\qdrant-1.18.2`，数据目录为 `F:\Development\Middleware\qdrant\data`。如果 Qdrant 未启动，AI 问答和物流主业务仍可运行，只是不会使用向量长期记忆。
 
 ## Docker 部署（生产环境）
 
@@ -244,6 +256,7 @@ XXL-Job 调度中心使用独立数据库 `xxl_job`，初始化 SQL 位于 `dock
 | Nacos | 8848 | 注册/配置中心 |
 | Sentinel | 8858 | 流量控制 Dashboard |
 | RabbitMQ | 15672 | 管理界面 |
+| Qdrant | 6333 | AI 长期记忆向量服务 |
 | Grafana | 3000 | 监控仪表盘 |
 | Kibana | 5601 | 日志检索 |
 | XXL-Job | 8081 | 定时任务调度中心 |

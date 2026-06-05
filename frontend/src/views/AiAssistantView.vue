@@ -24,6 +24,24 @@
         </button>
         <el-empty v-if="!conversations.length" :image-size="72" description="暂无会话" />
       </el-scrollbar>
+      <div class="memory-card">
+        <div class="memory-title">
+          <div>
+            <h3>长期记忆</h3>
+            <p>{{ memoryProfile?.memoryCount || 0 }} 条偏好</p>
+          </div>
+          <el-switch v-model="memoryEnabled" size="small" :loading="memoryLoading" @change="toggleMemory" />
+        </div>
+        <el-scrollbar class="memory-list">
+          <div v-for="item in memoryItems" :key="item.id" class="memory-item">
+            <strong>{{ item.memoryTitle }}</strong>
+            <p>{{ item.memorySummary }}</p>
+            <el-button link type="danger" size="small" @click="removeMemory(item.id)">删除</el-button>
+          </div>
+          <el-empty v-if="!memoryItems.length" :image-size="54" description="暂无长期记忆" />
+        </el-scrollbar>
+        <el-button size="small" text type="danger" :disabled="!memoryItems.length" @click="clearMemory">清空长期记忆</el-button>
+      </div>
     </aside>
 
     <main class="ai-workspace">
@@ -191,11 +209,21 @@
 
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Promotion, Refresh, Search } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
-import { analyzeAiLogs, chatWithAi, fetchAiConversation, fetchAiConversations } from '../api/ai-assistant'
+import {
+  analyzeAiLogs,
+  chatWithAi,
+  clearAiMemories,
+  deleteAiMemoryItem,
+  fetchAiConversation,
+  fetchAiConversations,
+  fetchAiMemoryItems,
+  fetchAiMemoryProfile,
+  updateAiMemorySettings
+} from '../api/ai-assistant'
 
 const conversations = ref([])
 const conversationId = ref('')
@@ -205,6 +233,10 @@ const chatLoading = ref(false)
 const logLoading = ref(false)
 const lastResponse = ref(null)
 const logResult = ref(null)
+const memoryProfile = ref(null)
+const memoryItems = ref([])
+const memoryEnabled = ref(true)
+const memoryLoading = ref(false)
 const chatScrollbarRef = ref(null)
 const thinkingStepIndex = ref(0)
 const thinkingSteps = ['理解你的问题', '检索系统文档和上下文', '整理引用和工具结果', '生成只读回答']
@@ -255,6 +287,7 @@ async function sendMessage() {
     lastResponse.value = response
     messages.value.push({ role: 'assistant', content: response.answer })
     await loadConversations()
+    await loadMemory()
   } finally {
     stopThinking()
     await scrollToBottom()
@@ -268,6 +301,45 @@ async function analyzeLogs() {
   } finally {
     logLoading.value = false
   }
+}
+
+async function loadMemory() {
+  memoryLoading.value = true
+  try {
+    const [profile, page] = await Promise.all([
+      fetchAiMemoryProfile(),
+      fetchAiMemoryItems({ page: 1, pageSize: 5 })
+    ])
+    memoryProfile.value = profile
+    memoryEnabled.value = profile?.memoryEnabled !== false
+    memoryItems.value = page?.records || []
+  } finally {
+    memoryLoading.value = false
+  }
+}
+
+async function toggleMemory(value) {
+  memoryLoading.value = true
+  try {
+    memoryProfile.value = await updateAiMemorySettings({ memoryEnabled: value })
+    memoryEnabled.value = memoryProfile.value?.memoryEnabled !== false
+    ElMessage.success(value ? '已开启长期记忆' : '已关闭长期记忆')
+  } finally {
+    memoryLoading.value = false
+  }
+}
+
+async function removeMemory(id) {
+  await deleteAiMemoryItem(id)
+  ElMessage.success('已删除长期记忆')
+  await loadMemory()
+}
+
+async function clearMemory() {
+  await ElMessageBox.confirm('确认清空当前账号的全部 AI 长期记忆吗？', '清空长期记忆')
+  await clearAiMemories()
+  ElMessage.success('已清空长期记忆')
+  await loadMemory()
 }
 
 function startThinking() {
@@ -301,7 +373,9 @@ async function scrollToBottom() {
   }
 }
 
-onMounted(loadConversations)
+onMounted(async () => {
+  await Promise.all([loadConversations(), loadMemory()])
+})
 onBeforeUnmount(() => window.clearInterval(thinkingTimer))
 </script>
 
@@ -365,6 +439,58 @@ onBeforeUnmount(() => window.clearInterval(thinkingTimer))
 
 .panel-header p {
   font-size: 12px;
+}
+
+.memory-card {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #edf2f7;
+}
+
+.memory-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.memory-title h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.memory-title p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.memory-list {
+  height: 220px;
+  padding-right: 4px;
+}
+
+.memory-item {
+  padding: 10px;
+  margin-bottom: 8px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.memory-item strong {
+  display: block;
+  font-size: 13px;
+  color: #1e3a8a;
+}
+
+.memory-item p {
+  margin: 6px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #475569;
 }
 
 .assistant-header {

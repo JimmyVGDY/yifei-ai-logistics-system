@@ -29,10 +29,20 @@ source scripts/sql/20260602_incremental_operation_log_login_session.sql;
 - 查一次业务链路：用 `traceId` 关联接口日志、Redis、ES、RabbitMQ 发布和消费日志。
 - 查一次登录期间全部行为：用 `loginSessionId` 查询操作日志。
 - 查某个用户的历史行为：用 `userId` 或 `userCode` 跨会话查询。
+- 查一次 AI 问答全链路：用 `aiConversationId` 关联用户提问、长期记忆召回、只读工具调用、AI 回答生成和长期记忆写入事件。
 
 ## 和操作日志的关系
 
 操作日志页面主要面向业务排障，展示 `traceId`、`operationId`、`loginSessionId`、用户编号、操作内容、接口路径、结果、耗时和变更摘要。结构化文件日志主要面向技术排障，可通过同一组标识继续追踪 Redis、ES、RabbitMQ、XXL-Job 等链路。
+
+AI 长期记忆链路会额外写入 `ai_memory_event` 表，并在 `sys_operation_log` 中补充 `ai_memory_id`、`ai_memory_event_type`、`ai_memory_source`、`ai_memory_hit_count` 和 `ai_memory_trace_summary`。这些字段只保存脱敏摘要，用来确认某次回答是否参考了长期记忆、召回了几条、是否写入新记忆或因敏感内容被拒绝写入。
+
+一次完整 AI 问答的推荐排查顺序：
+
+1. 用 `operationId` 精确定位用户点击“发送”的接口请求。
+2. 用 `traceId` 查看本次请求内的文档检索、业务只读工具、Redis、Qdrant 和模型调用日志。
+3. 用 `aiConversationId` 查看同一次会话内的用户提问、AI 工具调用、回答生成和长期记忆事件。
+4. 用 `loginSessionId` 回看该用户本次登录期间是否持续出现相同问题。
 
 ## 相关文档
 

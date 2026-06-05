@@ -164,13 +164,18 @@ POST /auth/logout
 
 ## Spring AI 助手
 
-AI 助手接口统一由后端代理调用模型，前端不会接触模型密钥。当前第一版只开放只读问答、日志排障、白名单业务查询和受控临时 SELECT 查询：
+AI 助手接口统一由后端代理调用模型，前端不会接触模型密钥。当前只开放只读问答、日志排障、白名单业务查询、受控临时 SELECT 查询和账号级长期记忆管理：
 
 ```text
 POST /ai/chat
 POST /ai/logs/analyze
 GET  /ai/conversations
 GET  /ai/conversations/{id}
+GET  /ai/memory/profile
+GET  /ai/memory/items
+DELETE /ai/memory/items/{id}
+DELETE /ai/memory/items
+PUT /ai/memory/settings
 ```
 
 权限码：
@@ -179,6 +184,9 @@ GET  /ai/conversations/{id}
 ai:chat
 ai:log:analyze
 ai:conversation:query
+ai:memory:query
+ai:memory:delete
+ai:memory:settings
 ```
 
 如果 `SPRING_AI_OPENAI_API_KEY` 未配置或仍为 `missing`，应用仍可正常启动，AI 问答会返回本地文档检索和中文配置提示；临时只读 SQL 能力依赖真实模型生成候选查询，未配置模型时会自动回退为普通业务查询提示。真实模型接入、脱敏边界和验证方式见 [Spring AI 接入说明](spring-ai.md)。
@@ -194,6 +202,16 @@ Group: DEFAULT_GROUP
 应用启动后会输出“AI 配置摘要”，用于确认 `base-url` 和 `model` 是否来自远程配置；日志不会打印 API Key 明文。
 
 AI 临时只读 SQL 不需要单独配置数据库连接，它复用当前应用数据源、Sa-Token 权限和 MyBatis 文档中定义的安全边界。普通业务 SQL 仍必须写入 Mapper XML，详见 [MyBatis 使用规范](mybatis.md)。
+
+AI 长期记忆配置：
+
+| 配置 | 默认值 | 说明 |
+| --- | --- | --- |
+| `APP_AI_MEMORY_QDRANT_ENABLED` | `true` | 是否启用 Qdrant 向量召回；不可用时自动降级 |
+| `APP_AI_MEMORY_QDRANT_BASE_URL` | `http://127.0.0.1:6333` | Qdrant HTTP 地址 |
+| `APP_AI_MEMORY_QDRANT_COLLECTION` | `logistics_ai_user_memory` | 长期记忆向量集合 |
+
+长期记忆的 MySQL 真值表为 `ai_user_profile`、`ai_user_memory`、`ai_memory_event`，需要执行 `scripts/sql/20260605_incremental_ai_long_term_memory.sql`。Qdrant 只保存脱敏摘要向量点，不能作为唯一审计数据源。
 
 ## Bloom Filter
 

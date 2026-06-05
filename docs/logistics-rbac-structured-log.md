@@ -95,10 +95,28 @@ AI 助手会额外写入分层审计日志，用于区分普通页面操作和 A
 
 新增字段包括 `operation_source`、`executor_type`、`ai_conversation_id`、`ai_message_id`、`ai_tool_name`、`ai_tool_target`、`ai_readonly`、`ai_prompt_summary`、`ai_result_summary`。这些字段只记录脱敏摘要，不记录完整提示词、密码、token、手机号、邮箱或详细地址。
 
+AI 长期记忆会继续补充记忆审计字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `ai_memory_id` | 本次召回、写入或删除关联的长期记忆 ID；批量或空召回时为空 |
+| `ai_memory_event_type` | 记忆事件类型，例如 `RECALL`、`CREATE`、`DELETE`、`CLEAR`、`SKIP_SENSITIVE` |
+| `ai_memory_source` | 事件来源，例如 `AI_MEMORY` 或 `USER` |
+| `ai_memory_hit_count` | 本次召回命中的长期记忆数量 |
+| `ai_memory_trace_summary` | 脱敏后的记忆链路摘要，不展示向量原文和敏感内容 |
+
+记忆事件同时写入 `ai_memory_event`，并保留 `traceId`、`operationId`、`loginSessionId`、`aiConversationId`。管理员排查 AI 行为时，可先在操作日志按 `traceId` 或 `aiConversationId` 找到一次问答，再查看记忆召回、只读工具调用和回答生成是否都在同一链路内。
+
 已有数据库请执行增量脚本：
 
 ```sql
 source scripts/sql/20260605_incremental_ai_operation_audit.sql;
+```
+
+如果需要启用长期记忆审计字段，请继续执行：
+
+```sql
+source scripts/sql/20260605_incremental_ai_long_term_memory.sql;
 ```
 
 前端“系统管理 → 操作日志”会把 `operation_source` 和 `executor_type` 展示为中文，例如“用户询问AI”“AI调用工具”“AI生成回答”，方便排查一次 AI 会话中到底是用户主动操作，还是 AI 为回答问题触发了只读查询。
