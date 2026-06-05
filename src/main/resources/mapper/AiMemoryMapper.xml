@@ -21,9 +21,11 @@
         limit 1
     </select>
 
+    <!-- 使用 ON DUPLICATE KEY UPDATE 防并发重复插入，同时自动复活软删除的记录 -->
     <insert id="insertDefaultProfile">
         insert into ai_user_profile (id, user_id, user_code, memory_enabled, answer_style, created_at, updated_at, deleted)
         values (#{id}, #{userId}, #{userCode}, 1, #{answerStyle}, current_timestamp, current_timestamp, 0)
+        on duplicate key update deleted = 0, updated_at = current_timestamp
     </insert>
 
     <update id="updateProfileSettings">
