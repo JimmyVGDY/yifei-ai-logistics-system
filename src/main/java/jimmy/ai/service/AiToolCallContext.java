@@ -2,6 +2,7 @@ package jimmy.ai.service;
 
 import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiToolCall;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -20,6 +21,7 @@ import java.util.Map;
  * <p>
  * 支持 SSE 流式推送：当设置了 SseEmitter 时，每次工具调用完成后自动推送进度事件给前端。
  */
+@Slf4j
 @Component
 public class AiToolCallContext {
 
@@ -114,6 +116,7 @@ public class AiToolCallContext {
     public void notifyDone(String answer, List<AiCitation> citations, List<AiToolCall> toolCalls) {
         Holder current = holder.get();
         if (current == null || current.emitter == null) {
+            log.warn("SSE notifyDone 跳过（holder 为空或 emitter 为 null），holder={}", current);
             return;
         }
         Map<String, Object> data = new LinkedHashMap<>();
@@ -122,7 +125,10 @@ public class AiToolCallContext {
         data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
         data.put("citationCount", citations == null ? 0 : citations.size());
         data.put("toolCallCount", toolCalls == null ? 0 : toolCalls.size());
+        log.info("SSE notifyDone 准备推送，answerLength={}", answer == null ? 0 : answer.length());
         sendEvent(current, "done", data);
+        // 等待 200ms 确保 SSE 事件已刷新到客户端，避免 send()/complete() 竞态导致前端收不到 done 事件
+        sleepBeforeComplete();
         current.emitter.complete();
     }
 
@@ -143,6 +149,7 @@ public class AiToolCallContext {
         } finally {
             // 使用 complete() 而非 completeWithError()，避免异常传播到 GlobalExceptionHandler
             // GlobalExceptionHandler 收到 completeWithError() 会尝试写 JSON 到 text/event-stream，导致二次报错
+            sleepBeforeComplete();
             current.emitter.complete();
         }
     }
@@ -158,7 +165,19 @@ public class AiToolCallContext {
         try {
             current.emitter.send(SseEmitter.event().name(name).data(data));
         } catch (IOException e) {
-            // 客户端断开连接，忽略
+            log.warn("SSE 事件发送失败，event={}, reason={}", name, e.getMessage());
+        }
+    }
+
+    /**
+     * 短暂等待以确保 SSE 事件已通过 Spring MVC 异步分派刷写到客户端。
+     * 避免 SseEmitter.send() 与 complete() 的竞态条件。
+     */
+    private void sleepBeforeComplete() {
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
