@@ -43,6 +43,8 @@ src/main/resources/mapper/**/*.xml
 
 AI 助手的临时只读 SQL 网关是另一个受控例外：`AiGeneratedSqlQueryService` 允许模型生成候选 `SELECT`，但执行前必须经过 `AiSqlSafetyValidator` 校验。校验规则包括单条 `SELECT`、禁止写关键字、禁止注释和多语句、禁止 `select *`、禁止敏感字段、只允许白名单表字段、每张表都要求当前账号具备对应查询权限，并由外层统一 `limit 20`。该例外只服务自然语言临时统计、关联和连表分析，不能推广到普通业务开发。
 
+Spring AI Tool Calling 中的普通业务查询不属于 SQL 例外：`AiBusinessQueryTools` 只负责把模型选择的只读工具参数交给 `AiReadonlyQueryService`，最终仍然复用 `LogisticsRequirementService.modulePage()`、`LogisticsModuleQueryMapper.xml` 和后端白名单。全场景模糊搜索、自动联合查询也只是组合调用已有白名单模块，不允许模型自由拼接业务 SQL。
+
 除元信息检测和 AI 受控临时只读 SQL 外，新增业务查询、写入、更新、删除、统计聚合都应进入 Mapper XML。
 
 ## 暂不引入 MyBatis-Plus 的原因

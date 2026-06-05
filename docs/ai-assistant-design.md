@@ -149,6 +149,8 @@ controller
 service
 ├── AiAssistantService
 ├── AiKnowledgeService
+├── AiBusinessQueryTools
+├── AiToolCallContext
 ├── AiReadonlyQueryService
 ├── AiGeneratedSqlQueryService
 ├── AiSqlSafetyValidator
@@ -168,9 +170,11 @@ model
 职责划分：
 
 - `AiAssistantController`：接收前端问答请求，返回统一 `ApiResponse<T>`。
-- `AiAssistantService`：负责编排意图识别、权限判断、工具调用和模型回答。
+- `AiAssistantService`：负责编排文档检索、Spring AI Tool Calling、规则兜底、审计和模型回答。
 - `AiKnowledgeService`：检索文档、接口说明、数据库说明和后续知识库。
-- `AiReadonlyQueryService`：复用通用模块、看板和数据范围查询能力，为 AI 生成只读业务摘要。
+- `AiBusinessQueryTools`：把单模块查询、全场景模糊搜索、业务联合查询、看板查询和临时只读 SQL 包装成 Spring AI 只读工具。
+- `AiToolCallContext`：收集模型工具调用产生的引用来源、工具调用摘要和业务上下文，供前端展示和操作日志审计。
+- `AiReadonlyQueryService`：复用通用模块、看板和数据范围查询能力，为 AI 执行单模块、全场景模糊、自动联合查询并生成只读业务摘要。
 - `AiGeneratedSqlQueryService`：处理统计、关联、连表等临时分析问题，只执行通过校验的候选 `SELECT`。
 - `AiSqlSafetyValidator`：校验候选 SQL 的只读语义、单语句、表字段白名单、敏感字段和当前用户权限。
 - `AiQueryIntentParser`：先归一化用户输入，再识别白名单模块、关键词、状态、车牌号、业务编号和时间范围。
@@ -208,6 +212,14 @@ model
 | 结构化日志文件 | trace 链路、系统异常、SQL/中间件日志 | 日志检索工具 |
 | 业务表 | 运单、客户、轨迹、异常、费用 | 通过 Service 做权限过滤后查询 |
 | 受控临时 SQL | 统计、关联、连表类只读分析 | 由模型生成候选 `SELECT`，后端白名单和权限校验后执行 |
+
+当前业务数据查询已经升级为“Spring AI Tool Calling + 后端安全工具层”：
+
+- 用户明确模块时，调用单模块只读查询工具。
+- 用户只输入短词或模糊问题时，调用全场景模糊搜索工具，在当前账号有权限的模块中召回。
+- 用户提出客户全貌、订单完整链路、司机任务链路、车辆任务链路、异常影响等问题时，调用业务联合查询工具。
+- 用户提出统计、排名、汇总、关联或连表分析时，才调用临时只读 SQL 工具。
+- 如果模型不可用或没有主动调用工具，后端继续使用 `AiQueryIntentParser` 做规则兜底。
 
 后续如果文档量变大，可以引入向量检索：
 

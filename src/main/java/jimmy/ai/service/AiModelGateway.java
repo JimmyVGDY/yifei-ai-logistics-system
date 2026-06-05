@@ -37,16 +37,29 @@ public class AiModelGateway {
     }
 
     public Optional<String> chat(String systemPrompt, String userPrompt) {
+        return chat(systemPrompt, userPrompt, new Object[0]);
+    }
+
+    /**
+     * 带 Spring AI Tool Calling 的模型调用入口。
+     * <p>
+     * tools 只接收后端已经封装好的只读工具 Bean。模型只能选择调用工具，
+     * 真正的权限、数据范围、SQL 安全和脱敏仍由工具内部的后端服务兜底。
+     */
+    public Optional<String> chat(String systemPrompt, String userPrompt, Object... tools) {
         AiRuntimeProperties properties = runtimePropertiesProvider.current();
         if (!properties.configured()) {
             return Optional.empty();
         }
         try {
-            String answer = chatClient(properties)
+            ChatClient.ChatClientRequestSpec requestSpec = chatClient(properties)
                     .prompt()
                     .system(masker.mask(systemPrompt))
-                    .user(masker.mask(userPrompt))
-                    .call()
+                    .user(masker.mask(userPrompt));
+            if (tools != null && tools.length > 0) {
+                requestSpec = requestSpec.tools(tools);
+            }
+            String answer = requestSpec.call()
                     .content();
             return Optional.ofNullable(masker.mask(answer));
         } catch (RuntimeException exception) {

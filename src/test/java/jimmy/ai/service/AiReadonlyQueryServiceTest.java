@@ -133,9 +133,9 @@ class AiReadonlyQueryServiceTest {
             AiReadonlyQueryResult result = service.query("陈菲");
 
             assertThat(result.executed()).isTrue();
-            assertThat(result.answerContext()).contains("全局只读查找", "运单管理", "陈菲");
+            assertThat(result.answerContext()).contains("全场景模糊搜索", "运单管理", "陈菲");
             assertThat(result.toolCalls()).anySatisfy(toolCall -> {
-                assertThat(toolCall.toolName()).isEqualTo("全局只读查找");
+                assertThat(toolCall.toolName()).isEqualTo("全场景模糊搜索");
                 assertThat(toolCall.target()).isEqualTo("运单管理");
             });
             verify(requirementService).modulePage(eq("customers"), any(ModuleQueryDTO.class));
@@ -176,5 +176,185 @@ class AiReadonlyQueryServiceTest {
             assertThat(result.answerContext()).contains("陈菲", "运单管理");
             verify(requirementService).modulePage(eq("orders"), any(ModuleQueryDTO.class));
         }
+    }
+
+    @Test
+    void shouldSearchAcrossAllAllowedModulesWhenQuestionOnlyContainsShortKeyword() {
+        AiReadonlyQueryService service = serviceWithRealParser(mockRequirementServiceForKeyword("陈土豆"));
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission(anyString())).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("陈土豆");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.answerContext()).contains("全场景模糊搜索", "客户管理", "运单管理", "异常管理");
+            assertThat(result.toolCalls()).anySatisfy(toolCall ->
+                    assertThat(toolCall.toolName()).isEqualTo("全场景模糊搜索"));
+        }
+    }
+
+    @Test
+    void shouldJoinOrdersAndWaybillsWhenUserAsksAllWaybillsAndOrders() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenAnswer(invocation -> {
+            String module = invocation.getArgument(0);
+            if ("orders".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("order_no", "LO-TEST-001"))), 1, 5, 1);
+            }
+            if ("waybills".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("waybill_no", "WB-TEST-001"))), 1, 5, 1);
+            }
+            return new PageResult<>(List.of(), 1, 5, 0);
+        });
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission(anyString())).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("给我查一下所有的运单和订单");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.answerContext()).contains("业务联合查询", "运单管理", "运单中心");
+        }
+    }
+
+    @Test
+    void shouldJoinCustomerOrdersAndFeesWhenUserAsksCustomerBusinessOverview() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenAnswer(invocation -> {
+            String module = invocation.getArgument(0);
+            if ("customers".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("customer_name", "陈土豆"))), 1, 5, 1);
+            }
+            if ("orders".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("order_no", "LO-TEST-002", "customer_name", "陈土豆"))), 1, 5, 1);
+            }
+            if ("fees".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("order_no", "LO-TEST-002", "payment_statusLabel", "未付款"))), 1, 5, 1);
+            }
+            return new PageResult<>(List.of(), 1, 5, 0);
+        });
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission(anyString())).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("查陈土豆的订单和费用");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.answerContext()).contains("业务联合查询", "客户管理", "运单管理", "费用结算");
+            verify(requirementService).modulePage(eq("customers"), any(ModuleQueryDTO.class));
+            verify(requirementService).modulePage(eq("orders"), any(ModuleQueryDTO.class));
+            verify(requirementService).modulePage(eq("fees"), any(ModuleQueryDTO.class));
+        }
+    }
+
+    @Test
+    void shouldSupportVehicleTaskTrackJoinedQuery() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenAnswer(invocation -> {
+            String module = invocation.getArgument(0);
+            if ("vehicles".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("vehicle_no", "沪A12345"))), 1, 5, 1);
+            }
+            if ("tasks".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("task_no", "TASK-001", "vehicle_no", "沪A12345"))), 1, 5, 1);
+            }
+            if ("tracks".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("current_location", "天盈广场"))), 1, 5, 1);
+            }
+            return new PageResult<>(List.of(), 1, 5, 0);
+        });
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission(anyString())).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("查这辆车沪A12345今天的任务和轨迹");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.answerContext()).contains("业务联合查询", "车辆管理", "运输任务", "物流轨迹");
+            verify(requirementService).modulePage(eq("vehicles"), any(ModuleQueryDTO.class));
+            verify(requirementService).modulePage(eq("tasks"), any(ModuleQueryDTO.class));
+            verify(requirementService).modulePage(eq("tracks"), any(ModuleQueryDTO.class));
+        }
+    }
+
+    @Test
+    void shouldExpandChineseStatusKeywordWhenSearchingWithoutContext() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenAnswer(invocation -> {
+            ModuleQueryDTO query = invocation.getArgument(1);
+            if ("WAIT_HANDLE".equals(query.getKeyword())) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("exception_statusLabel", "待处理"))), 1, 5, 1);
+            }
+            return new PageResult<>(List.of(), 1, 5, 0);
+        });
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission(anyString())).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("待处理");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.answerContext()).contains("待处理");
+        }
+    }
+
+    @Test
+    void shouldSkipUnauthorizedModulesInJoinedQuery() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class)))
+                .thenReturn(new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("order_no", "LO-TEST-003"))), 1, 5, 1));
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission(anyString())).thenAnswer(invocation -> false);
+            stp.when(() -> StpUtil.hasPermission("order:query")).thenReturn(true);
+            stp.when(() -> StpUtil.hasPermission("fee:query")).thenReturn(false);
+
+            AiReadonlyQueryResult result = service.joinedSearch("order", "陈土豆", null, null);
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.answerContext()).contains("运单管理");
+            assertThat(result.answerContext()).doesNotContain("fee:query", "费用结算");
+            verify(requirementService).modulePage(eq("orders"), any(ModuleQueryDTO.class));
+        }
+    }
+
+    private AiReadonlyQueryService serviceWithRealParser(LogisticsRequirementService requirementService) {
+        AiGeneratedSqlQueryService sqlQueryService = mock(AiGeneratedSqlQueryService.class);
+        when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
+        return new AiReadonlyQueryService(
+                new AiQueryIntentParser(),
+                sqlQueryService,
+                requirementService,
+                new AiQuerySummaryService(),
+                new AiSensitiveDataMasker()
+        );
+    }
+
+    private LogisticsRequirementService mockRequirementServiceForKeyword(String keyword) {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenAnswer(invocation -> {
+            String module = invocation.getArgument(0);
+            ModuleQueryDTO query = invocation.getArgument(1);
+            if (!keyword.equals(query.getKeyword())) {
+                return new PageResult<>(List.of(), 1, 5, 0);
+            }
+            if ("customers".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("customer_name", keyword))), 1, 5, 1);
+            }
+            if ("orders".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("order_no", "LO-TEST-004", "customer_name", keyword))), 1, 5, 1);
+            }
+            if ("exceptions".equals(module)) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("exception_desc", keyword + "相关异常"))), 1, 5, 1);
+            }
+            return new PageResult<>(List.of(), 1, 5, 0);
+        });
+        return requirementService;
     }
 }

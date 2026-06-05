@@ -10,15 +10,23 @@ import jimmy.logistics.service.LogisticsRequirementService;
 import jimmy.model.PageResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
+import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * AI 只读查询服务：统一复用现有业务查询能力。
+ * AI 只读查询服务：统一承接 Spring AI 工具调用和规则兜底查询。
  * <p>
- * 优先走普通模块白名单查询，只有用户明确提出统计、关联、连表等复杂只读分析时，
- * 才委托 {@link AiGeneratedSqlQueryService} 生成候选 SELECT，并继续由后端安全校验兜底。
- * </p>
+ * 这里仍然不让模型直接访问 Mapper/JdbcTemplate。所有查询都复用现有模块白名单、
+ * 权限校验、客户数据隔离、分页和脱敏逻辑；复杂统计才走受控临时 SELECT 网关。
  */
 @Slf4j
 @Service
@@ -28,14 +36,59 @@ public class AiReadonlyQueryService {
     private static final String CUSTOMER_NOT_BOUND_MESSAGE = "当前账号未绑定客户档案，无法查询相关业务数据，请联系系统管理员。";
     private static final String QUERY_FAILED_MESSAGE = "查询暂时失败，请稍后重试或联系系统管理员。";
     private static final String WRITE_REFUSED_MESSAGE = "当前 AI 助手仅支持只读查询和信息整理，不能执行新增、修改、删除、导入、导出或上传操作。";
-    private static final List<SearchModule> GLOBAL_SEARCH_MODULES = List.of(
-            new SearchModule("customers", "客户管理", "customer:query"),
-            new SearchModule("orders", "运单管理", "order:query"),
-            new SearchModule("waybills", "运单中心", "waybill:query"),
-            new SearchModule("tasks", "运输任务", "task:query"),
-            new SearchModule("tracks", "物流轨迹", "track:query"),
-            new SearchModule("exceptions", "异常管理", "exception:query"),
-            new SearchModule("fees", "费用结算", "fee:query")
+
+    private static final List<SearchModule> SEARCH_MODULES = List.of(
+            new SearchModule("customers", "客户管理", "customer:query", 10),
+            new SearchModule("orders", "运单管理", "order:query", 20),
+            new SearchModule("waybills", "运单中心", "waybill:query", 30),
+            new SearchModule("dispatches", "调度管理", "dispatch:query", 40),
+            new SearchModule("tasks", "运输任务", "task:query", 50),
+            new SearchModule("tracks", "物流轨迹", "track:query", 60),
+            new SearchModule("drivers", "司机管理", "driver:query", 70),
+            new SearchModule("vehicles", "车辆管理", "vehicle:query", 80),
+            new SearchModule("exceptions", "异常管理", "exception:query", 90),
+            new SearchModule("fees", "费用结算", "fee:query", 100),
+            new SearchModule("users", "用户管理", "system:user:query", 200),
+            new SearchModule("roles", "角色管理", "system:role:query", 210),
+            new SearchModule("files", "上传文件", "file:query", 220),
+            new SearchModule("operationLogs", "操作日志", "system:log:query", 230)
+    );
+
+    private static final Map<String, List<String>> JOINED_SCENES = buildJoinedScenes();
+
+    private static final Map<String, List<String>> STATUS_ALIASES = Map.ofEntries(
+            Map.entry("启用", List.of("ACTIVE", "ENABLED", "1")),
+            Map.entry("停用", List.of("DISABLED", "INACTIVE", "0")),
+            Map.entry("空闲", List.of("AVAILABLE", "IDLE")),
+            Map.entry("休息中", List.of("RESTING")),
+            Map.entry("运输中", List.of("IN_TRANSIT", "TRANSPORTING", "ON_ROUTE")),
+            Map.entry("维修中", List.of("MAINTENANCE")),
+            Map.entry("暂停", List.of("PAUSED")),
+            Map.entry("已创建", List.of("CREATED")),
+            Map.entry("待调度", List.of("WAIT_DISPATCH")),
+            Map.entry("已调度", List.of("DISPATCHED")),
+            Map.entry("已分配", List.of("ASSIGNED")),
+            Map.entry("处理中", List.of("PROCESSING", "HANDLING")),
+            Map.entry("已揽收", List.of("PICKED_UP")),
+            Map.entry("已到达", List.of("ARRIVED")),
+            Map.entry("派送中", List.of("DELIVERING")),
+            Map.entry("已送达", List.of("DELIVERED")),
+            Map.entry("已签收", List.of("SIGNED")),
+            Map.entry("已完成", List.of("COMPLETED", "FINISHED")),
+            Map.entry("已取消", List.of("CANCELLED", "CANCELED")),
+            Map.entry("异常", List.of("EXCEPTION")),
+            Map.entry("待处理", List.of("WAIT_HANDLE")),
+            Map.entry("已处理", List.of("CLOSED")),
+            Map.entry("已关闭", List.of("CLOSED")),
+            Map.entry("已付款", List.of("PAID")),
+            Map.entry("已支付", List.of("PAID")),
+            Map.entry("未付款", List.of("UNPAID")),
+            Map.entry("未收款", List.of("UNPAID")),
+            Map.entry("待支付", List.of("UNPAID")),
+            Map.entry("部分付款", List.of("PART_PAID")),
+            Map.entry("已退款", List.of("REFUNDED")),
+            Map.entry("成功", List.of("SUCCESS")),
+            Map.entry("失败", List.of("FAILED"))
     );
 
     private final AiQueryIntentParser intentParser;
@@ -57,63 +110,136 @@ public class AiReadonlyQueryService {
     }
 
     public AiReadonlyQueryResult query(String message) {
-        AiGeneratedSqlQueryResult sqlQueryResult = generatedSqlQueryService.query(message);
-        if (sqlQueryResult.executed()) {
-            return new AiReadonlyQueryResult(true, sqlQueryResult.message(),
-                    List.of(citation("临时只读 SQL 查询", sqlQueryResult.message())),
-                    List.of(new AiToolCall("临时只读 SQL 查询", "关联查询", sqlQueryResult.message())));
-        }
-        AiQueryIntent intent = intentParser.parse(message);
-        return queryByIntent(intent, message);
+        return query(message, null);
     }
 
     public AiReadonlyQueryResult query(String message, String previousUserMessage) {
-        AiGeneratedSqlQueryResult sqlQueryResult = generatedSqlQueryService.query(message);
+        String normalizedMessage = normalizeForSearch(message);
+        AiQueryIntent quickIntent = nullToUnmatched(hasText(previousUserMessage)
+                ? intentParser.parse(normalizedMessage, previousUserMessage)
+                : intentParser.parse(normalizedMessage));
+        if (quickIntent.forbiddenWrite()) {
+            return simpleResult("只读安全校验", "只读模式", WRITE_REFUSED_MESSAGE);
+        }
+
+        AiGeneratedSqlQueryResult sqlQueryResult = generatedSqlQueryService.query(normalizedMessage);
         if (sqlQueryResult.executed()) {
             return new AiReadonlyQueryResult(true, sqlQueryResult.message(),
                     List.of(citation("临时只读 SQL 查询", sqlQueryResult.message())),
                     List.of(new AiToolCall("临时只读 SQL 查询", "关联查询", sqlQueryResult.message())));
         }
-        if (isGlobalSearchRequest(message) && hasText(previousUserMessage)) {
-            AiQueryIntent previousIntent = intentParser.parse(previousUserMessage);
-            if (hasText(previousIntent.keyword())) {
-                return globalSearch(previousIntent.keyword(), null);
+
+        if (quickIntent.dashboard()) {
+            return queryDashboard(quickIntent);
+        }
+
+        if (isGlobalSearchRequest(normalizedMessage) && hasText(previousUserMessage)) {
+            String previousKeyword = resolveKeyword(previousUserMessage, null);
+            if (hasText(previousKeyword)) {
+                return globalSearch(previousKeyword, null, null, null);
             }
         }
-        AiQueryIntent intent = intentParser.parse(message, previousUserMessage);
-        return queryByIntent(intent, message);
+
+        if (shouldUseJoinedQuery(normalizedMessage)) {
+            AiReadonlyQueryResult result = joinedSearch(resolveJoinedScene(normalizedMessage), resolveKeyword(normalizedMessage, previousUserMessage),
+                    quickIntent.startTime(), quickIntent.endTime());
+            if (result.executed()) {
+                return result;
+            }
+        }
+
+        if (shouldUseGlobalSearch(normalizedMessage, quickIntent)) {
+            String keyword = resolveKeyword(normalizedMessage, previousUserMessage);
+            return globalSearch(keyword, quickIntent.startTime(), quickIntent.endTime(), null);
+        }
+
+        AiReadonlyQueryResult result = queryByIntent(quickIntent);
+        if (shouldFallbackToGlobalSearch(quickIntent, result)) {
+            return globalSearch(quickIntent.keyword(), quickIntent.startTime(), quickIntent.endTime(), quickIntent.module());
+        }
+        return result;
     }
 
-    private AiReadonlyQueryResult queryByIntent(AiQueryIntent intent, String message) {
+    /**
+     * Spring AI Tool Calling 的单模块查询入口。
+     * 模型传入的是模块中文名或模块编码，后端统一解析成白名单模块后再执行。
+     */
+    public AiReadonlyQueryResult queryModule(String moduleText, String keyword, String startTime, String endTime) {
+        SearchModule module = findModule(moduleText);
+        if (module == null) {
+            return simpleResult("业务数据查询", "业务模块", "未识别要查询的业务模块，请补充订单、客户、车辆、司机、异常、费用等查询范围。");
+        }
+        return queryModule(module, cleanupKeyword(keyword), startTime, endTime, 10, "业务数据查询");
+    }
+
+    public AiReadonlyQueryResult globalSearch(String keyword, String startTime, String endTime) {
+        return globalSearch(cleanupKeyword(keyword), startTime, endTime, null);
+    }
+
+    public AiReadonlyQueryResult joinedSearch(String sceneText, String keyword, String startTime, String endTime) {
+        String keywordToUse = cleanupKeyword(keyword);
+        List<SearchModule> modules = resolveJoinedModules(sceneText);
+        if (modules.isEmpty()) {
+            return AiReadonlyQueryResult.empty();
+        }
+
+        List<AiCitation> citations = new ArrayList<>();
+        List<AiToolCall> toolCalls = new ArrayList<>();
+        StringBuilder answer = new StringBuilder("已执行业务联合查询：")
+                .append(joinModuleNames(modules))
+                .append(hasText(keywordToUse) ? "，关键词“" + keywordToUse + "”。" : "，默认最近数据。");
+        long total = 0;
+        int queriedModules = 0;
+
+        for (SearchModule module : modules) {
+            AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 5, "业务联合查询");
+            if (!result.executed()) {
+                continue;
+            }
+            queriedModules++;
+            total += extractHitCount(result.toolCalls());
+            citations.addAll(result.citations());
+            toolCalls.addAll(result.toolCalls());
+            answer.append("\n\n").append(result.answerContext());
+        }
+
+        if (queriedModules == 0) {
+            return simpleResult("业务联合查询", "业务链路", PERMISSION_DENIED_MESSAGE);
+        }
+        if (total == 0) {
+            String message = "已在当前账号可访问的关联业务模块中查询，暂未匹配到记录。已查询范围：" + joinModuleNames(modules) + "。";
+            return simpleResult("业务联合查询", joinModuleNames(modules), message);
+        }
+        return new AiReadonlyQueryResult(true, masker.mask(answer.toString()), citations, toolCalls);
+    }
+
+    public AiReadonlyQueryResult queryDashboard() {
+        AiQueryIntent intent = new AiQueryIntent("dashboard", "运营看板", "dashboard:view",
+                null, null, null, true, false, true);
+        return queryDashboard(intent);
+    }
+
+    private AiReadonlyQueryResult queryByIntent(AiQueryIntent intent) {
         if (!intent.matched()) {
             return AiReadonlyQueryResult.empty();
         }
         if (intent.forbiddenWrite()) {
             return simpleResult("只读安全校验", "只读模式", WRITE_REFUSED_MESSAGE);
         }
-        if (!StpUtil.hasPermission(intent.permission())) {
-            log.info("AI 只读查询被权限拦截，module={}, permission={}", intent.module(), intent.permission());
-            return simpleResult("业务数据查询", intent.moduleName(), PERMISSION_DENIED_MESSAGE);
+        if (intent.dashboard()) {
+            return queryDashboard(intent);
         }
-        try {
-            if (intent.dashboard()) {
-                return queryDashboard(intent);
-            }
-            AiReadonlyQueryResult result = queryModule(intent);
-            if (shouldFallbackToGlobalSearch(intent, result)) {
-                return globalSearch(intent.keyword(), intent.module());
-            }
-            return result;
-        } catch (IllegalStateException exception) {
-            log.info("AI 只读查询被数据范围拦截，module={}, reason={}", intent.module(), exception.getMessage());
-            return simpleResult("业务数据查询", intent.moduleName(), CUSTOMER_NOT_BOUND_MESSAGE);
-        } catch (RuntimeException exception) {
-            log.warn("AI 只读查询失败，module={}, reason={}", intent.module(), exception.getMessage());
-            return simpleResult("业务数据查询", intent.moduleName(), QUERY_FAILED_MESSAGE);
+        SearchModule module = findModule(intent.module());
+        if (module == null) {
+            return AiReadonlyQueryResult.empty();
         }
+        return queryModule(module, intent.keyword(), intent.startTime(), intent.endTime(), 10, "业务数据查询");
     }
 
     private AiReadonlyQueryResult queryDashboard(AiQueryIntent intent) {
+        if (!StpUtil.hasPermission(intent.permission())) {
+            return simpleResult("运营看板查询", intent.moduleName(), PERMISSION_DENIED_MESSAGE);
+        }
         LogisticsDashboardSummary summary = logisticsRequirementService.dashboardSummary();
         String answerContext = masker.mask(summaryService.dashboardSummary(summary));
         return new AiReadonlyQueryResult(true, answerContext,
@@ -121,97 +247,302 @@ public class AiReadonlyQueryService {
                 List.of(new AiToolCall("运营看板查询", intent.moduleName(), answerContext)));
     }
 
-    private AiReadonlyQueryResult queryModule(AiQueryIntent intent) {
-        ModuleQueryDTO query = new ModuleQueryDTO();
-        query.setPage(1);
-        query.setPageSize(10);
-        query.setKeyword(intent.keyword());
-        query.setStartTime(intent.startTime());
-        query.setEndTime(intent.endTime());
-        PageResult<ModuleRecordVO> page = logisticsRequirementService.modulePage(intent.module(), query);
-        String summary = masker.mask(summaryService.moduleSummary(intent, page));
-        String result = masker.mask(summaryService.queryConditionSummary(intent) + "，命中 " + page.total() + " 条记录。");
-        return new AiReadonlyQueryResult(true, summary,
-                List.of(citation(intent.moduleName(), summary)),
-                List.of(new AiToolCall("业务数据查询", intent.moduleName(), result)));
+    private AiReadonlyQueryResult queryModule(SearchModule module, String keyword, String startTime, String endTime, int pageSize, String toolName) {
+        if (!StpUtil.hasPermission(module.permission())) {
+            log.info("AI 只读查询被权限拦截，module={}, permission={}", module.module(), module.permission());
+            return simpleResult(toolName, module.moduleName(), PERMISSION_DENIED_MESSAGE);
+        }
+
+        try {
+            List<String> keywordCandidates = expandKeywordCandidates(keyword);
+            List<ModuleRecordVO> mergedRecords = new ArrayList<>();
+            long total = 0;
+            PageResult<ModuleRecordVO> firstPage = null;
+
+            for (String candidate : keywordCandidates) {
+                ModuleQueryDTO query = new ModuleQueryDTO();
+                query.setPage(1);
+                query.setPageSize(pageSize);
+                query.setKeyword(candidate);
+                query.setStartTime(startTime);
+                query.setEndTime(endTime);
+                PageResult<ModuleRecordVO> page = logisticsRequirementService.modulePage(module.module(), query);
+                if (firstPage == null) {
+                    firstPage = page;
+                }
+                total += page.total();
+                addDistinctRecords(mergedRecords, page.records(), pageSize);
+                if (!hasText(keyword) || !mergedRecords.isEmpty()) {
+                    break;
+                }
+            }
+
+            PageResult<ModuleRecordVO> page = new PageResult<>(
+                    mergedRecords,
+                    firstPage == null ? 1 : firstPage.page(),
+                    firstPage == null ? pageSize : firstPage.pageSize(),
+                    total
+            );
+            AiQueryIntent intent = new AiQueryIntent(module.module(), module.moduleName(), module.permission(),
+                    keyword, startTime, endTime, false, false, true);
+            String summary = masker.mask(summaryService.moduleSummary(intent, page));
+            String result = masker.mask(summaryService.queryConditionSummary(intent) + "，命中 " + page.total() + " 条记录。");
+            return new AiReadonlyQueryResult(true, summary,
+                    List.of(citation(module.moduleName(), summary)),
+                    List.of(new AiToolCall(toolName, module.moduleName(), result)));
+        } catch (IllegalStateException exception) {
+            log.info("AI 只读查询被数据范围拦截，module={}, reason={}", module.module(), exception.getMessage());
+            return simpleResult(toolName, module.moduleName(), CUSTOMER_NOT_BOUND_MESSAGE);
+        } catch (RuntimeException exception) {
+            log.warn("AI 只读查询失败，module={}, reason={}", module.module(), exception.getMessage());
+            return simpleResult(toolName, module.moduleName(), QUERY_FAILED_MESSAGE);
+        }
     }
 
     /**
-     * 客户名称、联系人姓名等纯关键词经常散落在订单、运单、异常等模块。
-     * 单一客户模块查不到时，继续用同一关键词做只读跨模块召回，避免让用户反复指定页面。
+     * 全场景模糊查找：只查当前账号有权限的模块，并按业务相关度排序输出。
      */
-    private AiReadonlyQueryResult globalSearch(String keyword, String excludedModule) {
-        if (!hasText(keyword)) {
-            return AiReadonlyQueryResult.empty();
+    private AiReadonlyQueryResult globalSearch(String keyword, String startTime, String endTime, String excludedModule) {
+        String keywordToUse = cleanupKeyword(keyword);
+        if (!hasText(keywordToUse)) {
+            return simpleResult("全场景模糊搜索", "业务模块", "请补充客户名、订单号、运单号、司机名、车牌号、地址、状态或时间范围等查询条件。");
         }
-        List<AiCitation> citations = new java.util.ArrayList<>();
-        List<AiToolCall> toolCalls = new java.util.ArrayList<>();
-        StringBuilder answer = new StringBuilder("已按关键词“").append(keyword).append("”进行全局只读查找。");
+
+        List<AiCitation> citations = new ArrayList<>();
+        List<AiToolCall> toolCalls = new ArrayList<>();
+        StringBuilder answer = new StringBuilder("已按关键词“").append(keywordToUse).append("”进行全场景模糊搜索。");
         long total = 0;
         int queriedModules = 0;
 
-        for (SearchModule module : GLOBAL_SEARCH_MODULES) {
+        for (SearchModule module : SEARCH_MODULES.stream().sorted(Comparator.comparingInt(SearchModule::priority)).toList()) {
             if (module.module().equals(excludedModule)) {
                 continue;
             }
             if (!StpUtil.hasPermission(module.permission())) {
                 continue;
             }
-            try {
-                ModuleQueryDTO query = new ModuleQueryDTO();
-                query.setPage(1);
-                query.setPageSize(5);
-                query.setKeyword(keyword);
-                PageResult<ModuleRecordVO> page = logisticsRequirementService.modulePage(module.module(), query);
-                queriedModules++;
-                total += page.total();
-                if (page.total() > 0) {
-                    AiQueryIntent intent = new AiQueryIntent(
-                            module.module(), module.moduleName(), module.permission(), keyword,
-                            null, null, false, false, true
-                    );
-                    String summary = masker.mask(summaryService.moduleSummary(intent, page));
-                    answer.append("\n\n").append(summary);
-                    citations.add(citation(module.moduleName(), summary));
-                    toolCalls.add(new AiToolCall("全局只读查找", module.moduleName(),
-                            masker.mask(module.moduleName() + " 命中 " + page.total() + " 条记录。")));
-                }
-            } catch (IllegalStateException exception) {
-                log.info("AI 全局只读查找跳过受限模块，module={}, reason={}", module.module(), exception.getMessage());
-            } catch (RuntimeException exception) {
-                log.warn("AI 全局只读查找模块失败，module={}, reason={}", module.module(), exception.getMessage());
+            AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 5, "全场景模糊搜索");
+            if (!result.executed()) {
+                continue;
+            }
+            queriedModules++;
+            long hitCount = extractHitCount(result.toolCalls());
+            total += hitCount;
+            if (hitCount > 0) {
+                citations.addAll(result.citations());
+                toolCalls.addAll(result.toolCalls());
+                answer.append("\n\n").append(result.answerContext());
             }
         }
 
         if (queriedModules == 0) {
-            return simpleResult("全局只读查找", "业务模块", PERMISSION_DENIED_MESSAGE);
+            return simpleResult("全场景模糊搜索", "业务模块", PERMISSION_DENIED_MESSAGE);
         }
         if (total == 0) {
-            String message = "已在当前账号可访问的业务模块中按关键词“" + keyword + "”查找，暂未匹配到记录。";
-            return simpleResult("全局只读查找", "业务模块", message);
+            String message = "已在当前账号可访问的业务模块中按关键词“" + keywordToUse + "”查找，暂未匹配到记录。"
+                    + "可补充订单号、运单号、客户名称、手机号、车牌号、司机姓名、地址或时间范围继续查询。";
+            return simpleResult("全场景模糊搜索", "业务模块", message);
         }
-        String context = masker.mask(answer.toString());
-        if (toolCalls.isEmpty()) {
-            toolCalls.add(new AiToolCall("全局只读查找", "业务模块", "命中 " + total + " 条记录。"));
-        }
-        return new AiReadonlyQueryResult(true, context, citations, toolCalls);
+        return new AiReadonlyQueryResult(true, masker.mask(answer.toString()), citations, toolCalls);
     }
 
     private boolean shouldFallbackToGlobalSearch(AiQueryIntent intent, AiReadonlyQueryResult result) {
-        return "customers".equals(intent.module())
+        return intent.matched()
                 && hasText(intent.keyword())
-                && result.answerContext().contains("共匹配 0 条记录");
+                && result.answerContext().contains("共匹配 0 条记录")
+                && List.of("customers", "orders", "waybills", "drivers", "vehicles").contains(intent.module());
+    }
+
+    private boolean shouldUseGlobalSearch(String message, AiQueryIntent intent) {
+        if (isGlobalSearchRequest(message)) {
+            return true;
+        }
+        String keyword = cleanupKeyword(resolveKeyword(message, null));
+        return hasText(keyword)
+                && keyword.equals(normalizeForSearch(message))
+                && !isFollowUpFilter(message)
+                && (!intent.matched() || "customers".equals(intent.module()));
+    }
+
+    private boolean shouldUseJoinedQuery(String message) {
+        String text = normalizeForSearch(message);
+        return containsAny(text, List.of("全貌", "完整链路", "相关的所有", "所有物流信息", "订单和费用", "运单和订单",
+                "任务和轨迹", "调度和任务", "异常影响", "对应费用", "及客户", "以及客户", "和客户"));
+    }
+
+    private String resolveJoinedScene(String message) {
+        String text = normalizeForSearch(message);
+        if (containsAny(text, List.of("司机", "驾驶员"))) {
+            return "driver";
+        }
+        if (containsAny(text, List.of("车辆", "车牌", "沪", "粤", "京", "浙", "苏"))) {
+            return "vehicle";
+        }
+        if (containsAny(text, List.of("客户", "客户全貌", "相关的所有物流信息", "订单和费用", "及客户", "以及客户"))) {
+            return "customer";
+        }
+        if (containsAny(text, List.of("异常影响", "异常订单", "待处理异常"))) {
+            return "exception";
+        }
+        if (containsAny(text, List.of("订单", "运单管理", "完整链路", "运单和订单"))) {
+            return "order";
+        }
+        return "business";
+    }
+
+    private List<SearchModule> resolveJoinedModules(String sceneText) {
+        String scene = normalizeForSearch(sceneText).toLowerCase(Locale.ROOT);
+        List<String> moduleCodes = JOINED_SCENES.getOrDefault(scene, JOINED_SCENES.get("business"));
+        return moduleCodes.stream()
+                .map(this::findModule)
+                .filter(module -> module != null && StpUtil.hasPermission(module.permission()))
+                .toList();
+    }
+
+    private String resolveKeyword(String message, String previousUserMessage) {
+        AiQueryIntent current = nullToUnmatched(intentParser.parse(message));
+        if (hasText(current.keyword())) {
+            return normalizeResolvedKeyword(current.keyword());
+        }
+        if (isModuleClarification(message) && hasText(previousUserMessage)) {
+            AiQueryIntent previous = nullToUnmatched(intentParser.parse(previousUserMessage));
+            if (hasText(previous.keyword())) {
+                return normalizeResolvedKeyword(previous.keyword());
+            }
+            String fallbackPrevious = fallbackStandaloneKeyword(previousUserMessage);
+            if (hasText(fallbackPrevious)) {
+                return fallbackPrevious;
+            }
+        }
+        String standalone = fallbackStandaloneKeyword(message);
+        if (hasText(standalone)) {
+            return standalone;
+        }
+        return null;
+    }
+
+    private String fallbackStandaloneKeyword(String message) {
+        String text = normalizeForSearch(message);
+        if (!hasText(text) || isGlobalSearchRequest(text) || isBroadQuestion(text) || shouldUseJoinedQuery(text)) {
+            return null;
+        }
+        String cleaned = text;
+        for (String word : List.of("帮我", "帮忙", "查询", "查一下", "查下", "查看", "看看", "看一下", "看下", "查",
+                "我要", "我想", "给我", "显示", "列出", "筛选", "相关", "信息", "资料", "情况", "记录", "数据",
+                "列表", "明细", "客户名称", "客户名", "客户", "订单", "运单", "司机", "车辆", "车牌号", "车牌",
+                "异常", "费用", "任务", "轨迹", "管理", "中心", "的", "是", "为", "一个")) {
+            cleaned = cleaned.replace(word, " ");
+        }
+        cleaned = cleaned.replaceAll("[，,。；;：:！？?、\\s]+", " ").trim();
+        if (!hasText(cleaned)) {
+            return null;
+        }
+        String[] parts = cleaned.split("\\s+");
+        return cleanupKeyword(parts[0]);
+    }
+
+    private String normalizeResolvedKeyword(String keyword) {
+        String cleaned = cleanupKeyword(keyword);
+        if (!hasText(cleaned)) {
+            return null;
+        }
+        return cleanupKeyword(cleaned.replaceFirst("^(查|查询|查看|看看|看一下|查一下|查下)", ""));
     }
 
     private boolean isGlobalSearchRequest(String message) {
         if (!hasText(message)) {
             return false;
         }
-        return message.contains("全局查找")
-                || message.contains("全局搜索")
-                || message.contains("全局查询")
-                || message.contains("到处找")
-                || message.contains("所有模块");
+        return containsAny(message, List.of("全局查找", "全局搜索", "全局查询", "全场景", "到处找", "所有模块"));
+    }
+
+    private boolean isModuleClarification(String message) {
+        String text = normalizeForSearch(message);
+        return text.length() <= 16 && containsAny(text, List.of("是客户", "是一个客户", "客户", "是司机", "司机",
+                "是车辆", "车辆", "是订单", "订单", "是运单", "运单"));
+    }
+
+    private boolean isFollowUpFilter(String message) {
+        String text = normalizeForSearch(message);
+        return containsAny(text, List.of("只要", "只看", "筛选", "状态", "今天", "昨日", "昨天", "最近7天", "近7天", "最近30天", "近30天"));
+    }
+
+    private boolean isBroadQuestion(String message) {
+        return containsAny(message, List.of("所有", "全部", "全量", "不限")) && !containsAny(message, List.of("叫", "名称", "名字"));
+    }
+
+    private List<String> expandKeywordCandidates(String keyword) {
+        String cleaned = cleanupKeyword(keyword);
+        if (!hasText(cleaned)) {
+            return List.of((String) null);
+        }
+        Set<String> candidates = new LinkedHashSet<>();
+        candidates.add(cleaned);
+        List<String> statusCodes = STATUS_ALIASES.get(cleaned);
+        if (statusCodes != null) {
+            candidates.addAll(statusCodes);
+        }
+        return new ArrayList<>(candidates);
+    }
+
+    private void addDistinctRecords(List<ModuleRecordVO> target, List<ModuleRecordVO> source, int limit) {
+        Set<Object> existedIds = new LinkedHashSet<>();
+        for (ModuleRecordVO record : target) {
+            existedIds.add(record.getOrDefault("id", record.toString()));
+        }
+        for (ModuleRecordVO record : source) {
+            Object id = record.getOrDefault("id", record.toString());
+            if (existedIds.add(id)) {
+                target.add(record);
+            }
+            if (target.size() >= limit) {
+                return;
+            }
+        }
+    }
+
+    private long extractHitCount(List<AiToolCall> toolCalls) {
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            return 0;
+        }
+        String result = toolCalls.getFirst().result();
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("命中\\s+(\\d+)\\s+条").matcher(result);
+        if (matcher.find()) {
+            return Long.parseLong(matcher.group(1));
+        }
+        return result.contains("权限不足") || result.contains("未绑定") ? 0 : 1;
+    }
+
+    private SearchModule findModule(String moduleText) {
+        if (!hasText(moduleText)) {
+            return null;
+        }
+        String text = normalizeForSearch(moduleText);
+        String lower = text.toLowerCase(Locale.ROOT);
+        for (SearchModule module : SEARCH_MODULES) {
+            if (module.module().equals(lower)
+                    || module.module().equals(text)
+                    || module.moduleName().equals(text)
+                    || text.contains(module.moduleName())) {
+                return module;
+            }
+        }
+        return null;
+    }
+
+    private static Map<String, List<String>> buildJoinedScenes() {
+        Map<String, List<String>> scenes = new LinkedHashMap<>();
+        scenes.put("customer", List.of("customers", "orders", "waybills", "tracks", "fees", "exceptions"));
+        scenes.put("order", List.of("orders", "waybills", "dispatches", "tasks", "tracks", "fees", "exceptions"));
+        scenes.put("driver", List.of("drivers", "dispatches", "tasks", "tracks", "exceptions"));
+        scenes.put("vehicle", List.of("vehicles", "dispatches", "tasks", "tracks", "exceptions"));
+        scenes.put("exception", List.of("exceptions", "orders", "waybills", "tasks", "fees"));
+        scenes.put("business", List.of("customers", "orders", "waybills", "dispatches", "tasks", "tracks", "exceptions", "fees"));
+        return scenes;
+    }
+
+    private String joinModuleNames(List<SearchModule> modules) {
+        return String.join("、", modules.stream().map(SearchModule::moduleName).toList());
     }
 
     private AiReadonlyQueryResult simpleResult(String toolName, String target, String message) {
@@ -221,14 +552,54 @@ public class AiReadonlyQueryService {
                 List.of(new AiToolCall(toolName, target, safeMessage)));
     }
 
+    private AiQueryIntent nullToUnmatched(AiQueryIntent intent) {
+        return intent == null ? AiQueryIntent.unmatched() : intent;
+    }
+
     private AiCitation citation(String target, String snippet) {
         return new AiCitation("business-query", "业务数据查询", target, masker.mask(snippet));
     }
 
-    private boolean hasText(String value) {
-        return org.springframework.util.StringUtils.hasText(value);
+    private boolean containsAny(String text, List<String> words) {
+        for (String word : words) {
+            if (text.contains(word)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private record SearchModule(String module, String moduleName, String permission) {
+    private String normalizeForSearch(String value) {
+        if (!hasText(value)) {
+            return "";
+        }
+        return Normalizer.normalize(value, Normalizer.Form.NFKC)
+                .replaceAll("[\\u200B-\\u200D\\uFEFF]", "")
+                .replaceAll("[\\r\\n\\t]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private String cleanupKeyword(String value) {
+        if (!hasText(value)) {
+            return null;
+        }
+        String keyword = normalizeForSearch(value)
+                .replaceAll("^[\\p{Punct}\\s，,。；;：:！？?、【】\\[\\]（）()《》<>“”‘’]+", "")
+                .replaceAll("[\\p{Punct}\\s，,。；;：:！？?、【】\\[\\]（）()《》<>“”‘’]+$", "")
+                .replaceAll("(的)?(相关)?(信息|资料|情况|记录|数据|列表|明细)$", "")
+                .replaceAll("[`'\"\\\\]", "")
+                .trim();
+        if (keyword.length() < 2) {
+            return null;
+        }
+        return keyword.length() > 80 ? keyword.substring(0, 80) : keyword;
+    }
+
+    private boolean hasText(String value) {
+        return StringUtils.hasText(value);
+    }
+
+    private record SearchModule(String module, String moduleName, String permission, int priority) {
     }
 }

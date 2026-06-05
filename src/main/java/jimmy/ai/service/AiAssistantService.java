@@ -33,6 +33,8 @@ public class AiAssistantService {
     private final AiSensitiveDataMasker masker;
     private final TraceContextSupport traceContextSupport;
     private final AiAuditLogService auditLogService;
+    private final AiBusinessQueryTools businessQueryTools;
+    private final AiToolCallContext toolCallContext;
 
     public AiAssistantService(AiKnowledgeService knowledgeService,
                               AiReadonlyQueryService readonlyQueryService,
@@ -41,7 +43,9 @@ public class AiAssistantService {
                               AiConversationService conversationService,
                               AiSensitiveDataMasker masker,
                               TraceContextSupport traceContextSupport,
-                              AiAuditLogService auditLogService) {
+                              AiAuditLogService auditLogService,
+                              AiBusinessQueryTools businessQueryTools,
+                              AiToolCallContext toolCallContext) {
         this.knowledgeService = knowledgeService;
         this.readonlyQueryService = readonlyQueryService;
         this.logAnalysisService = logAnalysisService;
@@ -50,6 +54,8 @@ public class AiAssistantService {
         this.masker = masker;
         this.traceContextSupport = traceContextSupport;
         this.auditLogService = auditLogService;
+        this.businessQueryTools = businessQueryTools;
+        this.toolCallContext = toolCallContext;
     }
 
     public AiChatResponse chat(AiChatRequest request) {
@@ -63,15 +69,6 @@ public class AiAssistantService {
         String previousUserMessage = latestUserMessage(currentConversation);
 
         StringBuilder context = new StringBuilder(contextText(citations));
-        AiReadonlyQueryResult queryResult = readonlyQueryService.query(safeMessage, previousUserMessage);
-        if (queryResult.executed()) {
-            citations.addAll(queryResult.citations());
-            toolCalls.addAll(queryResult.toolCalls());
-            context.append("\n业务只读查询摘要：").append(queryResult.answerContext()).append("\n");
-            for (AiToolCall toolCall : queryResult.toolCalls()) {
-                auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
-            }
-        }
 
         if (looksLikeLogQuestion(safeMessage)) {
             AiLogAnalysisResponse analysis = logAnalysisService.analyze(new AiLogAnalyzeRequest(
@@ -86,21 +83,45 @@ public class AiAssistantService {
             context.append("\n日志排障摘要：").append(analysis.summary()).append("\n");
             AiToolCall logToolCall = new AiToolCall("日志排障", "操作日志", analysis.summary());
             toolCalls.add(logToolCall);
-            auditLogService.recordToolCall(conversationId, logToolCall.toolName(), logToolCall.target(), safeMessage, logToolCall.result());
         }
 
         String systemPrompt = """
                 你是物流管理系统的 AI 助手，只能做只读问答、系统使用说明、业务数据摘要和日志排障。
-                不允许承诺已经新增、修改、删除、导入、导出或上传数据。
-                涉及写操作时，只能给出人工操作路径和注意事项。
-                如果上下文提示权限不足，只能回复友好的中文权限提示，不要暴露权限码、内部模块名、字段名、SQL 或异常堆栈。
-                回答必须基于给定上下文；不知道就说明需要进一步查询。
+                你可以调用后端只读工具查询业务数据，但不能承诺已经新增、修改、删除、导入、导出或上传数据。
+                用户说得模糊时，优先使用全场景模糊搜索；用户提到客户全貌、订单完整链路、司机任务链路、车辆任务链路或异常影响时，使用业务联合查询。
+                涉及统计、排名、汇总、关联或连表分析时，才使用临时只读 SQL 工具。
+                如果上下文或工具结果提示权限不足，只能回复友好的中文权限提示，不要暴露权限码、内部模块名、字段名、SQL 或异常堆栈。
+                回答必须基于给定上下文或工具结果；不知道就说明需要进一步查询。
                 """;
         String userPrompt = "用户问题：" + safeMessage
                 + "\n页面上下文：" + nullToBlank(request.pageContext())
+                + "\n上一轮用户问题：" + nullToBlank(previousUserMessage)
                 + "\n参考资料：\n" + context;
-        Optional<String> modelAnswer = modelGateway.chat(systemPrompt, userPrompt);
-        String answer = modelAnswer.orElseGet(() -> fallbackAnswer(citations, toolCalls));
+        Optional<String> modelAnswer = callModelWithTools(systemPrompt, userPrompt);
+        AiToolCallContext.Snapshot toolSnapshot = toolCallContext.snapshotAndClear();
+        citations.addAll(toolSnapshot.citations());
+        toolCalls.addAll(toolSnapshot.toolCalls());
+        toolSnapshot.contexts().forEach(toolContext -> context.append("\nAI 工具调用摘要：").append(toolContext).append("\n"));
+
+        /*
+         * 模型未配置、模型未主动调用工具或工具调用失败时，继续走后端规则兜底。
+         * 这样本地无 API Key 时仍能查询业务数据，也避免模型偶尔偷懒只给泛泛建议。
+         */
+        boolean fallbackQueryExecuted = false;
+        if (toolCalls.isEmpty()) {
+            AiReadonlyQueryResult queryResult = readonlyQueryService.query(safeMessage, previousUserMessage);
+            if (queryResult.executed()) {
+                fallbackQueryExecuted = true;
+                citations.addAll(queryResult.citations());
+                toolCalls.addAll(queryResult.toolCalls());
+                context.append("\n业务只读查询摘要：").append(queryResult.answerContext()).append("\n");
+            }
+        }
+
+        for (AiToolCall toolCall : toolCalls) {
+            auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
+        }
+        String answer = fallbackQueryExecuted ? fallbackAnswer(citations, toolCalls) : modelAnswer.orElseGet(() -> fallbackAnswer(citations, toolCalls));
         AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer);
         auditLogService.recordResponse(conversation.conversationId(), safeMessage,
                 "引用来源=" + citations.size() + "，工具调用=" + toolCalls.size() + "，模型已配置=" + modelGateway.configured(),
@@ -115,6 +136,16 @@ public class AiAssistantService {
                 traceContextSupport.currentOrNewTraceId(),
                 traceContextSupport.currentOrNewOperationId()
         );
+    }
+
+    private Optional<String> callModelWithTools(String systemPrompt, String userPrompt) {
+        toolCallContext.begin();
+        try {
+            return modelGateway.chat(systemPrompt, userPrompt, businessQueryTools);
+        } catch (RuntimeException exception) {
+            toolCallContext.snapshotAndClear();
+            throw exception;
+        }
     }
 
     public AiLogAnalysisResponse analyzeLogs(AiLogAnalyzeRequest request) {
