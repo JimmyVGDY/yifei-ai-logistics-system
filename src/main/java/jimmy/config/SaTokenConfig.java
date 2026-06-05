@@ -3,6 +3,8 @@ package jimmy.config;
 import cn.dev33.satoken.interceptor.SaInterceptor;
 import cn.dev33.satoken.router.SaRouter;
 import cn.dev33.satoken.stp.StpUtil;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletRequest;
 import jimmy.logistics.config.OperationLogInterceptor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -67,6 +69,12 @@ public class SaTokenConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new SaInterceptor(handle -> {
+                    // 跳过异步请求分发（SSE 超时/异常触发的重分发），
+                    // 这些线程由 Tomcat AsyncContextImpl$AsyncRunnable 驱动，不携带原始 HTTP 请求上下文，
+                    // SaToken 无法初始化 ThreadLocal 上下文，checkLogin 必然失败。
+                    if (isAsyncDispatch()) {
+                        return;
+                    }
                     StpUtil.checkLogin();
                     checkRoutePermission();
                 }))
@@ -91,6 +99,26 @@ public class SaTokenConfig implements WebMvcConfigurer {
                         "/bloom-filter/**",
                         "/rabbitmq/**"
                 );
+    }
+
+    /**
+     * 判断当前请求是否为异步转发（SSE 超时/异常触发的重分发）。
+     * <p>
+     * 异步转发的线程由 Tomcat AsyncContextImpl 驱动，不经过原始 HTTP 请求管道，
+     * Sa-Token 的 ThreadLocal 上下文不会自动注入，此时 login check 必定失败。
+     * 通过 Spring 自带的 RequestContextHolder 判断（不依赖 SaToken 上下文）。
+     */
+    private boolean isAsyncDispatch() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs == null) {
+                return false;
+            }
+            HttpServletRequest req = attrs.getRequest();
+            return req != null && req.getDispatcherType() != DispatcherType.REQUEST;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void checkRoutePermission() {
