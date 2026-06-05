@@ -98,4 +98,76 @@ class AiQueryIntentParserTest {
         assertThat(intent.module()).isEqualTo("vehicles");
         assertThat(intent.keyword()).isEqualTo("沪A12345");
     }
+
+    @Test
+    void shouldNotTreatAllTasksAsKeyword() {
+        AiQueryIntent intent = parser.parse("给我看看所有的运输任务");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("tasks");
+        assertThat(intent.keyword()).isNull();
+    }
+
+    @Test
+    void shouldNotTreatAllCustomersAsKeyword() {
+        AiQueryIntent intent = parser.parse("查询全部客户管理数据");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("customers");
+        assertThat(intent.keyword()).isNull();
+    }
+
+    @Test
+    void shouldNotTreatModuleNameAsKeywordWhenQueryingExceptionModule() {
+        AiQueryIntent intent = parser.parse("查看所有异常管理记录");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("exceptions");
+        assertThat(intent.keyword()).isNull();
+    }
+
+    @Test
+    void shouldNotTreatAllOrdersAndWaybillsAsKeyword() {
+        AiQueryIntent intent = parser.parse("给我查一下所有的运单和订单");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("orders");
+        assertThat(intent.keyword()).isNull();
+    }
+
+    @Test
+    void shouldTreatStandaloneNameAsCustomerSearch() {
+        AiQueryIntent intent = parser.parse("陈土豆");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("customers");
+        assertThat(intent.keyword()).isEqualTo("陈土豆");
+    }
+
+    @Test
+    void shouldNotInheritPreviousModuleForStandaloneName() {
+        AiQueryIntent intent = parser.parse("陈土豆", "给我看看所有的运输任务");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("customers");
+        assertThat(intent.keyword()).isEqualTo("陈土豆");
+    }
+
+    @Test
+    void shouldUsePreviousKeywordWhenUserClarifiesModule() {
+        AiQueryIntent intent = parser.parse("是一个客户", "陈土豆");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("customers");
+        assertThat(intent.keyword()).isEqualTo("陈土豆");
+    }
+
+    @Test
+    void shouldStillInheritPreviousModuleForStatusFollowUp() {
+        AiQueryIntent intent = parser.parse("只要待处理的", "查一下异常管理");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("exceptions");
+        assertThat(intent.keyword()).isEqualTo("待处理");
+    }
 }

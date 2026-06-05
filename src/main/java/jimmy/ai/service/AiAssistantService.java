@@ -62,9 +62,6 @@ public class AiAssistantService {
             citations.addAll(queryResult.citations());
             toolCalls.addAll(queryResult.toolCalls());
             context.append("\n业务只读查询摘要：").append(queryResult.answerContext()).append("\n");
-            if (StringUtils.hasText(previousUserMessage)) {
-                context.append("\n会话追问参考：上一轮用户问题为“").append(previousUserMessage).append("”。\n");
-            }
         }
 
         if (looksLikeLogQuestion(safeMessage)) {

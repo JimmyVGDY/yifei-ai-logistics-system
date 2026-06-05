@@ -88,7 +88,7 @@ public class AiQueryIntentParser {
      * 后面的内容不直接贪婪吃到底，会在 cleanupKeyword 里继续清理。
      */
     private static final Pattern EXPLICIT_KEYWORD_PATTERN =
-            Pattern.compile("(loginSessionId|operationId|traceId|客户名称|客户名|关键词|订单号|运单号|司机名|车牌号|客户|司机|车辆|状态)[是为=:：\\s]*([^，,。；;\\n\\r]+)");
+            Pattern.compile("(loginSessionId|operationId|traceId|客户名称|客户名|关键词|订单号|运单号|司机名|车牌号|客户(?!管理)|司机(?!管理)|车辆(?!管理)|状态)[是为=:：\\s]*([^，,。；;\\n\\r]+)");
 
     /**
      * 引号关键词。
@@ -137,11 +137,16 @@ public class AiQueryIntentParser {
     private static final List<String> QUERY_STOP_WORDS = List.of(
             "帮我", "帮忙", "麻烦", "查询", "查一下", "查下", "查看", "看看", "看一下", "看下",
             "我要", "我想", "请问", "给我", "显示", "列出", "筛选",
+            "所有的", "全部的", "所有", "全部", "全量", "任意", "不限",
             "今天", "今日", "昨天", "最近7天", "近7天", "最近30天", "近30天",
+            "一个", "这个", "那个", "某个",
             "订单", "订单号", "运单", "运单号", "客户", "客户名称", "客户名",
-            "司机", "司机名", "车辆", "车牌", "车牌号", "状态",
-            "信息", "资料", "情况", "记录", "数据", "列表", "明细", "相关", "只要",
-            "的", "是", "为", "等于", "关于"
+            "司机", "司机名", "车辆", "车牌", "车牌号", "状态", "任务", "运输任务", "配送任务",
+            "运单管理", "运单中心", "客户管理", "调度管理", "运输任务", "物流轨迹",
+            "司机管理", "车辆管理", "异常管理", "费用结算", "用户管理", "角色管理",
+            "操作日志", "审计日志", "登录日志", "上传文件", "上传记录", "附件",
+            "信息", "资料", "情况", "记录", "数据", "列表", "明细", "相关", "只要", "管理", "中心",
+            "的", "是", "为", "等于", "关于", "和", "及", "以及", "与", "跟", "或者"
     );
 
     /**
@@ -159,6 +164,20 @@ public class AiQueryIntentParser {
     private static final List<String> TECH_ID_CONTEXT_WORDS = List.of(
             "traceid", "operationid", "loginsessionid", "trace id", "operation id", "session id",
             "链路", "会话", "操作id", "操作ID", "编号", "id", "ID"
+    );
+
+    /**
+     * 缺少模块时，纯中文名称优先作为客户/联系人线索处理。
+     * 这类输入常见于用户偷懒只输入“陈土豆”，不能盲目继承上一轮模块。
+     */
+    private static final Pattern STANDALONE_CHINESE_KEYWORD_PATTERN =
+            Pattern.compile("^[\\u4e00-\\u9fa5A-Za-z0-9·（）()\\-]{2,30}$");
+
+    /**
+     * 只有这些筛选类追问才允许继承上一轮模块。
+     */
+    private static final List<String> FOLLOW_UP_FILTER_WORDS = List.of(
+            "只要", "只看", "筛选", "状态", "今天", "今日", "昨天", "最近7天", "近7天", "最近30天", "近30天"
     );
 
     /**
@@ -244,18 +263,16 @@ public class AiQueryIntentParser {
 
         for (ModuleRule rule : moduleRules) {
             if (rule.matches(text, lower)) {
-                return new AiQueryIntent(
-                        rule.module(),
-                        rule.moduleName(),
-                        rule.permission(),
-                        keyword,
-                        timeRange.startTime(),
-                        timeRange.endTime(),
-                        false,
-                        false,
-                        true
-                );
+                return buildIntent(rule, keyword, timeRange);
             }
+        }
+
+        /*
+         * 用户只输入一个业务名称时，先按客户线索查询。
+         * 如果后续要做真正的全局检索，可以在 AiReadonlyQueryService 中扩展为多模块召回。
+         */
+        if (isStandaloneBusinessKeyword(text, keyword)) {
+            return buildIntent(customerRule(), keyword, timeRange);
         }
 
         return AiQueryIntent.unmatched();
@@ -277,7 +294,7 @@ public class AiQueryIntentParser {
          * 如果当前句是写操作，必须立即返回 forbidden。
          * 不能因为当前句没有匹配模块，就继承上一轮模块，否则“删除这些”可能绕过写操作拦截。
          */
-        if (current.matched() || current.forbiddenWrite() || !StringUtils.hasText(previousUserMessage)) {
+        if (current.forbiddenWrite() || !StringUtils.hasText(previousUserMessage)) {
             return current;
         }
 
@@ -288,6 +305,27 @@ public class AiQueryIntentParser {
 
         String normalizedCurrent = normalizeInput(message);
         TimeRange currentRange = parseTimeRange(normalizedCurrent);
+
+        if (current.matched()) {
+            if (isModuleClarification(normalizedCurrent, current) && StringUtils.hasText(previous.keyword())) {
+                return new AiQueryIntent(
+                        current.module(),
+                        current.moduleName(),
+                        current.permission(),
+                        previous.keyword(),
+                        StringUtils.hasText(currentRange.startTime()) ? currentRange.startTime() : previous.startTime(),
+                        StringUtils.hasText(currentRange.endTime()) ? currentRange.endTime() : previous.endTime(),
+                        current.dashboard(),
+                        false,
+                        true
+                );
+            }
+            return current;
+        }
+
+        if (!isFollowUpFilterOnly(normalizedCurrent)) {
+            return current;
+        }
 
         /*
          * 追问场景允许识别“只要待处理的”这种状态词。
@@ -433,8 +471,14 @@ public class AiQueryIntentParser {
      */
     private String fallbackKeyword(String text) {
         String keyword = text;
+        if (isBroadModuleQuery(keyword)) {
+            return null;
+        }
 
-        for (String stopWord : QUERY_STOP_WORDS) {
+        // 长词优先，避免先替换“任务/客户”导致“运输任务/客户管理”残留成“运输/管理”。
+        for (String stopWord : QUERY_STOP_WORDS.stream()
+                .sorted((left, right) -> Integer.compare(right.length(), left.length()))
+                .toList()) {
             keyword = keyword.replace(stopWord, " ");
         }
 
@@ -470,17 +514,101 @@ public class AiQueryIntentParser {
     }
 
     /**
+     * 宽泛查全量的问法不应该生成 keyword。
+     * 例如“所有的运输任务”“全部客户管理数据”“所有的运单和订单”。
+     */
+    private boolean isBroadModuleQuery(String text) {
+        if (!containsAny(text, List.of("所有", "全部", "全量", "不限"))) {
+            return false;
+        }
+        String lower = text.toLowerCase(Locale.ROOT);
+        boolean moduleHit = moduleRules.stream().anyMatch(rule -> rule.matches(text, lower));
+        if (!moduleHit && !containsAny(text, DASHBOARD_WORDS)) {
+            return false;
+        }
+        String remainder = text;
+        for (ModuleRule rule : moduleRules) {
+            for (String moduleKeyword : rule.keywords().stream()
+                    .sorted((left, right) -> Integer.compare(right.length(), left.length()))
+                    .toList()) {
+                remainder = remainder.replace(moduleKeyword, " ");
+            }
+        }
+        for (String stopWord : QUERY_STOP_WORDS.stream()
+                .sorted((left, right) -> Integer.compare(right.length(), left.length()))
+                .toList()) {
+            remainder = remainder.replace(stopWord, " ");
+        }
+        remainder = remainder.replaceAll("[，,。；;：:！？?、\\s]+", "").trim();
+        return !StringUtils.hasText(remainder);
+    }
+
+    /**
      * 弱关键词：
      * 这些词本身更像模块名、状态名或筛选词，不适合作为兜底 keyword。
      */
     private boolean isWeakKeyword(String keyword) {
         List<String> weakWords = List.of(
+                "所有", "全部", "全量", "任意", "不限", "一个", "这个", "那个", "某个",
+                "订单", "运单", "客户", "司机", "车辆", "任务", "运输任务", "配送任务",
+                "管理", "中心",
                 "异常", "费用", "结算", "收款", "未收款", "已收款",
+                "运单管理", "运单中心", "客户管理", "调度管理", "物流轨迹",
+                "司机管理", "车辆管理", "异常管理", "费用结算", "用户管理", "角色管理",
+                "操作日志", "审计日志", "登录日志", "上传文件", "上传记录", "附件",
                 "待处理", "处理中", "已处理", "已关闭",
                 "待调度", "运输中", "已完成", "已取消", "待支付", "已支付", "待接单", "已接单"
         );
 
         return weakWords.contains(keyword);
+    }
+
+    private AiQueryIntent buildIntent(ModuleRule rule, String keyword, TimeRange timeRange) {
+        return new AiQueryIntent(
+                rule.module(),
+                rule.moduleName(),
+                rule.permission(),
+                keyword,
+                timeRange.startTime(),
+                timeRange.endTime(),
+                false,
+                false,
+                true
+        );
+    }
+
+    private ModuleRule customerRule() {
+        return moduleRules.stream()
+                .filter(rule -> "customers".equals(rule.module()))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private boolean isStandaloneBusinessKeyword(String text, String keyword) {
+        return StringUtils.hasText(keyword)
+                && keyword.equals(text)
+                && STANDALONE_CHINESE_KEYWORD_PATTERN.matcher(keyword).matches()
+                && !isWeakKeyword(keyword);
+    }
+
+    /**
+     * “是一个客户”“这是客户”属于对上一轮关键词的模块补充，不是新的关键词查询。
+     */
+    private boolean isModuleClarification(String text, AiQueryIntent current) {
+        return current.matched()
+                && !StringUtils.hasText(current.keyword())
+                && text.length() <= 12
+                && containsAny(text, List.of("客户", "订单", "运单", "司机", "车辆", "任务", "异常", "费用"));
+    }
+
+    private boolean isFollowUpFilterOnly(String text) {
+        if (!StringUtils.hasText(text)) {
+            return false;
+        }
+        if (containsAny(text, FOLLOW_UP_FILTER_WORDS)) {
+            return true;
+        }
+        return FOLLOW_UP_STATUS_PATTERN.matcher(text).matches();
     }
 
     /**
@@ -500,6 +628,8 @@ public class AiQueryIntentParser {
                 .replaceAll("\\s+", " ")
                 .replaceAll("[，,。；;：:！？?、]+$", "")
                 .replaceAll("(的)?(相关)?(信息|资料|情况|记录|数据|列表|明细)$", "")
+                .replaceAll("(的)?相关$", "")
+                .replaceAll("的$", "")
                 .replaceAll("^(名称|名字|姓名)[是为=:：\\s]*", "")
                 .trim();
 
