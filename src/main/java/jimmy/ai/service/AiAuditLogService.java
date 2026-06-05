@@ -23,6 +23,7 @@ public class AiAuditLogService {
     public static final String SOURCE_USER_TO_AI = "USER_TO_AI";
     public static final String SOURCE_AI_TOOL = "AI_TOOL";
     public static final String SOURCE_AI_RESPONSE = "AI_RESPONSE";
+    public static final String SOURCE_AI_MEMORY = "AI_MEMORY";
     public static final String EXECUTOR_USER = "USER";
     public static final String EXECUTOR_AI = "AI";
 
@@ -63,6 +64,17 @@ public class AiAuditLogService {
                 null, null, true, promptSummary, resultSummary, costMs);
     }
 
+    public void recordMemory(String conversationId,
+                             String eventType,
+                             String source,
+                             String memoryId,
+                             int hitCount,
+                             String traceSummary) {
+        record("AI助手-长期记忆审计", SOURCE_AI_MEMORY, EXECUTOR_AI, conversationId,
+                "长期记忆", eventType, true, traceSummary, traceSummary, 0L,
+                truncate(memoryId, 64), truncate(eventType, 64), truncate(source, 64), hitCount, traceSummary);
+    }
+
     private void record(String operation,
                         String operationSource,
                         String executorType,
@@ -73,6 +85,25 @@ public class AiAuditLogService {
                         String promptSummary,
                         String resultSummary,
                         long costMs) {
+        record(operation, operationSource, executorType, conversationId, toolName, toolTarget, readonly,
+                promptSummary, resultSummary, costMs, null, null, null, null, null);
+    }
+
+    private void record(String operation,
+                        String operationSource,
+                        String executorType,
+                        String conversationId,
+                        String toolName,
+                        String toolTarget,
+                        boolean readonly,
+                        String promptSummary,
+                        String resultSummary,
+                        long costMs,
+                        String memoryId,
+                        String memoryEventType,
+                        String memorySource,
+                        Integer memoryHitCount,
+                        String memoryTraceSummary) {
         if (!aiAuditColumnsExist()) {
             log.debug("AI 审计扩展字段不存在，跳过 AI 分层审计日志，operation={}", operation);
             return;
@@ -100,7 +131,12 @@ public class AiAuditLogService {
                     truncate(toolTarget, 128),
                     readonly,
                     safeSummary(promptSummary),
-                    safeSummary(resultSummary)
+                    safeSummary(resultSummary),
+                    memoryId,
+                    memoryEventType,
+                    memorySource,
+                    memoryHitCount,
+                    safeSummary(memoryTraceSummary)
             );
             log.info("AI审计日志已记录，source={}, executor={}, conversationId={}, tool={}, target={}",
                     operationSource, executorType, conversationId, toolName == null ? "-" : toolName,
@@ -116,7 +152,12 @@ public class AiAuditLogService {
                 && columnChecker.hasColumn("sys_operation_log", "ai_conversation_id")
                 && columnChecker.hasColumn("sys_operation_log", "ai_tool_name")
                 && columnChecker.hasColumn("sys_operation_log", "ai_prompt_summary")
-                && columnChecker.hasColumn("sys_operation_log", "ai_result_summary");
+                && columnChecker.hasColumn("sys_operation_log", "ai_result_summary")
+                && columnChecker.hasColumn("sys_operation_log", "ai_memory_id")
+                && columnChecker.hasColumn("sys_operation_log", "ai_memory_event_type")
+                && columnChecker.hasColumn("sys_operation_log", "ai_memory_source")
+                && columnChecker.hasColumn("sys_operation_log", "ai_memory_hit_count")
+                && columnChecker.hasColumn("sys_operation_log", "ai_memory_trace_summary");
     }
 
     private String safeSummary(String value) {

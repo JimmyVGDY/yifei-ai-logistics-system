@@ -102,6 +102,7 @@
             operation, request_uri, request_method, operation_status, cost_ms,
             operation_source, executor_type, ai_conversation_id, ai_message_id,
             ai_tool_name, ai_tool_target, ai_readonly, ai_prompt_summary, ai_result_summary,
+            ai_memory_id, ai_memory_event_type, ai_memory_source, ai_memory_hit_count, ai_memory_trace_summary,
             operation_time
         )
         values (
@@ -109,6 +110,7 @@
             #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs},
             #{operationSource}, #{executorType}, #{aiConversationId}, #{aiMessageId},
             #{aiToolName}, #{aiToolTarget}, #{aiReadonly}, #{aiPromptSummary, jdbcType=VARCHAR}, #{aiResultSummary, jdbcType=VARCHAR},
+            #{aiMemoryId}, #{aiMemoryEventType}, #{aiMemorySource}, #{aiMemoryHitCount}, #{aiMemoryTraceSummary, jdbcType=VARCHAR},
             current_timestamp
         )
     </insert>

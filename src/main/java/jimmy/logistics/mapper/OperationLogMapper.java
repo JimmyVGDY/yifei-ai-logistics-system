@@ -134,5 +134,10 @@ public interface OperationLogMapper {
                          @Param("aiToolTarget") String aiToolTarget,
                          @Param("aiReadonly") Boolean aiReadonly,
                          @Param("aiPromptSummary") String aiPromptSummary,
-                         @Param("aiResultSummary") String aiResultSummary);
+                         @Param("aiResultSummary") String aiResultSummary,
+                         @Param("aiMemoryId") String aiMemoryId,
+                         @Param("aiMemoryEventType") String aiMemoryEventType,
+                         @Param("aiMemorySource") String aiMemorySource,
+                         @Param("aiMemoryHitCount") Integer aiMemoryHitCount,
+                         @Param("aiMemoryTraceSummary") String aiMemoryTraceSummary);
 }

@@ -8,6 +8,7 @@ import jimmy.ai.model.AiConversationVO;
 import jimmy.ai.model.AiLogAnalysisResponse;
 import jimmy.ai.model.AiLogAnalyzeRequest;
 import jimmy.ai.model.AiMessageVO;
+import jimmy.ai.model.AiMemoryRecallResult;
 import jimmy.ai.model.AiToolCall;
 import jimmy.config.TraceContextSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,7 @@ public class AiAssistantService {
     private final AiAuditLogService auditLogService;
     private final AiBusinessQueryTools businessQueryTools;
     private final AiToolCallContext toolCallContext;
+    private final AiMemoryService memoryService;
 
     public AiAssistantService(AiKnowledgeService knowledgeService,
                               AiReadonlyQueryService readonlyQueryService,
@@ -45,7 +47,8 @@ public class AiAssistantService {
                               TraceContextSupport traceContextSupport,
                               AiAuditLogService auditLogService,
                               AiBusinessQueryTools businessQueryTools,
-                              AiToolCallContext toolCallContext) {
+                              AiToolCallContext toolCallContext,
+                              AiMemoryService memoryService) {
         this.knowledgeService = knowledgeService;
         this.readonlyQueryService = readonlyQueryService;
         this.logAnalysisService = logAnalysisService;
@@ -56,6 +59,7 @@ public class AiAssistantService {
         this.auditLogService = auditLogService;
         this.businessQueryTools = businessQueryTools;
         this.toolCallContext = toolCallContext;
+        this.memoryService = memoryService;
     }
 
     public AiChatResponse chat(AiChatRequest request) {
@@ -67,8 +71,14 @@ public class AiAssistantService {
         List<AiToolCall> toolCalls = new ArrayList<>();
         AiConversationVO currentConversation = currentConversation(conversationId);
         String previousUserMessage = latestUserMessage(currentConversation);
+        AiMemoryRecallResult memoryRecall = memoryService.recall(safeMessage, conversationId);
 
         StringBuilder context = new StringBuilder(contextText(citations));
+        if (memoryRecall.hitCount() > 0) {
+            citations.addAll(memoryRecall.citations());
+            context.append("\nAI 长期记忆召回摘要：").append(memoryRecall.context()).append("\n");
+            toolCalls.add(new AiToolCall("长期记忆召回", "当前账号长期偏好", "命中 " + memoryRecall.hitCount() + " 条长期记忆"));
+        }
 
         if (looksLikeLogQuestion(safeMessage)) {
             AiLogAnalysisResponse analysis = logAnalysisService.analyze(new AiLogAnalyzeRequest(
@@ -123,6 +133,7 @@ public class AiAssistantService {
         }
         String answer = fallbackQueryExecuted ? fallbackAnswer(citations, toolCalls) : modelAnswer.orElseGet(() -> fallbackAnswer(citations, toolCalls));
         AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer);
+        memoryService.rememberInteraction(conversation.conversationId(), safeMessage, answer, toolCalls);
         auditLogService.recordResponse(conversation.conversationId(), safeMessage,
                 "引用来源=" + citations.size() + "，工具调用=" + toolCalls.size() + "，模型已配置=" + modelGateway.configured(),
                 System.currentTimeMillis() - start);

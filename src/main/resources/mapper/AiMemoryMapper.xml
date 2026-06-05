@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.ai.mapper.AiMemoryMapper">
+
+    <select id="selectProfile" resultType="jimmy.ai.model.AiMemoryProfileVO">
+        select user_id as userId,
+               user_code as userCode,
+               memory_enabled as memoryEnabled,
+               answer_style as answerStyle,
+               favorite_modules as favoriteModules,
+               query_habits as queryHabits,
+               (select count(1) from ai_user_memory m
+                where m.deleted = 0 and m.user_id = p.user_id and ifnull(m.user_code, '') = ifnull(p.user_code, '')) as memoryCount,
+               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
+        from ai_user_profile p
+        where user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and deleted = 0
+        limit 1
+    </select>
+
+    <insert id="insertDefaultProfile">
+        insert into ai_user_profile (id, user_id, user_code, memory_enabled, answer_style, created_at, updated_at, deleted)
+        values (#{id}, #{userId}, #{userCode}, 1, #{answerStyle}, current_timestamp, current_timestamp, 0)
+    </insert>
+
+    <update id="updateProfileSettings">
+        update ai_user_profile
+        set
+        <if test="memoryEnabled != null">memory_enabled = #{memoryEnabled},</if>
+        <if test="answerStyle != null and answerStyle != ''">answer_style = #{answerStyle},</if>
+        updated_at = current_timestamp
+        where user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and deleted = 0
+    </update>
+
+    <update id="updateProfileHabits">
+        update ai_user_profile
+        set favorite_modules = #{favoriteModules},
+            query_habits = #{queryHabits},
+            updated_at = current_timestamp
+        where user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and deleted = 0
+    </update>
+
+    <sql id="memoryFilters">
+        where deleted = 0
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+        <if test="keyword != null and keyword != ''">
+            and (memory_title like concat('%', #{keyword}, '%')
+                 or memory_summary like concat('%', #{keyword}, '%'))
+        </if>
+        <if test="memoryType != null and memoryType != ''">
+            and memory_type = #{memoryType}
+        </if>
+    </sql>
+
+    <select id="countMemories" resultType="long">
+        select count(1) from ai_user_memory
+        <include refid="memoryFilters"/>
+    </select>
+
+    <select id="selectMemories" resultType="jimmy.ai.model.AiMemoryItemVO">
+        select id,
+               memory_type as memoryType,
+               memory_title as memoryTitle,
+               memory_summary as memorySummary,
+               confidence,
+               qdrant_point_id as qdrantPointId,
+               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
+               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
+               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
+        from ai_user_memory
+        <include refid="memoryFilters"/>
+        order by updated_at desc
+        limit #{pageSize} offset #{offset}
+    </select>
+
+    <select id="selectRecallCandidates" resultType="jimmy.ai.model.AiMemoryItemVO">
+        select id,
+               memory_type as memoryType,
+               memory_title as memoryTitle,
+               memory_summary as memorySummary,
+               confidence,
+               qdrant_point_id as qdrantPointId,
+               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
+               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
+               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
+        from ai_user_memory
+        where deleted = 0
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and (#{keyword} is null or #{keyword} = ''
+               or memory_title like concat('%', #{keyword}, '%')
+               or memory_summary like concat('%', #{keyword}, '%'))
+        order by last_recall_time desc, confidence desc, updated_at desc
+        limit #{limit}
+    </select>
+
+    <select id="selectMemoryById" resultType="jimmy.ai.model.AiMemoryItemVO">
+        select id,
+               memory_type as memoryType,
+               memory_title as memoryTitle,
+               memory_summary as memorySummary,
+               confidence,
+               qdrant_point_id as qdrantPointId,
+               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
+               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
+               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
+        from ai_user_memory
+        where id = #{id}
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and deleted = 0
+        limit 1
+    </select>
+
+    <select id="countDuplicateMemory" resultType="int">
+        select count(1)
+        from ai_user_memory
+        where deleted = 0
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and memory_type = #{memoryType}
+          and memory_summary = #{memorySummary}
+    </select>
+
+    <insert id="insertMemory">
+        insert into ai_user_memory (
+            id, user_id, user_code, memory_type, memory_title, memory_summary, confidence,
+            qdrant_point_id, source_conversation_id, source_trace_id, created_at, updated_at, deleted
+        )
+        values (
+            #{id}, #{userId}, #{userCode}, #{memoryType}, #{memoryTitle}, #{memorySummary}, #{confidence},
+            #{qdrantPointId}, #{sourceConversationId}, #{sourceTraceId}, current_timestamp, current_timestamp, 0
+        )
+    </insert>
+
+    <update id="markMemoryRecalled">
+        update ai_user_memory
+        set last_recall_time = current_timestamp,
+            recall_count = ifnull(recall_count, 0) + 1,
+            updated_at = current_timestamp
+        where id = #{id}
+    </update>
+
+    <update id="deleteMemory">
+        update ai_user_memory
+        set deleted = 1, updated_at = current_timestamp
+        where id = #{id}
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+    </update>
+
+    <update id="clearMemories">
+        update ai_user_memory
+        set deleted = 1, updated_at = current_timestamp
+        where user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+    </update>
+
+    <insert id="insertMemoryEvent">
+        insert into ai_memory_event (
+            id, memory_id, event_type, event_source, user_id, user_code, trace_id, operation_id,
+            login_session_id, ai_conversation_id, event_summary, created_at
+        )
+        values (
+            #{id}, #{memoryId}, #{eventType}, #{eventSource}, #{userId}, #{userCode}, #{traceId}, #{operationId},
+            #{loginSessionId}, #{aiConversationId}, #{eventSummary}, current_timestamp
+        )
+    </insert>
+</mapper>

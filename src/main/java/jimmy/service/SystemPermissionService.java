@@ -620,7 +620,7 @@ public class SystemPermissionService {
 
     private List<String> actionsFor(String permissionCode) {
         if ("ai:chat".equals(permissionCode)) {
-            return Arrays.asList("chat", "log:analyze", "conversation:query");
+            return Arrays.asList("chat", "log:analyze", "conversation:query", "memory:query", "memory:delete", "memory:settings");
         }
         if (permissionCode.endsWith(":manage")) {
             return MANAGE_ACTIONS;
@@ -659,6 +659,9 @@ public class SystemPermissionService {
         map.put("chat", "AI问答");
         map.put("log:analyze", "日志分析");
         map.put("conversation:query", "会话查询");
+        map.putIfAbsent("memory:query", "AI长期记忆查询");
+        map.putIfAbsent("memory:delete", "AI长期记忆删除");
+        map.putIfAbsent("memory:settings", "AI长期记忆设置");
         return map;
     }
 

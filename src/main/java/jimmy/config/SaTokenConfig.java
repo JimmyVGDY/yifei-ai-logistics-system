@@ -107,6 +107,10 @@ public class SaTokenConfig implements WebMvcConfigurer {
         SaRouter.match("/ai/logs/analyze", r -> StpUtil.checkPermission("ai:log:analyze"));
         SaRouter.match("/ai/conversations", r -> StpUtil.checkPermission("ai:conversation:query"));
         SaRouter.match("/ai/conversations/**", r -> StpUtil.checkPermission("ai:conversation:query"));
+        SaRouter.match("/ai/memory/profile", r -> StpUtil.checkPermission("ai:memory:query"));
+        SaRouter.match("/ai/memory/items", r -> StpUtil.checkPermission(permissionAction("ai:memory")));
+        SaRouter.match("/ai/memory/items/**", r -> StpUtil.checkPermission("ai:memory:delete"));
+        SaRouter.match("/ai/memory/settings", r -> StpUtil.checkPermission("ai:memory:settings"));
     }
 
     private boolean checkDynamicLogisticsPermission() {
@@ -179,6 +183,18 @@ public class SaTokenConfig implements WebMvcConfigurer {
         }
         if (uri.startsWith("/ai/conversations")) {
             return "ai:conversation:query";
+        }
+        if (uri.equals("/ai/memory/profile")) {
+            return "ai:memory:query";
+        }
+        if (uri.equals("/ai/memory/items")) {
+            return "GET".equalsIgnoreCase(method) ? "ai:memory:query" : "ai:memory:delete";
+        }
+        if (uri.startsWith("/ai/memory/items/")) {
+            return "ai:memory:delete";
+        }
+        if (uri.equals("/ai/memory/settings")) {
+            return "ai:memory:settings";
         }
         if (uri.startsWith("/logistics/exceptions")) {
             return uri.endsWith("/handle") ? "exception:update" : "exception:create";

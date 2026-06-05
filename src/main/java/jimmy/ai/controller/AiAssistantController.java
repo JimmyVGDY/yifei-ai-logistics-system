@@ -5,15 +5,23 @@ import jimmy.ai.model.AiChatResponse;
 import jimmy.ai.model.AiConversationVO;
 import jimmy.ai.model.AiLogAnalysisResponse;
 import jimmy.ai.model.AiLogAnalyzeRequest;
+import jimmy.ai.model.AiMemoryItemVO;
+import jimmy.ai.model.AiMemoryProfileVO;
+import jimmy.ai.model.AiMemorySettingsRequest;
 import jimmy.ai.service.AiAssistantService;
+import jimmy.ai.service.AiMemoryService;
 import jimmy.logistics.annotation.OperationLog;
 import jimmy.model.ApiResponse;
+import jimmy.model.PageResult;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -26,9 +34,12 @@ import java.util.List;
 public class AiAssistantController {
 
     private final AiAssistantService aiAssistantService;
+    private final AiMemoryService aiMemoryService;
 
-    public AiAssistantController(AiAssistantService aiAssistantService) {
+    public AiAssistantController(AiAssistantService aiAssistantService,
+                                 AiMemoryService aiMemoryService) {
         this.aiAssistantService = aiAssistantService;
+        this.aiMemoryService = aiMemoryService;
     }
 
     @OperationLog("AI助手-普通问答")
@@ -53,5 +64,40 @@ public class AiAssistantController {
     @GetMapping("/conversations/{id}")
     public ApiResponse<AiConversationVO> conversation(@PathVariable String id) {
         return ApiResponse.success(aiAssistantService.conversation(id));
+    }
+
+    @OperationLog("AI助手-查询长期记忆画像")
+    @GetMapping("/memory/profile")
+    public ApiResponse<AiMemoryProfileVO> memoryProfile() {
+        return ApiResponse.success(aiMemoryService.profile());
+    }
+
+    @OperationLog("AI助手-查询长期记忆列表")
+    @GetMapping("/memory/items")
+    public ApiResponse<PageResult<AiMemoryItemVO>> memoryItems(@RequestParam(defaultValue = "1") int page,
+                                                               @RequestParam(defaultValue = "20") int pageSize,
+                                                               @RequestParam(required = false) String keyword,
+                                                               @RequestParam(required = false) String memoryType) {
+        return ApiResponse.success(aiMemoryService.items(page, pageSize, keyword, memoryType));
+    }
+
+    @OperationLog("AI助手-删除长期记忆")
+    @DeleteMapping("/memory/items/{id}")
+    public ApiResponse<Void> deleteMemory(@PathVariable Long id) {
+        aiMemoryService.deleteMemory(id);
+        return ApiResponse.success(null);
+    }
+
+    @OperationLog("AI助手-清空长期记忆")
+    @DeleteMapping("/memory/items")
+    public ApiResponse<Void> clearMemories() {
+        aiMemoryService.clearMemories();
+        return ApiResponse.success(null);
+    }
+
+    @OperationLog("AI助手-更新长期记忆设置")
+    @PutMapping("/memory/settings")
+    public ApiResponse<AiMemoryProfileVO> updateMemorySettings(@RequestBody AiMemorySettingsRequest request) {
+        return ApiResponse.success(aiMemoryService.updateSettings(request));
     }
 }
