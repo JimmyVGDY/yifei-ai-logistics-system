@@ -1,5 +1,6 @@
 package jimmy.ai.controller;
 
+import cn.dev33.satoken.stp.StpUtil;
 import jakarta.validation.Valid;
 import jimmy.ai.model.AiChatRequest;
 import jimmy.ai.model.AiChatResponse;
@@ -77,12 +78,14 @@ public class AiAssistantController {
                                  @RequestParam(required = false) String pageContext) {
         SseEmitter emitter = new SseEmitter(120_000L); // 2 分钟超时
         AiChatRequest request = new AiChatRequest(message, conversationId, pageContext);
+        // 捕获当前 HTTP 线程的登录标识，异步线程中 Sa-Token 上下文不可用
+        String loginId = String.valueOf(StpUtil.getLoginIdDefaultNull());
 
         emitter.onTimeout(() -> log.info("SSE 连接超时，conversationId={}", conversationId));
         emitter.onError(throwable -> log.warn("SSE 连接异常，conversationId={}", conversationId, throwable));
         emitter.onCompletion(() -> log.info("SSE 连接正常关闭，conversationId={}", conversationId));
 
-        aiChatExecutor.execute(() -> aiAssistantService.chatStream(request, emitter));
+        aiChatExecutor.execute(() -> aiAssistantService.chatStream(request, emitter, loginId));
         return emitter;
     }
 

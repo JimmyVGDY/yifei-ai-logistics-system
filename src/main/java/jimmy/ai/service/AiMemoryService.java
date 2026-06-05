@@ -9,6 +9,7 @@ import jimmy.ai.model.AiMemoryProfileVO;
 import jimmy.ai.model.AiMemoryRecallResult;
 import jimmy.ai.model.AiMemorySettingsRequest;
 import jimmy.ai.model.AiToolCall;
+import jimmy.ai.util.SseChatContext;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.config.TraceContextSupport;
 import jimmy.logistics.util.ColumnExistenceChecker;
@@ -362,6 +363,12 @@ public class AiMemoryService {
     }
 
     private UserScope currentScope() {
+        // 优先从 SSE 异步线程的 ThreadLocal 上下文读取登录标识
+        String sseLoginId = SseChatContext.getLoginId();
+        if (sseLoginId != null && !sseLoginId.isBlank() && !"null".equals(sseLoginId)) {
+            String userCode = getSessionUserCode(sseLoginId);
+            return new UserScope(sseLoginId, userCode);
+        }
         Object loginId = StpUtil.getLoginIdDefaultNull();
         String userId = loginId == null ? "anonymous" : String.valueOf(loginId);
         String userCode = "";
@@ -372,8 +379,25 @@ public class AiMemoryService {
     }
 
     private String currentLoginSessionId() {
+        String sseLoginId = SseChatContext.getLoginId();
+        if (sseLoginId != null && !sseLoginId.isBlank() && !"null".equals(sseLoginId)) {
+            return getSessionValue(sseLoginId, TraceContextSupport.LOGIN_SESSION_ID);
+        }
         Object loginId = StpUtil.getLoginIdDefaultNull();
         return loginId == null ? "" : String.valueOf(StpUtil.getSessionByLoginId(loginId).get(TraceContextSupport.LOGIN_SESSION_ID, ""));
+    }
+
+    private String getSessionUserCode(String loginId) {
+        return getSessionValue(loginId, "userCode");
+    }
+
+    private String getSessionValue(String loginId, String key) {
+        try {
+            return String.valueOf(StpUtil.getSessionByLoginId(loginId).get(key, ""));
+        } catch (RuntimeException e) {
+            log.debug("读取会话属性失败, loginId={}, key={}", loginId, key, e);
+            return "";
+        }
     }
 
     private String safeMemory(String value) {

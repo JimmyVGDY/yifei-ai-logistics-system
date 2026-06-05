@@ -10,6 +10,7 @@ import jimmy.ai.model.AiLogAnalyzeRequest;
 import jimmy.ai.model.AiMessageVO;
 import jimmy.ai.model.AiMemoryRecallResult;
 import jimmy.ai.model.AiToolCall;
+import jimmy.ai.util.SseChatContext;
 import jimmy.config.TraceContextSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -158,8 +159,10 @@ public class AiAssistantService {
      * @param request        用户请求
      * @param emitter        SSE 推送通道
      */
-    public void chatStream(AiChatRequest request, SseEmitter emitter) {
+    public void chatStream(AiChatRequest request, SseEmitter emitter, String loginId) {
         long start = System.currentTimeMillis();
+        // 将 Controller 捕获的登录标识注入当前异步线程
+        SseChatContext.setLoginId(loginId);
         String safeMessage = masker.mask(request.message());
         String conversationId = resolveConversationId(request.conversationId());
         List<AiCitation> citations = new ArrayList<>();
@@ -237,6 +240,7 @@ public class AiAssistantService {
             log.error("AI助手SSE问答异常，conversationId={}, message={}", conversationId, exception.getMessage(), exception);
             toolCallContext.notifyError("系统响应超时，请稍后重试");
         } finally {
+            SseChatContext.clear();
             toolCallContext.snapshotAndClear();
         }
     }
