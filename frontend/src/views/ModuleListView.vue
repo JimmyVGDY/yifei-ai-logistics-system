@@ -289,6 +289,8 @@ const operationLogDetailSections = computed(() => [
     title: '请求信息',
     items: [
       { prop: 'operation', label: '操作内容' },
+      { prop: 'operation_source', label: '操作来源' },
+      { prop: 'executor_type', label: '执行者' },
       { prop: 'target_id', label: '对象ID' },
       { prop: 'request_method', label: '方法' },
       { prop: 'request_uri', label: '请求地址' },
@@ -303,6 +305,18 @@ const operationLogDetailSections = computed(() => [
       { prop: 'request_params', label: '参数摘要' },
       { prop: 'change_summary', label: '变更摘要' },
       { prop: 'error_message', label: '异常信息' }
+    ]
+  },
+  {
+    title: 'AI 审计',
+    items: [
+      { prop: 'ai_conversation_id', label: 'AI会话ID' },
+      { prop: 'ai_message_id', label: 'AI消息ID' },
+      { prop: 'ai_tool_name', label: 'AI工具' },
+      { prop: 'ai_tool_target', label: 'AI目标' },
+      { prop: 'ai_readonly', label: '是否只读' },
+      { prop: 'ai_prompt_summary', label: 'AI问题摘要' },
+      { prop: 'ai_result_summary', label: 'AI结果摘要' }
     ]
   }
 ])
@@ -347,6 +361,17 @@ function actionPermission(action) {
 }
 
 function formatCell(prop, value) {
+  if (prop === 'operation_source') {
+    const map = { USER: '用户操作', USER_TO_AI: '用户询问AI', AI_TOOL: 'AI调用工具', AI_RESPONSE: 'AI生成回答', SYSTEM: '系统操作' }
+    return map[value] || value
+  }
+  if (prop === 'executor_type') {
+    const map = { USER: '用户', AI: 'AI助手', SYSTEM: '系统' }
+    return map[value] || value
+  }
+  if (prop === 'ai_readonly') {
+    return value === 1 || value === true ? '只读' : value === 0 || value === false ? '非只读' : value
+  }
   if (prop === 'customer_subject_type') {
     return value === 'PERSONAL' ? '个人客户' : value === 'ENTERPRISE' ? '企业客户' : value
   }

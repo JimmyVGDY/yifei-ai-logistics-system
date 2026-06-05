@@ -64,6 +64,7 @@ password: 空（按实际配置）
 - `request_params`：安全请求参数摘要，密码、token 等敏感参数不会记录
 - `target_id`：操作对象 ID，例如记录 ID、角色 ID、订单号
 - `change_summary`：脱敏后的操作前后变化摘要（使用 LogMaskUtils.maskId/maskName 等），ID/编号仅保留后 4 位，密码/token 不记录，姓名、手机号、邮箱、地址等敏感信息只记录掩码值
+- `operation_source`、`executor_type`、`ai_conversation_id`、`ai_tool_name`、`ai_tool_target`、`ai_prompt_summary`、`ai_result_summary`：AI 分层审计字段，用于区分用户提问、AI 只读工具调用和 AI 生成回答
 - `create_by`、`update_by`、`deleted`、`version`：通用审计字段
 
 ## 模拟数据规模
@@ -100,6 +101,12 @@ mysql -uroot logistics_management < scripts/sql/20260602_incremental_operation_l
 
 ```bash
 mysql -uroot logistics_management < scripts/sql/20260602_incremental_operation_log_change_summary.sql
+```
+
+如果需要区分 AI 问答链路中的用户提问、AI 工具调用和 AI 生成回答，可继续执行：
+
+```bash
+mysql -uroot logistics_management < scripts/sql/20260605_incremental_ai_operation_audit.sql
 ```
 
 如果需要补齐客户数据隔离、手机号查重摘要和逻辑删除安全字段，可执行：

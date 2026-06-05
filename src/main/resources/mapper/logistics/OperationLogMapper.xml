@@ -90,4 +90,26 @@
             #{id}, #{username}, #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, current_timestamp
         )
     </insert>
+
+    <!--
+        AI 专用审计日志：
+        用 operation_source/executor_type 区分“用户问 AI”“AI 调用工具”“AI 生成回答”，
+        避免和普通页面点击操作混在一起。
+    -->
+    <insert id="insertAiAuditLog">
+        insert into sys_operation_log (
+            id, operation_id, trace_id, login_session_id, user_id, user_code, username, role_code,
+            operation, request_uri, request_method, operation_status, cost_ms,
+            operation_source, executor_type, ai_conversation_id, ai_message_id,
+            ai_tool_name, ai_tool_target, ai_readonly, ai_prompt_summary, ai_result_summary,
+            operation_time
+        )
+        values (
+            #{id}, #{operationId}, #{traceId}, #{loginSessionId}, #{userId}, #{userCode}, #{username}, #{roleCode},
+            #{operation}, #{requestUri}, #{requestMethod}, #{operationStatus}, #{costMs},
+            #{operationSource}, #{executorType}, #{aiConversationId}, #{aiMessageId},
+            #{aiToolName}, #{aiToolTarget}, #{aiReadonly}, #{aiPromptSummary, jdbcType=VARCHAR}, #{aiResultSummary, jdbcType=VARCHAR},
+            current_timestamp
+        )
+    </insert>
 </mapper>

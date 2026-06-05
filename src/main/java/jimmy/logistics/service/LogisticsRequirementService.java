@@ -128,16 +128,17 @@ public class LogisticsRequirementService {
         boolean operationLogClientContextExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "client_ip");
         boolean operationLogChangeSummaryExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "change_summary");
         boolean operationLogLoginSessionExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "login_session_id");
+        boolean operationLogAiAuditExists = "operationLogs".equals(module) && columnChecker.hasColumn("sys_operation_log", "operation_source");
 
         // 模块、表名和可查询字段都来自后端白名单；关键词和时间范围仍通过 MyBatis 参数绑定。
         Long total = logisticsModuleQueryMapper.countModule(module, deletedExists, userCodeExists, operationLogExtendedExists,
                 operationLogErrorMessageExists, operationLogClientContextExists, operationLogChangeSummaryExists,
-                operationLogLoginSessionExists, keyword,
+                operationLogLoginSessionExists, operationLogAiAuditExists, keyword,
                 queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime,
                 getCurrentCustomerId());
         List<Map<String, Object>> records = logisticsModuleQueryMapper.selectModulePage(module, deletedExists,
                 userCodeExists, operationLogExtendedExists, operationLogErrorMessageExists, operationLogClientContextExists,
-                operationLogChangeSummaryExists, operationLogLoginSessionExists, keyword,
+                operationLogChangeSummaryExists, operationLogLoginSessionExists, operationLogAiAuditExists, keyword,
                 queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime,
                 queryConfig.orderColumn, pageSize, (page - 1) * pageSize,
                 getCurrentCustomerId());
@@ -297,7 +298,7 @@ public class LogisticsRequirementService {
         configs.put("fees", new ModuleQueryConfig("logistics_fee", "create_time", "id", "order_no", "payment_status"));
         configs.put("users", new ModuleQueryConfig("sys_user", "create_time", "id", "user_code", "username", "real_name", "mobile", "email", "role_name"));
         configs.put("roles", new ModuleQueryConfig("sys_role", "create_time", "id", "role_code", "role_name", "status"));
-        configs.put("operationLogs", new ModuleQueryConfig("sys_operation_log", "operation_time", "id", "operation_id", "trace_id", "login_session_id", "user_id", "user_code", "username", "role_code", "operation", "request_uri", "request_method", "operation_status", "error_message", "client_ip", "target_id", "request_params", "change_summary"));
+        configs.put("operationLogs", new ModuleQueryConfig("sys_operation_log", "operation_time", "id", "operation_id", "trace_id", "login_session_id", "user_id", "user_code", "username", "role_code", "operation", "request_uri", "request_method", "operation_status", "error_message", "client_ip", "target_id", "request_params", "change_summary", "operation_source", "executor_type", "ai_conversation_id", "ai_tool_name", "ai_tool_target", "ai_prompt_summary", "ai_result_summary"));
         configs.put("files", new ModuleQueryConfig("sys_uploaded_file", "upload_time", "id", "original_name", "relative_path", "content_type", "upload_user"));
         return configs;
     }

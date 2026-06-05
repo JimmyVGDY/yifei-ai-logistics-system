@@ -112,4 +112,27 @@ public interface OperationLogMapper {
                                  @Param("requestUri") String requestUri,
                                  @Param("requestMethod") String requestMethod,
                                  @Param("operationStatus") String operationStatus);
+
+    int insertAiAuditLog(@Param("id") Long id,
+                         @Param("operationId") String operationId,
+                         @Param("traceId") String traceId,
+                         @Param("loginSessionId") String loginSessionId,
+                         @Param("userId") String userId,
+                         @Param("userCode") String userCode,
+                         @Param("username") String username,
+                         @Param("roleCode") String roleCode,
+                         @Param("operation") String operation,
+                         @Param("requestUri") String requestUri,
+                         @Param("requestMethod") String requestMethod,
+                         @Param("operationStatus") String operationStatus,
+                         @Param("costMs") Long costMs,
+                         @Param("operationSource") String operationSource,
+                         @Param("executorType") String executorType,
+                         @Param("aiConversationId") String aiConversationId,
+                         @Param("aiMessageId") String aiMessageId,
+                         @Param("aiToolName") String aiToolName,
+                         @Param("aiToolTarget") String aiToolTarget,
+                         @Param("aiReadonly") Boolean aiReadonly,
+                         @Param("aiPromptSummary") String aiPromptSummary,
+                         @Param("aiResultSummary") String aiResultSummary);
 }

@@ -127,6 +127,15 @@
                        <choose><when test="operationLogClientContextExists">request_params</when><otherwise>null</otherwise></choose> as request_params,
                        <choose><when test="operationLogClientContextExists">target_id</when><otherwise>null</otherwise></choose> as target_id,
                        <choose><when test="operationLogChangeSummaryExists">change_summary</when><otherwise>null</otherwise></choose> as change_summary,
+                       <choose><when test="operationLogAiAuditExists">operation_source</when><otherwise>null</otherwise></choose> as operation_source,
+                       <choose><when test="operationLogAiAuditExists">executor_type</when><otherwise>null</otherwise></choose> as executor_type,
+                       <choose><when test="operationLogAiAuditExists">ai_conversation_id</when><otherwise>null</otherwise></choose> as ai_conversation_id,
+                       <choose><when test="operationLogAiAuditExists">ai_message_id</when><otherwise>null</otherwise></choose> as ai_message_id,
+                       <choose><when test="operationLogAiAuditExists">ai_tool_name</when><otherwise>null</otherwise></choose> as ai_tool_name,
+                       <choose><when test="operationLogAiAuditExists">ai_tool_target</when><otherwise>null</otherwise></choose> as ai_tool_target,
+                       <choose><when test="operationLogAiAuditExists">ai_readonly</when><otherwise>null</otherwise></choose> as ai_readonly,
+                       <choose><when test="operationLogAiAuditExists">ai_prompt_summary</when><otherwise>null</otherwise></choose> as ai_prompt_summary,
+                       <choose><when test="operationLogAiAuditExists">ai_result_summary</when><otherwise>null</otherwise></choose> as ai_result_summary,
                        operation_time,
                        0 as deleted_marker
                 from sys_operation_log

@@ -32,6 +32,7 @@ public class AiAssistantService {
     private final AiConversationService conversationService;
     private final AiSensitiveDataMasker masker;
     private final TraceContextSupport traceContextSupport;
+    private final AiAuditLogService auditLogService;
 
     public AiAssistantService(AiKnowledgeService knowledgeService,
                               AiReadonlyQueryService readonlyQueryService,
@@ -39,7 +40,8 @@ public class AiAssistantService {
                               AiModelGateway modelGateway,
                               AiConversationService conversationService,
                               AiSensitiveDataMasker masker,
-                              TraceContextSupport traceContextSupport) {
+                              TraceContextSupport traceContextSupport,
+                              AiAuditLogService auditLogService) {
         this.knowledgeService = knowledgeService;
         this.readonlyQueryService = readonlyQueryService;
         this.logAnalysisService = logAnalysisService;
@@ -47,13 +49,17 @@ public class AiAssistantService {
         this.conversationService = conversationService;
         this.masker = masker;
         this.traceContextSupport = traceContextSupport;
+        this.auditLogService = auditLogService;
     }
 
     public AiChatResponse chat(AiChatRequest request) {
+        long start = System.currentTimeMillis();
         String safeMessage = masker.mask(request.message());
+        String conversationId = resolveConversationId(request.conversationId());
+        auditLogService.recordUserQuestion(conversationId, safeMessage);
         List<AiCitation> citations = new ArrayList<>(knowledgeService.search(safeMessage));
         List<AiToolCall> toolCalls = new ArrayList<>();
-        AiConversationVO currentConversation = currentConversation(request.conversationId());
+        AiConversationVO currentConversation = currentConversation(conversationId);
         String previousUserMessage = latestUserMessage(currentConversation);
 
         StringBuilder context = new StringBuilder(contextText(citations));
@@ -62,6 +68,9 @@ public class AiAssistantService {
             citations.addAll(queryResult.citations());
             toolCalls.addAll(queryResult.toolCalls());
             context.append("\n业务只读查询摘要：").append(queryResult.answerContext()).append("\n");
+            for (AiToolCall toolCall : queryResult.toolCalls()) {
+                auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
+            }
         }
 
         if (looksLikeLogQuestion(safeMessage)) {
@@ -75,7 +84,9 @@ public class AiAssistantService {
                     null
             ));
             context.append("\n日志排障摘要：").append(analysis.summary()).append("\n");
-            toolCalls.add(new AiToolCall("日志排障", "操作日志", analysis.summary()));
+            AiToolCall logToolCall = new AiToolCall("日志排障", "操作日志", analysis.summary());
+            toolCalls.add(logToolCall);
+            auditLogService.recordToolCall(conversationId, logToolCall.toolName(), logToolCall.target(), safeMessage, logToolCall.result());
         }
 
         String systemPrompt = """
@@ -90,7 +101,10 @@ public class AiAssistantService {
                 + "\n参考资料：\n" + context;
         Optional<String> modelAnswer = modelGateway.chat(systemPrompt, userPrompt);
         String answer = modelAnswer.orElseGet(() -> fallbackAnswer(citations, toolCalls));
-        AiConversationVO conversation = saveConversation(request, safeMessage, answer);
+        AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer);
+        auditLogService.recordResponse(conversation.conversationId(), safeMessage,
+                "引用来源=" + citations.size() + "，工具调用=" + toolCalls.size() + "，模型已配置=" + modelGateway.configured(),
+                System.currentTimeMillis() - start);
         log.info("AI助手问答完成，conversationId={}, modelConfigured={}, citationCount={}, toolCallCount={}",
                 conversation.conversationId(), modelGateway.configured(), citations.size(), toolCalls.size());
         return new AiChatResponse(
@@ -117,14 +131,18 @@ public class AiAssistantService {
         return conversationService.find(currentUserId(), conversationId);
     }
 
-    private AiConversationVO saveConversation(AiChatRequest request, String safeMessage, String answer) {
+    private AiConversationVO saveConversation(String conversationId, String safeMessage, String answer) {
         try {
-            return conversationService.append(currentUserId(), request.conversationId(), safeMessage, answer);
+            return conversationService.append(currentUserId(), conversationId, safeMessage, answer);
         } catch (RuntimeException exception) {
             log.warn("AI 会话缓存失败，已使用临时会话兜底，reason={}", exception.getMessage());
-            String id = StringUtils.hasText(request.conversationId()) ? request.conversationId() : traceContextSupport.newOperationId();
+            String id = StringUtils.hasText(conversationId) ? conversationId : traceContextSupport.newOperationId();
             return new AiConversationVO(id, "临时会话", "", "", List.of());
         }
+    }
+
+    private String resolveConversationId(String conversationId) {
+        return StringUtils.hasText(conversationId) ? conversationId : traceContextSupport.newOperationId();
     }
 
     private String fallbackAnswer(List<AiCitation> citations, List<AiToolCall> toolCalls) {

@@ -83,6 +83,26 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 
 `error_message` 字段在接口返回异常时自动写入异常原因（经过安全清洗，手机号/邮箱/身份证号已脱敏），方便在操作日志页面直接排障，无需额外查询日志文件。
 
+### AI 分层审计
+
+AI 助手会额外写入分层审计日志，用于区分普通页面操作和 AI 链路内的动作：
+
+| 操作来源 | 执行者 | 说明 |
+| --- | --- | --- |
+| `USER_TO_AI` | `USER` | 用户向 AI 助手发起提问 |
+| `AI_TOOL` | `AI` | AI 为回答问题调用只读工具，例如业务数据查询、全局只读查找、日志排障 |
+| `AI_RESPONSE` | `AI` | AI 汇总引用来源和工具结果后生成回答 |
+
+新增字段包括 `operation_source`、`executor_type`、`ai_conversation_id`、`ai_message_id`、`ai_tool_name`、`ai_tool_target`、`ai_readonly`、`ai_prompt_summary`、`ai_result_summary`。这些字段只记录脱敏摘要，不记录完整提示词、密码、token、手机号、邮箱或详细地址。
+
+已有数据库请执行增量脚本：
+
+```sql
+source scripts/sql/20260605_incremental_ai_operation_audit.sql;
+```
+
+前端“系统管理 → 操作日志”会把 `operation_source` 和 `executor_type` 展示为中文，例如“用户询问AI”“AI调用工具”“AI生成回答”，方便排查一次 AI 会话中到底是用户主动操作，还是 AI 为回答问题触发了只读查询。
+
 ### 日志安全加固
 
 为防止日志文件泄露导致批量数据外泄，全链路日志均经过脱敏处理：
