@@ -365,6 +365,11 @@ public class AiAssistantService {
     }
 
     private String currentUserId() {
+        // 优先从 SSE 异步线程读取 Controller 传递的登录标识
+        String sseLoginId = SseChatContext.getLoginId();
+        if (sseLoginId != null && !sseLoginId.isBlank() && !"null".equals(sseLoginId)) {
+            return sseLoginId;
+        }
         Object loginId = StpUtil.getLoginIdDefaultNull();
         return loginId == null ? "anonymous" : String.valueOf(loginId);
     }

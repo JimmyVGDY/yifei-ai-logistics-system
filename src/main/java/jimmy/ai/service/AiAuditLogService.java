@@ -1,6 +1,7 @@
 package jimmy.ai.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.ai.util.SseChatContext;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.config.TraceContextSupport;
 import jimmy.logistics.mapper.OperationLogMapper;
@@ -213,6 +214,11 @@ public class AiAuditLogService {
     }
 
     private Object currentLoginId() {
+        // 优先从 SSE 异步线程读取 Controller 传递的登录标识
+        String sseLoginId = SseChatContext.getLoginId();
+        if (sseLoginId != null && !sseLoginId.isBlank() && !"null".equals(sseLoginId)) {
+            return sseLoginId;
+        }
         try {
             return StpUtil.getLoginIdDefaultNull();
         } catch (RuntimeException exception) {
