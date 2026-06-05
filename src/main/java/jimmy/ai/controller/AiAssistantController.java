@@ -76,10 +76,7 @@ public class AiAssistantController {
                                  @RequestParam(required = false) String conversationId,
                                  @RequestParam(required = false) String pageContext) {
         SseEmitter emitter = new SseEmitter(120_000L); // 2 分钟超时
-        AiChatRequest request = new AiChatRequest();
-        request.setMessage(message);
-        request.setConversationId(conversationId);
-        request.setPageContext(pageContext);
+        AiChatRequest request = new AiChatRequest(message, conversationId, pageContext);
 
         emitter.onTimeout(() -> log.info("SSE 连接超时，conversationId={}", conversationId));
         emitter.onError(throwable -> log.warn("SSE 连接异常，conversationId={}", conversationId, throwable));
