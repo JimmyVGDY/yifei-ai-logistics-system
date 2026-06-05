@@ -29,7 +29,13 @@ public class AiToolCallContext {
     static final int MAX_TOOL_CALLS = 8;
 
     public void begin() {
-        holder.set(new Holder());
+        Holder existing = holder.get();
+        Holder h = new Holder();
+        // 如果外层已通过 begin(emitter) 绑定 SSE 通道，新 Holder 应继承 emitter 以保证工具通知能被推送
+        if (existing != null) {
+            h.emitter = existing.emitter;
+        }
+        holder.set(h);
     }
 
     /**

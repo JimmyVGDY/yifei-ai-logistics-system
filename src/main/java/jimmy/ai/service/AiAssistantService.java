@@ -205,7 +205,9 @@ public class AiAssistantService {
 
             // 模型调用 —— 工具方法内部会通过 AiToolCallContext 自动推送 tool_start / tool_result 事件
             Optional<String> modelAnswer = safeChatWithTools(systemPrompt, userPrompt);
+            // snapshotAndClear() 会移出 Holder，需要立即重新绑定 emitter 以保证 notifyDone() 能推送最终事件
             AiToolCallContext.Snapshot toolSnapshot = toolCallContext.snapshotAndClear();
+            toolCallContext.begin(emitter);
             citations.addAll(toolSnapshot.citations());
             toolCalls.addAll(toolSnapshot.toolCalls());
             toolSnapshot.contexts().forEach(toolContext -> context.append("\nAI 工具调用摘要：").append(toolContext).append("\n"));
