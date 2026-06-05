@@ -31,6 +31,12 @@ public class AiAuditLogService {
     private static final String AI_REQUEST_URI = "/ai/chat";
     private static final String AI_REQUEST_METHOD = "POST";
 
+    /**
+     * AI 审计扩展字段存在性缓存，避免每次写审计日志都重复查询 information_schema。
+     * 使用 volatile + synchronized 双重检查保证线程安全，且仅首次初始化时查一次数据库。
+     */
+    private volatile Boolean columnsExist;
+
     private final OperationLogMapper operationLogMapper;
     private final ColumnExistenceChecker columnChecker;
     private final CompactSnowflakeIdGenerator idGenerator;
@@ -147,17 +153,28 @@ public class AiAuditLogService {
     }
 
     private boolean aiAuditColumnsExist() {
-        return columnChecker.hasColumn("sys_operation_log", "operation_source")
-                && columnChecker.hasColumn("sys_operation_log", "executor_type")
-                && columnChecker.hasColumn("sys_operation_log", "ai_conversation_id")
-                && columnChecker.hasColumn("sys_operation_log", "ai_tool_name")
-                && columnChecker.hasColumn("sys_operation_log", "ai_prompt_summary")
-                && columnChecker.hasColumn("sys_operation_log", "ai_result_summary")
-                && columnChecker.hasColumn("sys_operation_log", "ai_memory_id")
-                && columnChecker.hasColumn("sys_operation_log", "ai_memory_event_type")
-                && columnChecker.hasColumn("sys_operation_log", "ai_memory_source")
-                && columnChecker.hasColumn("sys_operation_log", "ai_memory_hit_count")
-                && columnChecker.hasColumn("sys_operation_log", "ai_memory_trace_summary");
+        Boolean cached = columnsExist;
+        if (cached != null) {
+            return cached;
+        }
+        synchronized (this) {
+            if (columnsExist != null) {
+                return columnsExist;
+            }
+            boolean exist = columnChecker.hasColumn("sys_operation_log", "operation_source")
+                    && columnChecker.hasColumn("sys_operation_log", "executor_type")
+                    && columnChecker.hasColumn("sys_operation_log", "ai_conversation_id")
+                    && columnChecker.hasColumn("sys_operation_log", "ai_tool_name")
+                    && columnChecker.hasColumn("sys_operation_log", "ai_prompt_summary")
+                    && columnChecker.hasColumn("sys_operation_log", "ai_result_summary")
+                    && columnChecker.hasColumn("sys_operation_log", "ai_memory_id")
+                    && columnChecker.hasColumn("sys_operation_log", "ai_memory_event_type")
+                    && columnChecker.hasColumn("sys_operation_log", "ai_memory_source")
+                    && columnChecker.hasColumn("sys_operation_log", "ai_memory_hit_count")
+                    && columnChecker.hasColumn("sys_operation_log", "ai_memory_trace_summary");
+            columnsExist = exist;
+            return exist;
+        }
     }
 
     private String safeSummary(String value) {

@@ -1,5 +1,7 @@
 package jimmy.ai.service;
 
+import jimmy.ai.model.AiCitation;
+import jimmy.ai.model.AiToolCall;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -71,8 +73,8 @@ public class AiBusinessQueryTools {
         AiReadonlyQueryResult result = new AiReadonlyQueryResult(
                 sqlResult.executed(),
                 sqlResult.message(),
-                sqlResult.executed() ? java.util.List.of(new jimmy.ai.model.AiCitation("business-query", "业务数据查询", "临时只读 SQL 查询", sqlResult.message())) : java.util.List.of(),
-                sqlResult.executed() ? java.util.List.of(new jimmy.ai.model.AiToolCall("临时只读 SQL 查询", "关联查询", sqlResult.message())) : java.util.List.of()
+                sqlResult.executed() ? List.of(new AiCitation("business-query", "业务数据查询", "临时只读 SQL 查询", sqlResult.message())) : List.of(),
+                sqlResult.executed() ? List.of(new AiToolCall("临时只读 SQL 查询", "关联查询", sqlResult.message())) : List.of()
         );
         toolCallContext.record(result);
         return sqlResult.message();

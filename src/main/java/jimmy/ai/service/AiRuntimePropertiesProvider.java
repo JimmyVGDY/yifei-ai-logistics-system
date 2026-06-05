@@ -28,7 +28,7 @@ public class AiRuntimePropertiesProvider {
     private static final String API_KEY = "spring.ai.openai.api-key";
     private static final String BASE_URL = "spring.ai.openai.base-url";
     private static final String MODEL = "spring.ai.openai.chat.options.model";
-    private static final long CACHE_MILLIS = 15_000L;
+    private static final long CACHE_MILLIS = 60_000L;
 
     private final Environment environment;
     private final RestClient restClient;
@@ -51,16 +51,34 @@ public class AiRuntimePropertiesProvider {
         this.nacosNamespace = nacosNamespace;
     }
 
+    /**
+     * 获取当前 AI 运行时配置。
+     * <p>
+     * 使用双重检查锁实现线程安全的懒加载缓存：
+     * <ol>
+     *   <li>优先从 Nacos 读取 spring-ai.yml</li>
+     *   <li>Nacos 不可用时回退本地 application.yml</li>
+     *   <li>结果缓存 60 秒，到期后重新拉取</li>
+     * </ol>
+     */
     public AiRuntimeProperties current() {
         long now = System.currentTimeMillis();
+        // 快速路径：缓存未过期，直接返回（无需加锁，volatile 保证可见性）
         AiRuntimeProperties snapshot = cached;
         if (snapshot != null && now < cacheExpireAt) {
             return snapshot;
         }
-        AiRuntimeProperties resolved = loadFromNacos().orElseGet(this::loadFromEnvironment);
-        cached = resolved;
-        cacheExpireAt = now + CACHE_MILLIS;
-        return resolved;
+        // 慢速路径：双重检查锁，避免并发时重复拉取 Nacos
+        synchronized (this) {
+            snapshot = cached;
+            if (snapshot != null && now < cacheExpireAt) {
+                return snapshot;
+            }
+            AiRuntimeProperties resolved = loadFromNacos().orElseGet(this::loadFromEnvironment);
+            cached = resolved;
+            cacheExpireAt = System.currentTimeMillis() + CACHE_MILLIS;
+            return resolved;
+        }
     }
 
     private Optional<AiRuntimeProperties> loadFromNacos() {

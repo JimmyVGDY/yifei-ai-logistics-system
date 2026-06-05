@@ -91,8 +91,33 @@ public class AiSqlSafetyValidator {
         return sql;
     }
 
+    /**
+     * 检查 SQL 中是否包含多条语句。
+     * <p>
+     * 只检查不在单引号字符串内的分号，避免字段值中的分号被误判。
+     * 例如 {@code WHERE remark = '已签收;待支付'} 中的分号不会被误判为多语句分隔符。
+     */
     private boolean hasMultipleStatements(String sql) {
-        return sql.contains(";");
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < sql.length(); i++) {
+            char c = sql.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (c == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (c == '\'') {
+                inString = !inString;
+            }
+            if (c == ';' && !inString) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<String> extractTables(String sql) {
