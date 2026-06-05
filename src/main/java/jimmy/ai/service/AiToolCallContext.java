@@ -117,10 +117,7 @@ public class AiToolCallContext {
         data.put("citationCount", citations == null ? 0 : citations.size());
         data.put("toolCallCount", toolCalls == null ? 0 : toolCalls.size());
         sendEvent(current, "done", data);
-        try {
-            current.emitter.complete();
-        } catch (IOException ignored) {
-        }
+        current.emitter.complete();
     }
 
     /**
@@ -136,10 +133,7 @@ public class AiToolCallContext {
         data.put("message", nullToEmpty(errorMessage));
         data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
         sendEvent(current, "error", data);
-        try {
-            current.emitter.completeWithError(new RuntimeException(errorMessage));
-        } catch (Exception ignored) {
-        }
+        current.emitter.completeWithError(new RuntimeException(errorMessage));
     }
 
     /**
