@@ -63,4 +63,39 @@ class AiQueryIntentParserTest {
         assertThat(intent.module()).isEqualTo("customers");
         assertThat(intent.keyword()).isEqualTo("唐若琳");
     }
+
+    @Test
+    void shouldIgnoreAccidentalSpacesAndSymbolsAroundKeyword() {
+        AiQueryIntent intent = parser.parse("  帮我查一下客户名称为  @唐若琳！！  的相关信息  ");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("customers");
+        assertThat(intent.keyword()).isEqualTo("唐若琳");
+    }
+
+    @Test
+    void shouldMatchTraceIdIgnoringLetterCase() {
+        AiQueryIntent intent = parser.parse("查询 traceid = abcDEF1234567890 的日志");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("operationLogs");
+        assertThat(intent.keyword()).isEqualTo("abcDEF1234567890");
+    }
+
+    @Test
+    void shouldRejectExportIntent() {
+        AiQueryIntent intent = parser.parse("帮我导出客户数据");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.forbiddenWrite()).isTrue();
+    }
+
+    @Test
+    void shouldParseVehiclePlateKeyword() {
+        AiQueryIntent intent = parser.parse("查询车牌号为沪A12345的车辆");
+
+        assertThat(intent.matched()).isTrue();
+        assertThat(intent.module()).isEqualTo("vehicles");
+        assertThat(intent.keyword()).isEqualTo("沪A12345");
+    }
 }

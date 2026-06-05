@@ -173,8 +173,9 @@ model
 - `AiReadonlyQueryService`：复用通用模块、看板和数据范围查询能力，为 AI 生成只读业务摘要。
 - `AiGeneratedSqlQueryService`：处理统计、关联、连表等临时分析问题，只执行通过校验的候选 `SELECT`。
 - `AiSqlSafetyValidator`：校验候选 SQL 的只读语义、单语句、表字段白名单、敏感字段和当前用户权限。
+- `AiQueryIntentParser`：先归一化用户输入，再识别白名单模块、关键词、状态、车牌号、业务编号和时间范围。
+- `AiConversationService`：使用 Redis 保存当前用户短期会话，并为“只要待处理的”这类追问提供上一轮查询上下文。
 - `AiLogAnalysisService`：复用操作日志生成排障摘要、风险点、建议和时间线。
-- `AiConversationService`：使用 Redis 保存当前用户短期会话。
 - `AiSensitiveDataMasker`：模型输入前清洗敏感字段。
 - `AiModelGateway`：屏蔽不同模型供应商差异，统一超时、重试、脱敏和错误处理。
 
@@ -333,6 +334,8 @@ AI 助手相关行为必须进入现有审计体系。
 | 高成本调用 | Redis 缓存热点问答，Sentinel 限流，设置每日/每用户额度 |
 | 写操作误执行 | 第一阶段不开放写操作；后续必须二次确认并记录审计 |
 | AI 生成危险 SQL | 候选 SQL 只作为文本，后端强制校验单条 SELECT、白名单表字段、权限和敏感字段 |
+| 用户误输符号或空格 | 意图解析前先做全角、零宽字符、重复空格和边界标点归一化 |
+| 上下文丢失 | 同一 Redis 会话内继承上一轮用户查询模块，辅助解析缺少模块的追问 |
 | 长任务阻塞 | 报表分析、日志大范围扫描等使用 RabbitMQ 异步处理 |
 | 日志过宽 | 前端摘要展示，详情抽屉展开，长 JSON 支持折叠 |
 

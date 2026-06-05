@@ -1,13 +1,20 @@
 package jimmy.ai.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.logistics.model.ModuleQueryDTO;
+import jimmy.logistics.model.ModuleRecordVO;
 import jimmy.logistics.service.LogisticsRequirementService;
+import jimmy.model.PageResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -65,5 +72,33 @@ class AiReadonlyQueryServiceTest {
         assertThat(result.executed()).isTrue();
         assertThat(result.answerContext()).contains("仅支持只读查询");
         verifyNoInteractions(requirementService);
+    }
+
+    @Test
+    void shouldInheritPreviousModuleWhenCurrentQuestionOnlyContainsFilter() {
+        AiQueryIntentParser parser = new AiQueryIntentParser();
+        AiGeneratedSqlQueryService sqlQueryService = mock(AiGeneratedSqlQueryService.class);
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = new AiReadonlyQueryService(
+                parser,
+                sqlQueryService,
+                requirementService,
+                new AiQuerySummaryService(),
+                new AiSensitiveDataMasker()
+        );
+        when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class)))
+                .thenReturn(new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("异常状态", "待处理"))), 1, 10, 1));
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("exception:query")).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("只要待处理的", "查一下异常管理");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.toolCalls().getFirst().target()).isEqualTo("异常管理");
+            assertThat(result.toolCalls().getFirst().result()).contains("待处理");
+            verify(requirementService).modulePage(org.mockito.ArgumentMatchers.eq("exceptions"), any(ModuleQueryDTO.class));
+        }
     }
 }

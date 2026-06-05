@@ -55,6 +55,21 @@ public class AiReadonlyQueryService {
                     List.of(new AiToolCall("临时只读 SQL 查询", "关联查询", sqlQueryResult.message())));
         }
         AiQueryIntent intent = intentParser.parse(message);
+        return queryByIntent(intent, message);
+    }
+
+    public AiReadonlyQueryResult query(String message, String previousUserMessage) {
+        AiGeneratedSqlQueryResult sqlQueryResult = generatedSqlQueryService.query(message);
+        if (sqlQueryResult.executed()) {
+            return new AiReadonlyQueryResult(true, sqlQueryResult.message(),
+                    List.of(citation("临时只读 SQL 查询", sqlQueryResult.message())),
+                    List.of(new AiToolCall("临时只读 SQL 查询", "关联查询", sqlQueryResult.message())));
+        }
+        AiQueryIntent intent = intentParser.parse(message, previousUserMessage);
+        return queryByIntent(intent, message);
+    }
+
+    private AiReadonlyQueryResult queryByIntent(AiQueryIntent intent, String message) {
         if (!intent.matched()) {
             return AiReadonlyQueryResult.empty();
         }

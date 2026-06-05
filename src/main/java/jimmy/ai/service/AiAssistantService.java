@@ -7,6 +7,7 @@ import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiConversationVO;
 import jimmy.ai.model.AiLogAnalysisResponse;
 import jimmy.ai.model.AiLogAnalyzeRequest;
+import jimmy.ai.model.AiMessageVO;
 import jimmy.ai.model.AiToolCall;
 import jimmy.config.TraceContextSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -52,13 +53,18 @@ public class AiAssistantService {
         String safeMessage = masker.mask(request.message());
         List<AiCitation> citations = new ArrayList<>(knowledgeService.search(safeMessage));
         List<AiToolCall> toolCalls = new ArrayList<>();
+        AiConversationVO currentConversation = currentConversation(request.conversationId());
+        String previousUserMessage = latestUserMessage(currentConversation);
 
         StringBuilder context = new StringBuilder(contextText(citations));
-        AiReadonlyQueryResult queryResult = readonlyQueryService.query(safeMessage);
+        AiReadonlyQueryResult queryResult = readonlyQueryService.query(safeMessage, previousUserMessage);
         if (queryResult.executed()) {
             citations.addAll(queryResult.citations());
             toolCalls.addAll(queryResult.toolCalls());
             context.append("\n业务只读查询摘要：").append(queryResult.answerContext()).append("\n");
+            if (StringUtils.hasText(previousUserMessage)) {
+                context.append("\n会话追问参考：上一轮用户问题为“").append(previousUserMessage).append("”。\n");
+            }
         }
 
         if (looksLikeLogQuestion(safeMessage)) {
@@ -183,6 +189,31 @@ public class AiAssistantService {
     private String currentUserId() {
         Object loginId = StpUtil.getLoginIdDefaultNull();
         return loginId == null ? "anonymous" : String.valueOf(loginId);
+    }
+
+    private AiConversationVO currentConversation(String conversationId) {
+        if (!StringUtils.hasText(conversationId)) {
+            return null;
+        }
+        try {
+            return conversationService.find(currentUserId(), conversationId);
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private String latestUserMessage(AiConversationVO conversation) {
+        if (conversation == null || conversation.messages() == null) {
+            return null;
+        }
+        List<AiMessageVO> messages = conversation.messages();
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            AiMessageVO message = messages.get(i);
+            if ("user".equals(message.role()) && StringUtils.hasText(message.content())) {
+                return message.content();
+            }
+        }
+        return null;
     }
 
     private String nullToBlank(String value) {
