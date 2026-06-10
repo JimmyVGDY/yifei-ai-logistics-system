@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +68,7 @@ public class AiLogAnalysisService {
         if (request == null) {
             return null;
         }
-        for (String value : List.of(request.operationId(), request.traceId(), request.loginSessionId(), request.userId(), request.uri())) {
+        for (String value : Arrays.asList(request.operationId(), request.traceId(), request.loginSessionId(), request.userId(), request.uri())) {
             if (StringUtils.hasText(value)) {
                 return value.trim();
             }
