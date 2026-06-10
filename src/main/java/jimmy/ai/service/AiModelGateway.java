@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import io.micrometer.observation.ObservationRegistry;
 
 import java.util.Optional;
+import jimmy.ai.model.AiRuntimeProperties;
 
 /**
  * Spring AI 模型网关 —— 隔离模型供应商配置、调用和异常兜底。

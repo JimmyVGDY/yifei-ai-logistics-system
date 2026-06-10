@@ -4,7 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.mapper.LogisticsCrudMapper;
 import jimmy.logistics.model.CreateCustomerAccountRequest;
-import jimmy.logistics.config.OperationChangeContext;
+import jimmy.logistics.model.OperationChangeContext;
 import jimmy.logistics.model.CrudFieldValue;
 import jimmy.logistics.model.OperationResultVO;
 import jimmy.logistics.util.ColumnExistenceChecker;

@@ -16,6 +16,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
+import jimmy.ai.model.AiRuntimeProperties;
 
 /**
  * AI 运行时配置读取器 —— 优先读取 Nacos 中的 spring-ai.yml，失败时回退本地配置。

@@ -1,4 +1,4 @@
-package jimmy.ai.service;
+package jimmy.ai.model;
 
 /**
  * AI 只读查询意图 —— 由自然语言解析得到，后续只能进入白名单查询服务。

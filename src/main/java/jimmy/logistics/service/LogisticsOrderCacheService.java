@@ -1,6 +1,6 @@
 package jimmy.logistics.service;
 
-import jimmy.config.LogisticsProperties;
+import jimmy.logistics.config.LogisticsProperties;
 import jimmy.logistics.entity.LogisticsOrder;
 import jimmy.service.BloomFilterService;
 import lombok.extern.slf4j.Slf4j;

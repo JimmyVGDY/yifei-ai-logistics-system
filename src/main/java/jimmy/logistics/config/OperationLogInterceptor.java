@@ -2,8 +2,9 @@ package jimmy.logistics.config;
 
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
-import jimmy.config.TraceContextSupport;
+import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.mapper.OperationLogMapper;
+import jimmy.logistics.model.OperationChangeContext;
 import jimmy.logistics.util.ColumnExistenceChecker;
 import jimmy.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;

@@ -1,7 +1,7 @@
 package jimmy.logistics.job;
 
 import com.xxl.job.core.handler.annotation.XxlJob;
-import jimmy.config.TraceContextSupport;
+import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.mapper.LogisticsDashboardMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

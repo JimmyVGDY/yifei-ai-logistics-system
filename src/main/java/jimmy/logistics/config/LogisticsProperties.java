@@ -1,4 +1,4 @@
-package jimmy.config;
+package jimmy.logistics.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

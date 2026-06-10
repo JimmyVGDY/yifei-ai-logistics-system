@@ -1,6 +1,6 @@
 package jimmy.logistics.service;
 
-import jimmy.logistics.config.OperationChangeContext;
+import jimmy.logistics.model.OperationChangeContext;
 import jimmy.util.FieldEncryptor;
 import org.springframework.stereotype.Service;
 

@@ -1,4 +1,4 @@
-package jimmy.config;
+package jimmy.common.trace;
 
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;

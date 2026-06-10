@@ -4,7 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.alibaba.csp.sentinel.annotation.SentinelResource;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.entity.LogisticsOrder;
-import jimmy.logistics.config.OperationChangeContext;
+import jimmy.logistics.model.OperationChangeContext;
 import jimmy.logistics.mapper.LogisticsOrderMapper;
 import jimmy.logistics.model.CreateLogisticsOrderRequest;
 import jimmy.util.LogMaskUtils;

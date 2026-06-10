@@ -2,6 +2,8 @@ package jimmy.ai.service;
 
 import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiToolCall;
+import jimmy.ai.model.AiGeneratedSqlQueryResult;
+import jimmy.ai.model.AiReadonlyQueryResult;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;

@@ -2,7 +2,7 @@ package jimmy.service;
 
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
-import jimmy.logistics.config.OperationChangeContext;
+import jimmy.logistics.model.OperationChangeContext;
 import jimmy.mapper.SystemPermissionMapper;
 import jimmy.model.MenuVO;
 import jimmy.model.PermissionAssignmentRequest;

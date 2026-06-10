@@ -4,7 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.mapper.LogisticsCustomerImportMapper;
 import jimmy.logistics.mapper.LogisticsFileMapper;
-import jimmy.logistics.config.OperationChangeContext;
+import jimmy.logistics.model.OperationChangeContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;

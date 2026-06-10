@@ -3,7 +3,7 @@ package jimmy.logistics.service;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.mapper.LogisticsFeeMapper;
 import jimmy.logistics.model.SimpleResultVO;
-import jimmy.logistics.config.OperationChangeContext;
+import jimmy.logistics.model.OperationChangeContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

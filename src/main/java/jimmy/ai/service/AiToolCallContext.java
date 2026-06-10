@@ -3,6 +3,7 @@ package jimmy.ai.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiToolCall;
+import jimmy.ai.model.AiReadonlyQueryResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 

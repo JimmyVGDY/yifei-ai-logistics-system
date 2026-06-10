@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import jimmy.ai.model.AiQueryIntent;
 
 /**
  * AI 查询摘要服务：将数据库查询结果压缩成适合模型和前端阅读的中文摘要。

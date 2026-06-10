@@ -1,4 +1,4 @@
-package jimmy.ai.service;
+package jimmy.ai.model;
 
 import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiToolCall;

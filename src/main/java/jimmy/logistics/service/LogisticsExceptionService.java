@@ -6,7 +6,7 @@ import jimmy.logistics.mapper.LogisticsExceptionMapper;
 import jimmy.logistics.model.ExceptionHandleDTO;
 import jimmy.logistics.model.ExceptionReportDTO;
 import jimmy.logistics.model.SimpleResultVO;
-import jimmy.logistics.config.OperationChangeContext;
+import jimmy.logistics.model.OperationChangeContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;

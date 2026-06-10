@@ -1,6 +1,6 @@
 package jimmy.logistics.service;
 
-import jimmy.config.TraceContextSupport;
+import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.entity.LogisticsOrder;
 import jimmy.logistics.mapper.LogisticsOrderMapper;
 import jimmy.logistics.model.LogisticsOrderEvent;

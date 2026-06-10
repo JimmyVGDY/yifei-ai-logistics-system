@@ -1,4 +1,4 @@
-package jimmy.ai.service;
+package jimmy.ai.model;
 
 import org.springframework.util.StringUtils;
 

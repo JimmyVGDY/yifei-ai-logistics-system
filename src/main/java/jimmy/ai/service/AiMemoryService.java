@@ -11,7 +11,7 @@ import jimmy.ai.model.AiMemorySettingsRequest;
 import jimmy.ai.model.AiToolCall;
 import jimmy.ai.util.SseChatContext;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
-import jimmy.config.TraceContextSupport;
+import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.util.ColumnExistenceChecker;
 import jimmy.model.PageResult;
 import jimmy.util.LogMaskUtils;

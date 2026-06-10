@@ -1,7 +1,7 @@
 package jimmy.ai.config;
 
-import jimmy.ai.service.AiRuntimeProperties;
 import jimmy.ai.service.AiRuntimePropertiesProvider;
+import jimmy.ai.model.AiRuntimeProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;

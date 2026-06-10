@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jimmy.ai.model.AiConversationVO;
 import jimmy.ai.model.AiMessageVO;
-import jimmy.config.TraceContextSupport;
+import jimmy.common.trace.TraceContextSupport;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;

@@ -1,4 +1,4 @@
-package jimmy.ai.service;
+package jimmy.ai.model;
 
 import java.util.List;
 import java.util.Map;

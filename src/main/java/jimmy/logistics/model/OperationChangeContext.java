@@ -1,4 +1,4 @@
-package jimmy.logistics.config;
+package jimmy.logistics.model;
 
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;

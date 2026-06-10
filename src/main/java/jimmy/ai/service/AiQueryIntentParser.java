@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import jimmy.ai.model.AiQueryIntent;
 
 /**
  * AI 查询意图解析器：

@@ -3,7 +3,7 @@ package jimmy.service;
 import cn.dev33.satoken.stp.SaTokenInfo;
 import cn.dev33.satoken.stp.SaLoginModel;
 import cn.dev33.satoken.stp.StpUtil;
-import jimmy.config.TraceContextSupport;
+import jimmy.common.trace.TraceContextSupport;
 import jimmy.mapper.AuthMapper;
 import jimmy.model.CaptchaResponse;
 import jimmy.model.LoginConflictResponse;
