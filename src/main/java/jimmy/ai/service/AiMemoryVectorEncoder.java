@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -39,8 +40,12 @@ public class AiMemoryVectorEncoder {
 
     /**
      * Spring AI EmbeddingModel（Ollama 自动装配），不可用时为 null。
+     * <p>
+     * 项目同时引入了 OpenAI 和 Ollama 的 Embedding 自动装配，
+     * 通过 {@code @Qualifier("ollamaEmbeddingModel")} 明确指定使用本地模型。
      */
     @Autowired(required = false)
+    @Qualifier("ollamaEmbeddingModel")
     private EmbeddingModel embeddingModel;
 
     /**
