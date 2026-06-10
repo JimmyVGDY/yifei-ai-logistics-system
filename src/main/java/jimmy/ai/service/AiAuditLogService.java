@@ -195,11 +195,18 @@ public class AiAuditLogService {
     }
 
     private String currentUserCode() {
+        if (hasSseLogin()) {
+            return nullToBlank(SseChatContext.getUserCode());
+        }
         Object loginId = currentLoginId();
         return loginId == null ? "" : String.valueOf(StpUtil.getSessionByLoginId(loginId).get("userCode", ""));
     }
 
     private String currentUsername() {
+        if (hasSseLogin()) {
+            String username = SseChatContext.getUsername();
+            return StringUtils.hasText(username) ? username : String.valueOf(SseChatContext.getLoginId());
+        }
         Object loginId = currentLoginId();
         if (loginId == null) {
             return "anonymous";
@@ -208,11 +215,17 @@ public class AiAuditLogService {
     }
 
     private String currentRoleCode() {
+        if (hasSseLogin()) {
+            return nullToBlank(SseChatContext.getRoleCode());
+        }
         Object loginId = currentLoginId();
         return loginId == null ? "" : String.valueOf(StpUtil.getSessionByLoginId(loginId).get("roleCode", ""));
     }
 
     private String currentLoginSessionId() {
+        if (hasSseLogin()) {
+            return nullToBlank(SseChatContext.getLoginSessionId());
+        }
         Object loginId = currentLoginId();
         return loginId == null ? "" : String.valueOf(StpUtil.getSessionByLoginId(loginId).get(TraceContextSupport.LOGIN_SESSION_ID, ""));
     }
@@ -228,6 +241,15 @@ public class AiAuditLogService {
         } catch (RuntimeException exception) {
             return null;
         }
+    }
+
+    private boolean hasSseLogin() {
+        String sseLoginId = SseChatContext.getLoginId();
+        return StringUtils.hasText(sseLoginId) && !"null".equalsIgnoreCase(sseLoginId);
+    }
+
+    private String nullToBlank(String value) {
+        return value == null ? "" : value;
     }
 
     private String truncate(String value, int maxLength) {

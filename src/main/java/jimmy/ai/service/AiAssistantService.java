@@ -21,7 +21,6 @@ import java.io.OutputStream;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -163,7 +162,7 @@ public class AiAssistantService {
      * @param emitter        SSE 推送通道
      */
     public void chatStream(AiChatRequest request, OutputStream outputStream, String loginId, List<String> permissions,
-                           String roleCode, String customerId, String username, String userCode) {
+                           String roleCode, String customerId, String username, String userCode, String loginSessionId) {
         long start = System.currentTimeMillis();
         // 将 Controller 捕获的登录标识、权限列表和 Session 属性注入当前异步线程
         SseChatContext.setLoginIdAndPermissions(loginId, permissions);
@@ -171,6 +170,8 @@ public class AiAssistantService {
         SseChatContext.setCustomerId(customerId);
         SseChatContext.setUsername(username);
         SseChatContext.setUserCode(userCode);
+        SseChatContext.setLoginSessionId(loginSessionId);
+        bindSseTraceContext(loginId, userCode, username, roleCode, loginSessionId);
         String safeMessage = masker.mask(request.message());
         String conversationId = resolveConversationId(request.conversationId());
         List<AiCitation> citations = new ArrayList<>();
@@ -254,6 +255,17 @@ public class AiAssistantService {
             SseChatContext.clear();
             toolCallContext.snapshotAndClear();
         }
+    }
+
+    /**
+     * SSE 异步线程没有原始 HTTP 拦截器的用户 MDC，这里用 Controller 预捕获的会话快照恢复审计字段。
+     */
+    private void bindSseTraceContext(String loginId, String userCode, String username, String roleCode, String loginSessionId) {
+        traceContextSupport.put(TraceContextSupport.USER_ID, loginId);
+        traceContextSupport.put(TraceContextSupport.USER_CODE, userCode);
+        traceContextSupport.put(TraceContextSupport.USERNAME_MASKED, masker.mask(username));
+        traceContextSupport.put(TraceContextSupport.ROLE_CODE, roleCode);
+        traceContextSupport.put(TraceContextSupport.LOGIN_SESSION_ID, loginSessionId);
     }
 
     /**

@@ -1,8 +1,11 @@
 package jimmy.ai.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.ai.util.SseChatContext;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -63,6 +66,23 @@ class AiSqlSafetyValidatorTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("权限不足")
                     .hasMessageNotContaining("fee:query");
+        }
+    }
+
+    @Test
+    void shouldUseSsePermissionSnapshotWhenRunningInAsyncThread() {
+        SseChatContext.setLoginIdAndPermissions("260610133716001", List.of("customer:query", "order:query"));
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            AiSqlSafetyValidator.ValidatedSql sql = validator.validate("""
+                    select c.customer_name, o.order_no
+                    from logistics_customer c
+                    join logistics_order o on o.customer_id = c.id
+                    """);
+
+            assertThat(sql.tables()).containsExactly("logistics_customer", "logistics_order");
+            stp.verifyNoInteractions();
+        } finally {
+            SseChatContext.clear();
         }
     }
 }

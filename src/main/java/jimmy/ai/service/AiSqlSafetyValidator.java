@@ -1,6 +1,7 @@
 package jimmy.ai.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.ai.util.SseChatContext;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -55,11 +56,22 @@ public class AiSqlSafetyValidator {
             if (rule == null) {
                 throw new IllegalArgumentException("查询涉及未开放的数据表");
             }
-            if (!StpUtil.hasPermission(rule.permission())) {
+            if (!hasPermission(rule.permission())) {
                 throw new IllegalArgumentException("当前账号权限不足，无法查询该类数据。如有需要，请联系系统管理员。");
             }
         }
         return new ValidatedSql(sql, tables);
+    }
+
+    /**
+     * SSE 流式问答运行在异步线程，Sa-Token ThreadLocal 不可用时使用 Controller 预捕获的权限快照。
+     */
+    private boolean hasPermission(String permission) {
+        String sseLoginId = SseChatContext.getLoginId();
+        if (StringUtils.hasText(sseLoginId) && !"null".equalsIgnoreCase(sseLoginId)) {
+            return SseChatContext.hasPermission(permission);
+        }
+        return StpUtil.hasPermission(permission);
     }
 
     public String schemaPrompt() {

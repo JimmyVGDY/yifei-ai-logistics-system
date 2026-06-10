@@ -14,6 +14,7 @@ import jimmy.ai.service.AiAssistantService;
 import jimmy.ai.service.AiMemoryService;
 import jimmy.common.model.ApiResponse;
 import jimmy.common.model.PageResult;
+import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.annotation.OperationLog;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -83,9 +84,10 @@ public class AiAssistantController {
         String customerId = String.valueOf(StpUtil.getSession().get("customerId", ""));
         String username = String.valueOf(StpUtil.getSession().get("username", ""));
         String userCode = String.valueOf(StpUtil.getSession().get("userCode", ""));
+        String loginSessionId = String.valueOf(StpUtil.getSession().get(TraceContextSupport.LOGIN_SESSION_ID, ""));
 
         StreamingResponseBody stream = outputStream ->
-                aiAssistantService.chatStream(request, outputStream, loginId, permissions, roleCode, customerId, username, userCode);
+                aiAssistantService.chatStream(request, outputStream, loginId, permissions, roleCode, customerId, username, userCode, loginSessionId);
         return ResponseEntity.ok()
                 .contentType(MediaType.TEXT_EVENT_STREAM)
                 .body(stream);

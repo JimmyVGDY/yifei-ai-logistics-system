@@ -105,8 +105,7 @@ public class AiGeneratedSqlQueryService {
             // 优先从 SSE 异步线程读取 Controller 传递的登录标识
             String sseLoginId = SseChatContext.getLoginId();
             if (sseLoginId != null && !sseLoginId.isBlank() && !"null".equals(sseLoginId)) {
-                Object roleCode = StpUtil.getSessionByLoginId(sseLoginId).get("roleCode");
-                return "CUSTOMER".equals(String.valueOf(roleCode));
+                return "CUSTOMER".equals(SseChatContext.getRoleCode());
             }
             Object loginId = StpUtil.getLoginIdDefaultNull();
             if (loginId == null) {

@@ -329,6 +329,7 @@ AI 助手必须遵守现有系统安全规则：
 - 用户看不到的数据，AI 也不能回答。
 - 所有接口继续走 Sa-Token 登录态和权限校验。
 - 流式问答使用 `POST /ai/chat/stream`，用户问题放在请求体中；操作日志会过滤 `message`、`prompt`、`question`、`pageContext` 等参数，避免 AI 提问正文进入参数摘要。
+- SSE 流式问答运行在 Spring MVC 异步线程中，不能直接依赖 Sa-Token 的请求线程上下文；Controller 会预捕获 `loginId`、权限列表、角色、客户范围、用户编号和 `loginSessionId`，下游只读工具、临时 SQL 校验、长期记忆和 AI 审计日志都必须优先读取这份快照。
 - AI 只读，不直接执行新增、修改、删除；临时 SQL 也只允许经过安全校验的 `SELECT`。
 - 输入模型前脱敏手机号、邮箱、token、密码、详细敏感内容。
 - `traceId`、`operationId`、`loginSessionId`、`userId`、`userCode` 保留原值，方便审计追踪。

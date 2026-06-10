@@ -369,8 +369,7 @@ public class AiMemoryService {
         // 优先从 SSE 异步线程的 ThreadLocal 上下文读取登录标识
         String sseLoginId = SseChatContext.getLoginId();
         if (sseLoginId != null && !sseLoginId.isBlank() && !"null".equals(sseLoginId)) {
-            String userCode = getSessionUserCode(sseLoginId);
-            return new UserScope(sseLoginId, userCode);
+            return new UserScope(sseLoginId, nullToBlank(SseChatContext.getUserCode()));
         }
         Object loginId = StpUtil.getLoginIdDefaultNull();
         String userId = loginId == null ? "anonymous" : String.valueOf(loginId);
@@ -384,14 +383,14 @@ public class AiMemoryService {
     private String currentLoginSessionId() {
         String sseLoginId = SseChatContext.getLoginId();
         if (sseLoginId != null && !sseLoginId.isBlank() && !"null".equals(sseLoginId)) {
-            return getSessionValue(sseLoginId, TraceContextSupport.LOGIN_SESSION_ID);
+            return nullToBlank(SseChatContext.getLoginSessionId());
         }
         Object loginId = StpUtil.getLoginIdDefaultNull();
         return loginId == null ? "" : String.valueOf(StpUtil.getSessionByLoginId(loginId).get(TraceContextSupport.LOGIN_SESSION_ID, ""));
     }
 
-    private String getSessionUserCode(String loginId) {
-        return getSessionValue(loginId, "userCode");
+    private String nullToBlank(String value) {
+        return value == null ? "" : value;
     }
 
     private String getSessionValue(String loginId, String key) {

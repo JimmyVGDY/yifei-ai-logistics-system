@@ -20,6 +20,7 @@ public final class SseChatContext {
     private static final ThreadLocal<String> CUSTOMER_ID = new ThreadLocal<>();
     private static final ThreadLocal<String> USERNAME = new ThreadLocal<>();
     private static final ThreadLocal<String> USER_CODE = new ThreadLocal<>();
+    private static final ThreadLocal<String> LOGIN_SESSION_ID = new ThreadLocal<>();
 
     private SseChatContext() {
     }
@@ -59,6 +60,10 @@ public final class SseChatContext {
         USER_CODE.set(userCode);
     }
 
+    public static void setLoginSessionId(String loginSessionId) {
+        LOGIN_SESSION_ID.set(loginSessionId);
+    }
+
     public static String getLoginId() {
         return LOGIN_ID.get();
     }
@@ -79,6 +84,10 @@ public final class SseChatContext {
         return USER_CODE.get();
     }
 
+    public static String getLoginSessionId() {
+        return LOGIN_SESSION_ID.get();
+    }
+
     public static boolean hasPermission(String permission) {
         List<String> perms = PERMISSIONS.get();
         return perms != null && perms.contains(permission);
@@ -94,5 +103,6 @@ public final class SseChatContext {
         CUSTOMER_ID.remove();
         USERNAME.remove();
         USER_CODE.remove();
+        LOGIN_SESSION_ID.remove();
     }
 }
