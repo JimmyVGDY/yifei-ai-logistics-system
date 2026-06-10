@@ -6,7 +6,7 @@ import jimmy.ai.model.AiLogTimelineItem;
 import jimmy.logistics.model.ModuleQueryDTO;
 import jimmy.logistics.model.ModuleRecordVO;
 import jimmy.logistics.service.LogisticsRequirementService;
-import jimmy.model.PageResult;
+import jimmy.common.model.PageResult;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 

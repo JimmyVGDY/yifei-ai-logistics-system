@@ -99,7 +99,7 @@ logging:
 
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
-  type-aliases-package: jimmy.entity
+  type-aliases-package: jimmy.system.entity, jimmy.auth.entity, jimmy.logistics.entity, jimmy.ai.model
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl

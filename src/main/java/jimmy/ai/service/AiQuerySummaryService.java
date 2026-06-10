@@ -2,7 +2,7 @@ package jimmy.ai.service;
 
 import jimmy.logistics.model.LogisticsDashboardSummary;
 import jimmy.logistics.model.ModuleRecordVO;
-import jimmy.model.PageResult;
+import jimmy.common.model.PageResult;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

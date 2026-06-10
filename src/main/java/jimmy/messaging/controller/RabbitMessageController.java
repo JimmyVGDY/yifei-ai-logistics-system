@@ -1,0 +1,30 @@
+package jimmy.messaging.controller;
+
+import jimmy.common.model.ApiResponse;
+import jimmy.system.model.InfrastructureStatus;
+import jimmy.messaging.service.RabbitMessageService;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * RabbitMQ 演示消息控制器 —— 发送测试消息验证消息队列连通性。
+ */
+@RestController
+@RequestMapping("/rabbitmq")
+public class RabbitMessageController {
+
+    private final RabbitMessageService rabbitMessageService;
+
+    public RabbitMessageController(RabbitMessageService rabbitMessageService) {
+        this.rabbitMessageService = rabbitMessageService;
+    }
+
+    @PostMapping("/messages")
+    public ApiResponse<InfrastructureStatus> send(@RequestParam String message) {
+        rabbitMessageService.sendDemoMessage(message);
+        return ApiResponse.success(InfrastructureStatus.of("rabbitmq", "sent")
+                .detail("message", message));
+    }
+}

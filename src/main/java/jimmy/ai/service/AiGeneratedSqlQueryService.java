@@ -3,7 +3,7 @@ package jimmy.ai.service;
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.ai.util.SseChatContext;
 import jimmy.ai.model.AiGeneratedSqlQueryResult;
-import jimmy.util.LogMaskUtils;
+import jimmy.common.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;

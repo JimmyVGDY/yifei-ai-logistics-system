@@ -1,7 +1,7 @@
 package jimmy.logistics.service;
 
 import jimmy.logistics.model.OperationChangeContext;
-import jimmy.util.FieldEncryptor;
+import jimmy.common.util.FieldEncryptor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;

@@ -7,7 +7,7 @@ import jimmy.logistics.entity.LogisticsOrder;
 import jimmy.logistics.model.OperationChangeContext;
 import jimmy.logistics.mapper.LogisticsOrderMapper;
 import jimmy.logistics.model.CreateLogisticsOrderRequest;
-import jimmy.util.LogMaskUtils;
+import jimmy.common.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;

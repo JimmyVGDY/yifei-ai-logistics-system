@@ -5,7 +5,7 @@ import jimmy.logistics.entity.LogisticsOrder;
 import jimmy.logistics.model.LogisticsOrderVO;
 import jimmy.logistics.model.OrderSearchQueryDTO;
 import jimmy.logistics.repository.LogisticsOrderSearchDocument;
-import jimmy.model.PageResult;
+import jimmy.common.model.PageResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;

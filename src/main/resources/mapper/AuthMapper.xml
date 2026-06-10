@@ -2,10 +2,10 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="jimmy.mapper.AuthMapper">
+<mapper namespace="jimmy.auth.mapper.AuthMapper">
 
     <!-- 菜单结果映射给 Sa-Token 会话和前端侧边栏共用。 -->
-    <resultMap id="MenuResultMap" type="jimmy.model.MenuVO">
+    <resultMap id="MenuResultMap" type="jimmy.system.model.MenuVO">
         <id property="id" column="id"/>
         <result property="parentId" column="parent_id"/>
         <result property="name" column="menu_name"/>

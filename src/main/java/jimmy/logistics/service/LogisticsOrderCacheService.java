@@ -2,7 +2,7 @@ package jimmy.logistics.service;
 
 import jimmy.logistics.config.LogisticsProperties;
 import jimmy.logistics.entity.LogisticsOrder;
-import jimmy.service.BloomFilterService;
+import jimmy.system.service.BloomFilterService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;

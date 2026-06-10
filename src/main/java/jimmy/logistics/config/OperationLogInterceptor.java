@@ -6,7 +6,7 @@ import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.mapper.OperationLogMapper;
 import jimmy.logistics.model.OperationChangeContext;
 import jimmy.logistics.util.ColumnExistenceChecker;
-import jimmy.util.LogMaskUtils;
+import jimmy.common.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;

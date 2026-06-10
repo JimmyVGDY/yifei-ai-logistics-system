@@ -2,10 +2,10 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="jimmy.mapper.SystemPermissionMapper">
+<mapper namespace="jimmy.system.mapper.SystemPermissionMapper">
 
     <!-- 权限配置页使用同一份菜单映射，前端树形组件按 parent_id 组装层级。 -->
-    <resultMap id="MenuResultMap" type="jimmy.model.MenuVO">
+    <resultMap id="MenuResultMap" type="jimmy.system.model.MenuVO">
         <id property="id" column="id"/>
         <result property="parentId" column="parent_id"/>
         <result property="name" column="menu_name"/>
@@ -14,7 +14,7 @@
         <result property="sortNo" column="sort_no"/>
     </resultMap>
 
-    <resultMap id="PermissionResultMap" type="jimmy.model.PermissionVO">
+    <resultMap id="PermissionResultMap" type="jimmy.system.model.PermissionVO">
         <id property="id" column="id"/>
         <result property="permissionCode" column="permission_code"/>
         <result property="permissionName" column="permission_name"/>
@@ -233,7 +233,7 @@
         )
     </insert>
 
-    <insert id="insertPermission" parameterType="jimmy.model.PermissionVO">
+    <insert id="insertPermission" parameterType="jimmy.system.model.PermissionVO">
         insert into sys_permission (
             id, permission_code, permission_name, permission_type,
             module_code, action_code, menu_id, sort_no, status, create_time, update_time

@@ -14,7 +14,7 @@ import jimmy.logistics.service.LogisticsExceptionService;
 import jimmy.logistics.service.LogisticsFeeService;
 import jimmy.logistics.service.LogisticsStatisticsService;
 import jimmy.logistics.service.LogisticsV2Service;
-import jimmy.model.ApiResponse;
+import jimmy.common.model.ApiResponse;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;

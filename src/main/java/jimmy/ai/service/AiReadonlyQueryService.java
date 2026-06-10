@@ -11,7 +11,7 @@ import jimmy.logistics.model.LogisticsDashboardSummary;
 import jimmy.logistics.model.ModuleQueryDTO;
 import jimmy.logistics.model.ModuleRecordVO;
 import jimmy.logistics.service.LogisticsRequirementService;
-import jimmy.model.PageResult;
+import jimmy.common.model.PageResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;

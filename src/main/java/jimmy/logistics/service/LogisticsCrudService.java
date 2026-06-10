@@ -7,7 +7,7 @@ import jimmy.logistics.model.CrudFieldValue;
 import jimmy.logistics.model.OperationResultVO;
 import jimmy.logistics.util.ColumnExistenceChecker;
 import jimmy.logistics.util.CrudBusinessUtils;
-import jimmy.util.FieldEncryptor;
+import jimmy.common.util.FieldEncryptor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
