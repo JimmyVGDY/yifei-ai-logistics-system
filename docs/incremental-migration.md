@@ -68,6 +68,25 @@ source scripts/sql/20260605_incremental_ai_long_term_memory.sql;
 
 该脚本可重复执行，不清库、不重建现有业务表。Qdrant 只作为向量召回服务；MySQL 表是长期记忆的审计真值。
 
+### `20260610_incremental_ai_memory_lifecycle.sql`
+
+该脚本用于补齐 AI 长期记忆生命周期字段：
+
+- `reinforce_count`：记忆被再次命中的强化次数。
+- `last_reinforced_at`：最后强化时间。
+- `status`：生命周期状态，例如 `ACTIVE`、`WEAKENING`、`ARCHIVED`。
+- `idx_ai_memory_status`：生命周期定时任务使用的状态索引。
+
+该脚本可重复执行，不再依赖 `mysql -f` 跳过重复字段错误。旧库未执行该脚本时，应用会跳过偏好挖掘生命周期任务，不影响主业务。
+
+### `20260610_incremental_ai_menu_for_all_roles.sql`
+
+该脚本用于补齐 AI 助手菜单和最小必要权限：
+
+- 所有角色默认获得 AI 助手入口、普通问答、当前用户会话和当前用户长期记忆管理权限。
+- `ai:log:analyze` 属于跨用户审计权限，只默认授予 `ADMIN`、`AUDITOR`、`FINANCE_MANAGER`。
+- 脚本使用 `insert ignore` 和 `not exists` 补齐缺失数据，可重复执行；同时会收回非审计类角色历史上被默认授予的 `ai:log:analyze`，避免普通角色保留跨用户日志排障能力。
+
 ## 相关文档
 
 - [项目文档索引](README.md)

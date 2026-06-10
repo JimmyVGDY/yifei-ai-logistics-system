@@ -1,4 +1,4 @@
-package jimmy.config;
+package jimmy.common.trace;
 
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.model.LogisticsOrderEvent;

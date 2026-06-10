@@ -1,10 +1,13 @@
 package jimmy.ai.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.ai.model.AiGeneratedSqlQueryResult;
+import jimmy.ai.model.AiQueryIntent;
+import jimmy.ai.model.AiReadonlyQueryResult;
 import jimmy.logistics.model.ModuleQueryDTO;
 import jimmy.logistics.model.ModuleRecordVO;
 import jimmy.logistics.service.LogisticsRequirementService;
-import jimmy.model.PageResult;
+import jimmy.common.model.PageResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 

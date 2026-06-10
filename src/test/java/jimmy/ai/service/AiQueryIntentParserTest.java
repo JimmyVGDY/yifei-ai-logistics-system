@@ -1,5 +1,6 @@
 package jimmy.ai.service;
 
+import jimmy.ai.model.AiQueryIntent;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

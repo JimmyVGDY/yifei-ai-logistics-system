@@ -50,7 +50,7 @@ public class AiQdrantMemoryClient {
             restClient.get().uri("/readyz").retrieve().toBodilessEntity();
             ensureCollection();
             return true;
-        } catch (RestClientException exception) {
+        } catch (RuntimeException exception) {
             log.debug("Qdrant 长期记忆不可用，reason={}", exception.getMessage());
             return false;
         }
@@ -74,7 +74,7 @@ public class AiQdrantMemoryClient {
                     .retrieve()
                     .toBodilessEntity();
             return true;
-        } catch (RestClientException exception) {
+        } catch (RuntimeException exception) {
             log.warn("Qdrant 长期记忆写入失败，pointId={}, reason={}", pointId, exception.getMessage());
             return false;
         }
@@ -104,7 +104,7 @@ public class AiQdrantMemoryClient {
                     .retrieve()
                     .body(String.class);
             return parseMemoryIds(json);
-        } catch (RestClientException exception) {
+        } catch (RuntimeException exception) {
             log.debug("Qdrant 长期记忆召回失败，userId={}, reason={}", userId, exception.getMessage());
             return List.of();
         }
@@ -129,10 +129,11 @@ public class AiQdrantMemoryClient {
 
     private void ensureCollection() {
         try {
-            restClient.get()
+            String collectionJson = restClient.get()
                     .uri("/collections/{collection}", collectionName)
                     .retrieve()
-                    .toBodilessEntity();
+                    .body(String.class);
+            validateCollectionVectorSize(collectionJson);
             return;
         } catch (RestClientException ignored) {
             // 集合不存在时继续创建；创建失败由外层降级处理。
@@ -147,6 +148,44 @@ public class AiQdrantMemoryClient {
                 .body(body)
                 .retrieve()
                 .toBodilessEntity();
+    }
+
+    private void validateCollectionVectorSize(String collectionJson) {
+        Integer actualSize = readVectorSize(collectionJson);
+        if (actualSize == null || actualSize == AiMemoryVectorEncoder.VECTOR_SIZE) {
+            return;
+        }
+        throw new IllegalStateException("Qdrant Collection 向量维度不匹配，collection="
+                + collectionName + ", expected=" + AiMemoryVectorEncoder.VECTOR_SIZE + ", actual=" + actualSize
+                + "。请重建集合或改用带模型维度后缀的新集合名。");
+    }
+
+    private Integer readVectorSize(String collectionJson) {
+        if (!StringUtils.hasText(collectionJson)) {
+            return null;
+        }
+        try {
+            JsonNode vectors = objectMapper.readTree(collectionJson)
+                    .path("result")
+                    .path("config")
+                    .path("params")
+                    .path("vectors");
+            JsonNode size = vectors.path("size");
+            if (size.canConvertToInt()) {
+                return size.asInt();
+            }
+            if (vectors.isObject()) {
+                for (JsonNode namedVector : vectors) {
+                    JsonNode namedSize = namedVector.path("size");
+                    if (namedSize.canConvertToInt()) {
+                        return namedSize.asInt();
+                    }
+                }
+            }
+        } catch (Exception exception) {
+            log.debug("解析 Qdrant Collection 维度失败，collection={}, reason={}", collectionName, exception.getMessage());
+        }
+        return null;
     }
 
     private List<Long> parseMemoryIds(String json) {

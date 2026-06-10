@@ -1,4 +1,4 @@
-package jimmy.config;
+package jimmy.auth.config;
 
 import jimmy.logistics.config.OperationLogInterceptor;
 import org.junit.jupiter.api.Test;

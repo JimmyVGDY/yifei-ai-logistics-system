@@ -12,12 +12,9 @@ import jimmy.ai.model.AiMemoryProfileVO;
 import jimmy.ai.model.AiMemorySettingsRequest;
 import jimmy.ai.service.AiAssistantService;
 import jimmy.ai.service.AiMemoryService;
-import jimmy.logistics.annotation.OperationLog;
 import jimmy.common.model.ApiResponse;
 import jimmy.common.model.PageResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
+import jimmy.logistics.annotation.OperationLog;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,27 +29,21 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.List;
-import java.util.concurrent.Executor;
 
 /**
- * AI 助手接口 —— 仅开放只读问答、日志排障和当前用户会话查询。
+ * AI 助手接口：只开放只读问答、日志排障、当前用户会话和长期记忆管理能力。
  */
 @RestController
 @RequestMapping("/ai")
 public class AiAssistantController {
 
-    private static final Logger log = LoggerFactory.getLogger(AiAssistantController.class);
-
     private final AiAssistantService aiAssistantService;
     private final AiMemoryService aiMemoryService;
-    private final Executor aiChatExecutor;
 
     public AiAssistantController(AiAssistantService aiAssistantService,
-                                 AiMemoryService aiMemoryService,
-                                 @Qualifier("aiChatExecutor") Executor aiChatExecutor) {
+                                 AiMemoryService aiMemoryService) {
         this.aiAssistantService = aiAssistantService;
         this.aiMemoryService = aiMemoryService;
-        this.aiChatExecutor = aiChatExecutor;
     }
 
     @OperationLog("AI助手-普通问答")
@@ -64,28 +55,30 @@ public class AiAssistantController {
     /**
      * SSE 流式对话端点。
      * <p>
-     * 前端通过 EventSource 连接此端点，后端在后台线程中处理 AI 对话，
-     * 实时推送工具调用进度（thinking / tool_start / tool_result / done / error）。
-     * 相比普通 POST /chat，用户可以看到 AI 当前在查什么、命中多少条数据、已用时多少。
-     * </p>
-     * <p>
-     * 参数通过 query string 传递（EventSource 不支持 POST body）。
-     * </p>
+     * 前端通过 POST body 传递用户问题，避免把 AI 提问正文暴露到 URL、浏览器历史或代理访问日志。
+     * 后端使用 StreamingResponseBody 直接写出 SSE 事件，实时推送 thinking/tool_result/done/error 等进度。
      */
+    @OperationLog("AI助手-SSE流式问答")
+    @PostMapping(value = "/chat/stream", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<StreamingResponseBody> chatStream(@Valid @RequestBody AiChatRequest request) {
+        return streamResponse(request);
+    }
+
     /**
-     * SSE 流式对话端点 —— 使用 StreamingResponseBody 直接写输出流，
-     * 彻底消除 SseEmitter.send()/complete() 的异步 dispatch 竞态。
+     * 兼容旧版 GET 流式接口。新前端已改为 POST，保留该入口只为避免旧页面刷新后立即失效。
      */
     @OperationLog("AI助手-SSE流式问答")
     @GetMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<StreamingResponseBody> chatStream(@RequestParam String message,
-                                                             @RequestParam(required = false) String conversationId,
-                                                             @RequestParam(required = false) String pageContext) {
-        AiChatRequest request = new AiChatRequest(message, conversationId, pageContext);
-        // 捕获当前 HTTP 线程的登录标识和权限列表，异步线程中 Sa-Token 上下文不可用
+    public ResponseEntity<StreamingResponseBody> chatStreamLegacy(@RequestParam String message,
+                                                                  @RequestParam(required = false) String conversationId,
+                                                                  @RequestParam(required = false) String pageContext) {
+        return streamResponse(new AiChatRequest(message, conversationId, pageContext));
+    }
+
+    private ResponseEntity<StreamingResponseBody> streamResponse(AiChatRequest request) {
+        // 捕获当前 HTTP 线程的登录态、权限和数据范围；流式输出时可能切换线程，不能再直接依赖 Sa-Token ThreadLocal。
         String loginId = String.valueOf(StpUtil.getLoginIdDefaultNull());
         List<String> permissions = StpUtil.getPermissionList();
-        // 捕获 Session 属性（roleCode / customerId / username / userCode），用于数据权限隔离
         String roleCode = String.valueOf(StpUtil.getSession().get("roleCode", ""));
         String customerId = String.valueOf(StpUtil.getSession().get("customerId", ""));
         String username = String.valueOf(StpUtil.getSession().get("username", ""));

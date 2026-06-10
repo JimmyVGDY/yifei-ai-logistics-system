@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5173",
-    "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1 --port 4173",
-    "test:unit": "node scripts/test-auth-permissions.mjs"
+    "dev": "C:\\Progra~1\\nodejs\\node.exe ./node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173",
+    "build": "C:\\Progra~1\\nodejs\\node.exe ./node_modules/vite/bin/vite.js build",
+    "preview": "C:\\Progra~1\\nodejs\\node.exe ./node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4173",
+    "test:unit": "C:\\Progra~1\\nodejs\\node.exe scripts/test-auth-permissions.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

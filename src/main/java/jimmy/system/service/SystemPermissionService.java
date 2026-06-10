@@ -323,11 +323,15 @@ public class SystemPermissionService {
             }
         }
         Map<Long, List<Long>> menuIdsByRole = roleMenuIdsByRole();
+        Set<Long> aiLogAnalyzeRoleIds = aiLogAnalyzeRoleIds();
         for (Map.Entry<Long, List<Long>> entry : menuIdsByRole.entrySet()) {
             List<Long> existing = systemPermissionMapper.selectRolePermissionIds(entry.getKey());
             Set<Long> existingSet = new LinkedHashSet<>(existing);
             for (PermissionVO permission : permissionByMenu.values()) {
                 if (!entry.getValue().contains(permission.getMenuId()) || existingSet.contains(permission.getId())) {
+                    continue;
+                }
+                if ("ai:log:analyze".equals(permission.getPermissionCode()) && !aiLogAnalyzeRoleIds.contains(entry.getKey())) {
                     continue;
                 }
                 systemPermissionMapper.insertRolePermission(idGenerator.nextId(), entry.getKey(), permission.getId());
@@ -419,6 +423,18 @@ public class SystemPermissionService {
         return result;
     }
 
+    private Set<Long> aiLogAnalyzeRoleIds() {
+        Set<Long> roleIds = new LinkedHashSet<>();
+        for (Map<String, Object> role : systemPermissionMapper.selectAllRoles()) {
+            Long roleId = toLong(role.get("id"));
+            String roleCode = String.valueOf(role.get("roleCode"));
+            if (roleId != null && ("ADMIN".equals(roleCode) || "AUDITOR".equals(roleCode) || "FINANCE_MANAGER".equals(roleCode))) {
+                roleIds.add(roleId);
+            }
+        }
+        return roleIds;
+    }
+
     private void syncRoleMenusFromPermissions(long roleId, List<Long> permissionIds) {
         List<PermissionVO> allPermissions = systemPermissionMapper.selectAllActivePermissions();
         Map<Long, PermissionVO> permissionMap = new LinkedHashMap<>();
@@ -456,6 +472,10 @@ public class SystemPermissionService {
                 String code = moduleCode + ":" + action;
                 PermissionVO actionPermission = buildPermission(menu, code, menu.getName() + "-" + ACTION_NAMES.getOrDefault(action, action), "BUTTON", action, menu.getSortNo() * 100 + actionSort(action));
                 insertPermissionIfMissing(actionPermission);
+            }
+            if ("/ai-assistant".equals(menu.getPath())) {
+                PermissionVO logAnalyzePermission = buildPermission(menu, "ai:log:analyze", "AI助手-日志分析", "BUTTON", "log:analyze", menu.getSortNo() * 100 + 80);
+                insertPermissionIfMissing(logAnalyzePermission);
             }
         }
     }
@@ -625,7 +645,9 @@ public class SystemPermissionService {
 
     private List<String> actionsFor(String permissionCode) {
         if ("ai:chat".equals(permissionCode)) {
-            return Arrays.asList("chat", "log:analyze", "conversation:query", "memory:query", "memory:delete", "memory:settings");
+            // AI 菜单默认只展开当前用户自己的对话和长期记忆能力。
+            // 日志排障是跨用户审计能力，必须单独分配 ai:log:analyze。
+            return Arrays.asList("chat", "conversation:query", "memory:query", "memory:delete", "memory:settings");
         }
         if (permissionCode.endsWith(":manage")) {
             return MANAGE_ACTIONS;

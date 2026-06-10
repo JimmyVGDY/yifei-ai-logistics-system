@@ -52,7 +52,7 @@ MySQL + Redis + RabbitMQ + Elasticsearch + 后端 Spring Boot + 前端 Vite
 MySQL + Redis + RabbitMQ + Elasticsearch + Qdrant + Nacos + Sentinel + XXL-Job + 后端 + 前端
 ```
 
-Qdrant 本地脚本位于仓库 `ops/start-qdrant.bat`、`ops/status-qdrant.bat`、`ops/stop-qdrant.bat`。健康检查地址为 `http://127.0.0.1:6333/readyz`。Qdrant 不可用时只影响 AI 长期记忆向量召回，不影响物流主业务和 AI 只读查询。
+Qdrant 本地脚本位于仓库 `ops/start-qdrant.bat`、`ops/status-qdrant.bat`、`ops/stop-qdrant.bat`。健康检查地址为 `http://127.0.0.1:6333/readyz`。Qdrant 不可用时只影响 AI 长期记忆向量召回，不影响物流主业务和 AI 只读查询。当前默认 embedding 模型为 Ollama `bge-m3`，集合维度应为 1024；如果本地存在旧版 128 维集合，需要重建集合或改用新的集合名。
 
 ## 4. Docker Compose 镜像版本
 

@@ -1,7 +1,7 @@
-package jimmy.service;
+package jimmy.system.service;
 
 import jimmy.common.id.CompactSnowflakeIdGenerator;
-import jimmy.mapper.SystemPermissionMapper;
+import jimmy.system.mapper.SystemPermissionMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -65,7 +65,8 @@ class SystemPermissionServiceTest {
 
         List<String> permissions = service.effectivePermissionCodes(10L, 1L);
 
-        assertThat(permissions).contains("ai:chat", "ai:log:analyze", "ai:conversation:query");
+        assertThat(permissions).contains("ai:chat", "ai:conversation:query", "ai:memory:query", "ai:memory:delete", "ai:memory:settings");
+        assertThat(permissions).doesNotContain("ai:log:analyze");
         assertThat(permissions).doesNotContain("ai:create", "ai:update", "ai:delete");
     }
 

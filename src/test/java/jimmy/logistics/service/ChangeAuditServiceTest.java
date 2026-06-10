@@ -1,7 +1,7 @@
 package jimmy.logistics.service;
 
-import jimmy.logistics.config.OperationChangeContext;
-import jimmy.util.FieldEncryptor;
+import jimmy.logistics.model.OperationChangeContext;
+import jimmy.common.util.FieldEncryptor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;

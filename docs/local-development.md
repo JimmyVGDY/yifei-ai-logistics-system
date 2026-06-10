@@ -188,6 +188,8 @@ npm run dev
 
 Vite 会将 `/api` 代理到后端 `http://127.0.0.1:8080`。
 
+当前 `frontend/package.json` 中的 `dev`、`build`、`preview` 和 `test:unit` 脚本显式使用 `C:\Progra~1\nodejs\node.exe` 调用 Node。这样做是为了规避部分 Windows/npm 环境在脚本中解析 `node` 或 `vite` 时误命中无扩展 shim 文件导致 `Access is denied.` 的问题。新开发者如果把 Node 安装在其它目录，可以改回 `node`，或按本机实际 Node 路径调整脚本。
+
 默认 `dev` 环境下，后端启动完成后会自动启动前端并打开浏览器。需要关闭时设置：
 
 ```text

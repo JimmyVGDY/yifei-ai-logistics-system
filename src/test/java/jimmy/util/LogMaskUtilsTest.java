@@ -1,5 +1,6 @@
 package jimmy.util;
 
+import jimmy.common.util.LogMaskUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.RepeatedTest;
 

@@ -1,5 +1,6 @@
 package jimmy.util;
 
+import jimmy.common.util.FieldEncryptor;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

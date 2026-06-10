@@ -51,12 +51,15 @@ public class AiMemoryVectorEncoder {
     private EmbeddingModel embeddingModel;
 
     /**
-     * 启动时输出向量编码模式，方便运维确认 Ollama 是否生效。
+     * 启动时输出向量编码配置摘要。
+     * <p>
+     * 这里只能确认 Spring AI 的 EmbeddingModel Bean 是否注入成功；
+     * Ollama 服务是否在线、bge-m3 模型是否已拉取，会在首次实际编码时探测，失败时自动降级为哈希向量。
      */
     @PostConstruct
     public void logEncoderMode() {
         if (embeddingModel != null) {
-            log.info("向量编码模式: Ollama bge-m3 (1024 维) — 已就绪");
+            log.info("向量编码模式: Ollama bge-m3 (1024 维) — EmbeddingModel Bean 已注入，首次调用时确认服务可用性");
         } else {
             log.warn("向量编码模式: 哈希降级 (128 → 1024 零填充) — EmbeddingModel 未注入，请检查 Ollama 服务");
         }

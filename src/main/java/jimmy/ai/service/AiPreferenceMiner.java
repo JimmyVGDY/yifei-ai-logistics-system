@@ -1,7 +1,9 @@
 package jimmy.ai.service;
 
 import jimmy.ai.mapper.AiMemoryMapper;
+import jimmy.logistics.util.ColumnExistenceChecker;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +12,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * AI 用户偏好自动挖掘器。
@@ -70,9 +73,15 @@ public class AiPreferenceMiner {
     private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final AiMemoryMapper memoryMapper;
+    private final ColumnExistenceChecker columnChecker;
+    private final Executor aiChatExecutor;
 
-    public AiPreferenceMiner(AiMemoryMapper memoryMapper) {
+    public AiPreferenceMiner(AiMemoryMapper memoryMapper,
+                             ColumnExistenceChecker columnChecker,
+                             @Qualifier("aiChatExecutor") Executor aiChatExecutor) {
         this.memoryMapper = memoryMapper;
+        this.columnChecker = columnChecker;
+        this.aiChatExecutor = aiChatExecutor;
     }
 
     // ==================== 触发入口 ====================
@@ -90,7 +99,7 @@ public class AiPreferenceMiner {
             } catch (Exception e) {
                 log.error("启动时偏好挖掘异常，已忽略", e);
             }
-        });
+        }, aiChatExecutor);
     }
 
     /**
@@ -116,6 +125,10 @@ public class AiPreferenceMiner {
      * 执行完整的生命周期管理：衰减检查 → 归档清理。
      */
     private void manageLifecycle() {
+        if (!lifecycleColumnsReady()) {
+            log.info("AI 长期记忆生命周期字段未就绪，跳过本次偏好挖掘；执行 scripts/sql/20260610_incremental_ai_memory_lifecycle.sql 后重启即可启用");
+            return;
+        }
         // 1. ACTIVE 记忆超过 WEAKENING_DAYS 天未强化 → 标记为 WEAKENING
         String weakeningBefore = DATETIME_FMT.format(LocalDateTime.now().minusDays(WEAKENING_DAYS));
         List<Long> weakeningIds = memoryMapper.selectMemoryIdsByStatus("ACTIVE", weakeningBefore, BATCH_SIZE);
@@ -159,5 +172,11 @@ public class AiPreferenceMiner {
         if (weakeningCount == 0 && archiveCount == 0 && deletedCount == 0) {
             log.debug("生命周期管理：无需处理的记忆");
         }
+    }
+
+    private boolean lifecycleColumnsReady() {
+        return columnChecker.hasColumn("ai_user_memory", "status")
+                && columnChecker.hasColumn("ai_user_memory", "last_reinforced_at")
+                && columnChecker.hasColumn("ai_user_memory", "reinforce_count");
     }
 }

@@ -24,22 +24,21 @@ export function chatWithAiStream({ message, conversationId, pageContext, onEvent
   const controller = new AbortController()
   const { tokenName, tokenValue } = getAuthToken()
   const baseURL = import.meta.env.VITE_API_BASE || '/api'
-
-  const params = new URLSearchParams()
-  params.set('message', message)
-  if (conversationId) params.set('conversationId', conversationId)
-  if (pageContext) params.set('pageContext', pageContext)
-
-  const url = `${baseURL}/ai/chat/stream?${params.toString()}`
+  const url = `${baseURL}/ai/chat/stream`
 
   const promise = (async () => {
-    const headers = { 'Accept': 'text/event-stream' }
+    const headers = {
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json'
+    }
     if (tokenName && tokenValue) {
       headers[tokenName] = tokenValue
     }
 
     const response = await fetch(url, {
+      method: 'POST',
       headers,
+      body: JSON.stringify({ message, conversationId, pageContext }),
       signal: controller.signal
     })
 

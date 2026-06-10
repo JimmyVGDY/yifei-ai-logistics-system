@@ -1,7 +1,7 @@
 package jimmy.logistics.config;
 
 import jimmy.common.id.CompactSnowflakeIdGenerator;
-import jimmy.config.TraceContextSupport;
+import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.annotation.OperationLog;
 import jimmy.logistics.mapper.OperationLogMapper;
 import jimmy.logistics.util.ColumnExistenceChecker;
@@ -82,6 +82,7 @@ class OperationLogInterceptorTest {
         request.addHeader("User-Agent", "JUnit Browser");
         request.setParameter("keyword", "测试订单");
         request.setParameter("password", "123456");
+        request.setParameter("message", "帮我查询客户陈土豆的手机号");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         interceptor.preHandle(request, response, handlerMethodWithoutOperationLog());

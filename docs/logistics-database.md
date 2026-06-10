@@ -124,6 +124,22 @@ mysql -uroot logistics_management < scripts/sql/20260605_incremental_ai_long_ter
 
 该脚本只新增 `ai_user_profile`、`ai_user_memory`、`ai_memory_event` 表，并补齐 `sys_operation_log` 的 AI 记忆审计字段；不会清空或重建现有物流业务表。
 
+如果需要启用 AI 长期记忆生命周期管理（强化计数、最后强化时间、生命周期状态和状态索引），可继续执行：
+
+```bash
+mysql -uroot logistics_management < scripts/sql/20260610_incremental_ai_memory_lifecycle.sql
+```
+
+该脚本可重复执行。应用启动时如果检测到 `ai_user_memory.status`、`last_reinforced_at`、`reinforce_count` 尚未就绪，会跳过偏好挖掘和生命周期管理，不影响 AI 问答和物流主业务。
+
+如果需要补齐 AI 助手菜单和最小必要权限，可执行：
+
+```bash
+mysql -uroot logistics_management < scripts/sql/20260610_incremental_ai_menu_for_all_roles.sql
+```
+
+该脚本会给所有角色补齐 AI 助手入口和当前用户自己的基础 AI 权限；`ai:log:analyze` 仅默认授予管理员、审计员和财务经理，并会收回非审计类角色历史上被默认授予的日志分析权限，避免普通角色保留跨用户日志排障能力。
+
 如果需要补齐客户数据隔离、手机号查重摘要和逻辑删除安全字段，可执行：
 
 ```bash

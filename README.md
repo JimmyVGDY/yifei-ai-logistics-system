@@ -90,7 +90,11 @@ MySQL 服务: MySQL84
 ```bash
 F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_management < scripts/sql/20260525_incremental_base_fields_and_indexes.sql
 F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_management < scripts/sql/20260603_incremental_security_hardening.sql
+F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_management < scripts/sql/20260610_incremental_ai_memory_lifecycle.sql
+F:\Development\Database\MySQL\Server-8.4.9\bin\mysql.exe -uroot logistics_management < scripts/sql/20260610_incremental_ai_menu_for_all_roles.sql
 ```
+
+AI 相关增量脚本只补齐长期记忆生命周期字段、AI 菜单和最小必要权限，不清库、不重建表；其中 `ai:log:analyze` 仅保留给管理员、审计只读员和财务主管这类审计角色。
 
 如果不想依赖 MySQL，可以使用 H2 内存库：
 

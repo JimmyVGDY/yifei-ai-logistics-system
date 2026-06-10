@@ -154,7 +154,7 @@
       </div>
     </main>
 
-    <aside class="log-panel">
+    <aside v-if="canAnalyzeLogs" class="log-panel">
       <div class="panel-header">
         <div>
           <h3>日志排障</h3>
@@ -215,7 +215,7 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Promotion, Refresh, Search } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
@@ -231,6 +231,7 @@ import {
   fetchAiMemoryProfile,
   updateAiMemorySettings
 } from '../api/ai-assistant'
+import { hasPermission } from '../stores/auth-store'
 
 const conversations = ref([])
 const conversationId = ref('')
@@ -245,6 +246,7 @@ const memoryItems = ref([])
 const memoryEnabled = ref(true)
 const memoryLoading = ref(false)
 const chatScrollbarRef = ref(null)
+const canAnalyzeLogs = computed(() => hasPermission('ai:log:analyze'))
 
 /** SSE 流式进度状态 */
 const streamProgress = ref(null)

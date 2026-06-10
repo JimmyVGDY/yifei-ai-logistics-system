@@ -1,8 +1,8 @@
 package jimmy.logistics.service;
 
 import jimmy.common.id.CompactSnowflakeIdGenerator;
-import jimmy.config.LogisticsProperties;
-import jimmy.config.TraceContextSupport;
+import jimmy.logistics.config.LogisticsProperties;
+import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.entity.LogisticsOrder;
 import jimmy.logistics.model.LogisticsOrderEvent;
 import org.junit.jupiter.api.AfterEach;
