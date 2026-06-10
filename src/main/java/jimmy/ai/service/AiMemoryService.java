@@ -14,7 +14,6 @@ import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.util.ColumnExistenceChecker;
 import jimmy.common.model.PageResult;
-import jimmy.common.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -404,11 +403,17 @@ public class AiMemoryService {
         }
     }
 
+    /**
+     * 记忆内容安全处理 —— 仅对手机号/邮箱/身份证/凭证做精确正则掩码。
+     * <p>
+     * LLM 已按要求输出脱敏后的语义摘要，本方法仅做补充保护。
+     * 不再使用 LogMaskUtils.maskText()（随机星号，会破坏语义内容）。
+     */
     private String safeMemory(String value) {
         if (!StringUtils.hasText(value)) {
             return "";
         }
-        String masked = masker.mask(LogMaskUtils.maskText(value));
+        String masked = masker.mask(value);
         return masked.length() <= MAX_SUMMARY_LENGTH ? masked : masked.substring(0, MAX_SUMMARY_LENGTH);
     }
 

@@ -6,7 +6,6 @@ import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.mapper.OperationLogMapper;
 import jimmy.logistics.util.ColumnExistenceChecker;
-import jimmy.common.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -178,11 +177,16 @@ public class AiAuditLogService {
         }
     }
 
+    /**
+     * 审计摘要安全处理 —— 仅对手机号/邮箱/身份证/凭证做精确正则掩码。
+     * <p>
+     * 不再使用 LogMaskUtils.maskText()（随机星号，会破坏审计可读性）。
+     */
     private String safeSummary(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
         }
-        return truncate(masker.mask(LogMaskUtils.maskText(value)), MAX_SUMMARY_LENGTH);
+        return truncate(masker.mask(value), MAX_SUMMARY_LENGTH);
     }
 
     private String currentUserId() {
