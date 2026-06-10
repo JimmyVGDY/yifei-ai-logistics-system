@@ -75,7 +75,7 @@ public class SystemPermissionService {
         if (countAllRolePermissions() == 0) {
             ensureDefaultRoleMenus();
         }
-        ensureAdminAiMenu();
+        ensureAiMenuForAllRoles();
         syncRolePermissionsFromMenus();
     }
 
@@ -386,15 +386,20 @@ public class SystemPermissionService {
         }
     }
 
-    private void ensureAdminAiMenu() {
+    /**
+     * 确保所有角色都有 AI 助手菜单入口。
+     * <p>
+     * 每次启动自动补齐：如果某角色已有 AI 菜单则跳过，未分配则新增。
+     * AI 助手内部按角色权限做数据隔离（见 AiReadonlyQueryService.hasPermission），不会越权。
+     */
+    private void ensureAiMenuForAllRoles() {
         Long aiMenuId = systemPermissionMapper.selectMenuIdByPath("/ai-assistant");
         if (aiMenuId == null) {
             return;
         }
         for (Map<String, Object> role : systemPermissionMapper.selectAllRoles()) {
             Long roleId = toLong(role.get("id"));
-            String roleCode = String.valueOf(role.get("roleCode"));
-            if (roleId == null || !"ADMIN".equalsIgnoreCase(roleCode)) {
+            if (roleId == null) {
                 continue;
             }
             List<Long> menuIds = systemPermissionMapper.selectRoleMenuIds(roleId);
