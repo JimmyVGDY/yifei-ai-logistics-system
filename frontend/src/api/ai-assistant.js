@@ -51,6 +51,7 @@ export function chatWithAiStream({ message, conversationId, pageContext, onEvent
     const decoder = new TextDecoder()
     let buffer = ''
     let result = null
+    let streamError = null
 
     while (true) {
       const { done, value } = await reader.read()
@@ -81,6 +82,8 @@ export function chatWithAiStream({ message, conversationId, pageContext, onEvent
                 toolCalls: [],
                 elapsedMs: data.elapsedMs || 0
               }
+            } else if (eventName === 'error') {
+              streamError = data.message || 'AI 流式响应失败，请稍后重试'
             }
             if (onEvent) {
               onEvent({ type: eventName, ...data })
@@ -94,6 +97,9 @@ export function chatWithAiStream({ message, conversationId, pageContext, onEvent
       }
     }
 
+    if (streamError) {
+      throw new Error(streamError)
+    }
     if (!result) {
       throw new Error('SSE 连接意外关闭，未收到最终结果')
     }

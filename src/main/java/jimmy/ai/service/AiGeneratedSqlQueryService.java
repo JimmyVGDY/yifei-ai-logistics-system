@@ -75,7 +75,8 @@ public class AiGeneratedSqlQueryService {
             log.info("AI 生成 SQL 查询被拦截，reason={}", exception.getMessage());
             return AiGeneratedSqlQueryResult.message(exception.getMessage());
         } catch (RuntimeException exception) {
-            log.warn("AI 生成 SQL 查询失败，reason={}", exception.getMessage());
+            // 执行异常可能包含完整 SQL 或数据库细节，日志中只保留异常类型，详细 SQL 不落控制台。
+            log.warn("AI 生成 SQL 查询失败，exceptionType={}", exception.getClass().getSimpleName());
             return AiGeneratedSqlQueryResult.message("临时只读查询执行失败，请换一种描述或联系系统管理员。");
         }
     }

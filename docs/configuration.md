@@ -210,6 +210,7 @@ AI 长期记忆配置：
 
 | 配置 | 默认值 | 说明 |
 | --- | --- | --- |
+| `APP_AI_SSE_TIMEOUT_MS` | `180000` | AI 流式问答异步超时，单位毫秒；模型和工具调用较慢时可适当调大 |
 | `APP_AI_MEMORY_QDRANT_ENABLED` | `true` | 是否启用 Qdrant 向量召回；不可用时自动降级 |
 | `APP_AI_MEMORY_QDRANT_BASE_URL` | `http://127.0.0.1:6333` | Qdrant HTTP 地址 |
 | `APP_AI_MEMORY_QDRANT_COLLECTION` | `logistics_ai_user_memory` | 长期记忆向量集合；集合维度必须匹配当前 embedding 模型 |
