@@ -56,6 +56,12 @@ spring:
       chat:
         options:
           model: ${SPRING_AI_OPENAI_CHAT_MODEL:gpt-4o-mini}
+    ollama:
+      # Ollama 本地 Embedding 服务（Windows 端运行，WSL 通过 host IP 访问）
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      embedding:
+        enabled: true
+        model: ${OLLAMA_EMBEDDING_MODEL:bge-m3}
   cloud:
     sentinel:
       eager: true
