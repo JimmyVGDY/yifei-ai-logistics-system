@@ -128,7 +128,7 @@ public class AiAssistantService {
         for (AiToolCall toolCall : toolCalls) {
             auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
         }
-        String answer = fallbackQueryExecuted ? fallbackAnswer(citations, toolCalls) : modelAnswer.orElseGet(() -> fallbackAnswer(citations, toolCalls));
+        String answer = fallbackQueryExecuted ? fallbackAnswer(context.toString(), toolCalls) : modelAnswer.orElseGet(() -> fallbackAnswer(context.toString(), toolCalls));
         AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer);
         memoryService.rememberInteraction(conversation.conversationId(), safeMessage, answer, toolCalls);
         auditLogService.recordResponse(conversation.conversationId(), safeMessage,
@@ -234,7 +234,7 @@ public class AiAssistantService {
             for (AiToolCall toolCall : toolCalls) {
                 auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
             }
-            String answer = fallbackQueryExecuted ? fallbackAnswer(citations, toolCalls) : modelAnswer.orElseGet(() -> fallbackAnswer(citations, toolCalls));
+            String answer = fallbackQueryExecuted ? fallbackAnswer(context.toString(), toolCalls) : modelAnswer.orElseGet(() -> fallbackAnswer(context.toString(), toolCalls));
             AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer);
             memoryService.rememberInteraction(conversation.conversationId(), safeMessage, answer, toolCalls);
             auditLogService.recordResponse(conversation.conversationId(), safeMessage,
@@ -318,31 +318,73 @@ public class AiAssistantService {
         return StringUtils.hasText(conversationId) ? conversationId : traceContextSupport.newOperationId();
     }
 
-    private String fallbackAnswer(List<AiCitation> citations, List<AiToolCall> toolCalls) {
-        StringBuilder builder = new StringBuilder();
-        if (!modelGateway.configured()) {
-            builder.append("当前未配置模型 API Key，已返回本地只读检索结果。");
-        } else {
-            builder.append("模型调用暂时不可用，已返回本地只读检索结果。");
+    /**
+     * 模型不可用时生成面向用户的友好兜底提示。
+     * <p>
+     * 不做任何内部工具细节、权限码、模块名的外泄。
+     * 仅展示业务数据实际匹配结果，无匹配时引导用户提供更精确的关键词。
+     */
+    private String fallbackAnswer(String context, List<AiToolCall> toolCalls) {
+        // 1. 提取业务只读查询的摘要（已经过格式化，直接面向用户）
+        String businessResult = extractSection(context, "业务只读查询摘要：", true);
+        if (businessResult != null) {
+            return businessResult;
         }
+        // 2. 如果模型调用中触发了工具，取最后一个非系统工具的结果
+        for (int i = toolCalls.size() - 1; i >= 0; i--) {
+            AiToolCall toolCall = toolCalls.get(i);
+            if (isSystemTool(toolCall)) {
+                continue;
+            }
+            String result = toolCall.result();
+            if (StringUtils.hasText(result) && !result.contains("权限不足") && !result.contains("未匹配到记录") && !result.contains("共匹配 0")) {
+                return result;
+            }
+        }
+        // 3. 所有工具都未匹配到数据，给用户明确的引导
         if (!toolCalls.isEmpty()) {
-            builder.append("\n\n已执行工具：");
-            for (AiToolCall toolCall : toolCalls) {
-                builder.append("\n- ").append(toolCall.toolName())
-                        .append("：").append(toolCall.target())
-                        .append("，").append(toolCall.result());
-            }
+            return "暂未找到相关业务数据。请提供更具体的关键词（如订单号、运单号、客户名称、手机号、司机姓名或日期范围），我会重新查找。";
         }
-        if (!citations.isEmpty()) {
-            builder.append("\n\n可参考资料：");
-            for (AiCitation citation : citations) {
-                builder.append("\n- ").append(citation.title()).append("：").append(citation.snippet());
-            }
+        // 4. 没有任何工具执行（极端异常情况）
+        return "AI 模型暂时不可用，请稍后重试。如果问题持续，请检查 API Key 配置。";
+    }
+
+    /**
+     * 从上下文字符串中提取指定标题后的内容，去除内部标签后仅保留面向用户的文本。
+     */
+    private String extractSection(String context, String label, boolean trimPrefix) {
+        if (!StringUtils.hasText(context)) {
+            return null;
         }
-        if (citations.isEmpty() && toolCalls.isEmpty()) {
-            builder.append("\n\n没有找到足够的本地上下文。你可以补充订单号、客户名、页面名称、traceId、operationId 或 loginSessionId。");
+        int idx = context.indexOf(label);
+        if (idx < 0) {
+            return null;
         }
-        return masker.mask(builder.toString());
+        String content = context.substring(idx + label.length());
+        // 截取到下一个 section 标题（\n关键词：）
+        int nextSection = content.indexOf("\nAI 工具调用摘要：");
+        if (nextSection < 0) {
+            nextSection = content.indexOf("\n已执行工具：");
+        }
+        if (nextSection < 0) {
+            nextSection = content.indexOf("\nAI 长期记忆");
+        }
+        if (nextSection > 0) {
+            content = content.substring(0, nextSection);
+        }
+        content = content.trim();
+        if (trimPrefix && content.startsWith("业务只读查询摘要：")) {
+            content = content.substring("业务只读查询摘要：".length()).trim();
+        }
+        return StringUtils.hasText(content) ? content : null;
+    }
+
+    /**
+     * 判断工具调用是否为系统内部操作（长期记忆召回、日志排障等），这些不应该展示给用户。
+     */
+    private boolean isSystemTool(AiToolCall toolCall) {
+        String name = toolCall.toolName();
+        return "长期记忆召回".equals(name) || "日志排障".equals(name);
     }
 
     private String contextText(List<AiCitation> citations) {
