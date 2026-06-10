@@ -154,6 +154,10 @@ public class AiMemoryService {
         List<AiCitation> citations = new ArrayList<>();
         for (AiMemoryItemVO memory : memories) {
             memoryMapper.markMemoryRecalled(memory.id());
+            // 每次召回命中同时强化记忆，置信度自动递增
+            if (memory.confidence() != null && memory.confidence() < 0.96) {
+                memoryMapper.markMemoryReinforced(memory.id());
+            }
             context.append("- ").append(memory.memoryTitle()).append("：").append(memory.memorySummary()).append("\n");
             citations.add(new AiCitation("AI_MEMORY", "长期记忆", "memory:" + memory.id(), memory.memorySummary()));
         }
