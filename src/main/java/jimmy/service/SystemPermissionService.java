@@ -550,18 +550,18 @@ public class SystemPermissionService {
             allPaths.add(menu.path);
         }
         defaults.put("ADMIN", allPaths);
-        defaults.put("OPERATIONS_MANAGER", Arrays.asList("/dashboard", "/orders", "/waybills", "/dispatches", "/tasks", "/tracks", "/exceptions"));
-        defaults.put("ORDER_OPERATOR", Arrays.asList("/orders", "/customers", "/waybills", "/tracks"));
-        defaults.put("CUSTOMER_SERVICE", Arrays.asList("/customers", "/orders", "/waybills", "/tracks"));
-        defaults.put("DISPATCHER", Arrays.asList("/dispatches", "/tasks", "/drivers", "/vehicles", "/tracks", "/exceptions"));
-        defaults.put("FLEET_MANAGER", Arrays.asList("/drivers", "/vehicles", "/dispatches", "/tasks", "/tracks"));
-        defaults.put("DRIVER", Arrays.asList("/tasks", "/tracks", "/exceptions"));
-        defaults.put("EXCEPTION_HANDLER", Arrays.asList("/exceptions", "/orders", "/tasks", "/tracks"));
-        defaults.put("FINANCE", Arrays.asList("/fees", "/dashboard"));
-        defaults.put("FINANCE_MANAGER", Arrays.asList("/fees", "/dashboard", "/system/operation-logs"));
-        defaults.put("AUDITOR", Arrays.asList("/dashboard", "/orders", "/waybills", "/tracks", "/fees", "/system/operation-logs"));
-        defaults.put("FILE_MANAGER", Arrays.asList("/files", "/resources"));
-        defaults.put("CUSTOMER", Arrays.asList("/orders", "/tracks"));
+        defaults.put("OPERATIONS_MANAGER", Arrays.asList("/dashboard", "/orders", "/waybills", "/dispatches", "/tasks", "/tracks", "/exceptions", "/ai-assistant"));
+        defaults.put("ORDER_OPERATOR", Arrays.asList("/orders", "/customers", "/waybills", "/tracks", "/ai-assistant"));
+        defaults.put("CUSTOMER_SERVICE", Arrays.asList("/customers", "/orders", "/waybills", "/tracks", "/ai-assistant"));
+        defaults.put("DISPATCHER", Arrays.asList("/dispatches", "/tasks", "/drivers", "/vehicles", "/tracks", "/exceptions", "/ai-assistant"));
+        defaults.put("FLEET_MANAGER", Arrays.asList("/drivers", "/vehicles", "/dispatches", "/tasks", "/tracks", "/ai-assistant"));
+        defaults.put("DRIVER", Arrays.asList("/tasks", "/tracks", "/exceptions", "/ai-assistant"));
+        defaults.put("EXCEPTION_HANDLER", Arrays.asList("/exceptions", "/orders", "/tasks", "/tracks", "/ai-assistant"));
+        defaults.put("FINANCE", Arrays.asList("/fees", "/dashboard", "/ai-assistant"));
+        defaults.put("FINANCE_MANAGER", Arrays.asList("/fees", "/dashboard", "/system/operation-logs", "/ai-assistant"));
+        defaults.put("AUDITOR", Arrays.asList("/dashboard", "/orders", "/waybills", "/tracks", "/fees", "/system/operation-logs", "/ai-assistant"));
+        defaults.put("FILE_MANAGER", Arrays.asList("/files", "/resources", "/ai-assistant"));
+        defaults.put("CUSTOMER", Arrays.asList("/orders", "/tracks", "/ai-assistant"));
         return defaults;
     }
 
