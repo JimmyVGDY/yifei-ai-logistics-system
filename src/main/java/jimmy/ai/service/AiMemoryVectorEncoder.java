@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -47,6 +49,18 @@ public class AiMemoryVectorEncoder {
     @Autowired(required = false)
     @Qualifier("ollamaEmbeddingModel")
     private EmbeddingModel embeddingModel;
+
+    /**
+     * 启动时输出向量编码模式，方便运维确认 Ollama 是否生效。
+     */
+    @PostConstruct
+    public void logEncoderMode() {
+        if (embeddingModel != null) {
+            log.info("向量编码模式: Ollama bge-m3 (1024 维) — 已就绪");
+        } else {
+            log.warn("向量编码模式: 哈希降级 (128 → 1024 零填充) — EmbeddingModel 未注入，请检查 Ollama 服务");
+        }
+    }
 
     /**
      * 对文本进行向量化编码。
