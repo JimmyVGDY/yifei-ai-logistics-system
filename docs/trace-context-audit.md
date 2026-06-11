@@ -40,7 +40,7 @@ AI 长期记忆链路会额外写入 `ai_memory_event` 表，并在 `sys_operati
 
 AI 会话历史会写入 `ai_conversation` 和 `ai_conversation_message`。其中 `ai_conversation` 负责归档、删除、最近上下文和消息数量，`ai_conversation_message` 负责单条用户消息、AI 回复、失败消息、工具摘要和引用摘要。删除采用逻辑删除，普通用户不可见但审计链路保留。
 
-AI 临时 SQL 链路会拆成“生成、自检、安全校验、执行”几个审计阶段。日志中的错误分类包括 `SQL_GENERATE_EMPTY`、`SQL_SELF_CHECK_FAILED`、`SQL_SECURITY_BLOCKED`、`SQL_SYNTAX_ERROR` 和 `SQL_EXECUTION_ERROR`。前端只展示友好中文，内部 SQL、表名、字段名、权限码和异常堆栈不直接返回给用户。
+AI 临时 SQL 链路会拆成“生成、自检、安全校验、语法纠错、执行”几个审计阶段。语法预检或执行阶段出现 SQL 语法错误时，会自动纠错最多 3 次，每次纠错后仍重新执行安全校验。日志中的错误分类包括 `SQL_GENERATE_EMPTY`、`SQL_SELF_CHECK_FAILED`、`SQL_SECURITY_BLOCKED`、`SQL_SYNTAX_ERROR` 和 `SQL_EXECUTION_ERROR`。前端只展示友好中文，内部 SQL、表名、字段名、权限码和异常堆栈不直接返回给用户。
 
 一次完整 AI 问答的推荐排查顺序：
 

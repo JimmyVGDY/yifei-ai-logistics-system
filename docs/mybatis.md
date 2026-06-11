@@ -41,7 +41,7 @@ src/main/resources/mapper/**/*.xml
 
 `JdbcTemplate` 只允许用于数据库元信息检测，例如判断某张表是否存在 `deleted` 或 `user_code` 字段。该逻辑不属于业务 SQL，且必须集中封装，不能散落到 Controller 或 Service 的业务流程里。
 
-AI 助手的临时只读 SQL 网关是另一个受控例外：`AiGeneratedSqlQueryService` 允许模型生成候选 `SELECT`，但执行前必须先让模型按白名单 schema 自检修正，再经过 `AiSqlSafetyValidator` 和数据库 `limit 0` 语法预检。校验规则包括单条 `SELECT`、禁止写关键字、禁止注释和多语句、禁止 `select *`、禁止敏感字段、只允许白名单表字段、每张表都要求当前账号具备对应查询权限，并由外层统一 `limit 20`。该例外只服务自然语言临时统计、关联和连表分析，不能推广到普通业务开发。
+AI 助手的临时只读 SQL 网关是另一个受控例外：`AiGeneratedSqlQueryService` 允许模型生成候选 `SELECT`，但执行前必须先让模型按白名单 schema 自检修正，再经过 `AiSqlSafetyValidator` 和数据库 `limit 0` 语法预检；如果语法预检失败，会让模型按错误摘要自动纠错，最多重试 3 次，且每次纠错后都重新执行安全校验。校验规则包括单条 `SELECT`、禁止写关键字、禁止注释和多语句、禁止 `select *`、禁止敏感字段、只允许白名单表字段、每张表都要求当前账号具备对应查询权限，并由外层统一 `limit 20`。该例外只服务自然语言临时统计、关联和连表分析，不能推广到普通业务开发。
 
 Spring AI Tool Calling 中的普通业务查询不属于 SQL 例外：`AiBusinessQueryTools` 只负责把模型选择的只读工具参数交给 `AiReadonlyQueryService`，最终仍然复用 `LogisticsRequirementService.modulePage()`、`LogisticsModuleQueryMapper.xml` 和后端白名单。全场景模糊搜索、自动联合查询也只是组合调用已有白名单模块，不允许模型自由拼接业务 SQL。
 

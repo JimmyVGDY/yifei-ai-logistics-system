@@ -30,6 +30,7 @@ public class AiGeneratedSqlQueryService {
 
     private static final int MAX_ROWS = 20;
     private static final int SUMMARY_ROWS = 8;
+    private static final int MAX_SQL_REPAIR_ATTEMPTS = 3;
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String CUSTOMER_SCOPE_MESSAGE = "当前账号存在客户数据范围限制，AI 暂不支持自定义关联 SQL 查询。请使用客户、订单或轨迹等普通只读查询。";
 
@@ -77,32 +78,54 @@ public class AiGeneratedSqlQueryService {
             }
             recordSqlStage("自检", message, "模型自检完成", true);
 
-            // 模型输出只当作候选文本，自检后仍必须经过表白名单、权限、敏感字段和单语句校验后才允许执行。
-            AiSqlSafetyValidator.ValidatedSql validatedSql = sqlSafetyValidator.validate(checked.get());
-            recordSqlStage("安全校验", message, "校验通过，tables=" + validatedSql.tables(), true);
-            preflight(validatedSql.sql());
-            List<Map<String, Object>> rows = jdbcTemplate.queryForList(wrapLimit(validatedSql.sql()));
-            List<Map<String, Object>> formatted = formatRows(rows);
-            String summary = summary(formatted);
-            log.info("AI 生成 SQL 查询完成，tables={}, rows={}, sql={}",
-                    validatedSql.tables(), formatted.size(), LogMaskUtils.maskText(validatedSql.sql()));
-            recordSqlStage("执行", message, "执行成功，rows=" + formatted.size(), true);
-            return new AiGeneratedSqlQueryResult(true, summary, formatted);
+            return executeWithRepairLoop(message, checked.get());
         } catch (IllegalArgumentException exception) {
             log.info("AI 生成 SQL 查询被安全校验拦截，errorCode=SQL_SECURITY_BLOCKED, reason={}", exception.getMessage());
             recordSqlStage("安全校验", message, "SQL_SECURITY_BLOCKED：" + exception.getMessage(), false);
             return AiGeneratedSqlQueryResult.message(exception.getMessage());
-        } catch (BadSqlGrammarException exception) {
-            log.warn("AI 生成 SQL 语法预检或执行失败，errorCode=SQL_SYNTAX_ERROR, exceptionType={}",
-                    exception.getClass().getSimpleName());
-            recordSqlStage("执行", message, "SQL_SYNTAX_ERROR：临时查询语法错误", false);
-            return AiGeneratedSqlQueryResult.message("临时只读查询存在语法问题，请换一种描述后重试。");
         } catch (RuntimeException exception) {
             // 执行异常可能包含完整 SQL 或数据库细节，日志中只保留异常类型，详细 SQL 不落控制台。
             log.warn("AI 生成 SQL 查询失败，errorCode=SQL_EXECUTION_ERROR, exceptionType={}", exception.getClass().getSimpleName());
             recordSqlStage("执行", message, "SQL_EXECUTION_ERROR：临时查询执行失败", false);
             return AiGeneratedSqlQueryResult.message("临时只读查询执行失败，请换一种描述或联系系统管理员。");
         }
+    }
+
+    private AiGeneratedSqlQueryResult executeWithRepairLoop(String message, String checkedSql) {
+        String currentSql = checkedSql;
+        for (int repairAttempt = 0; repairAttempt <= MAX_SQL_REPAIR_ATTEMPTS; repairAttempt++) {
+            try {
+                // 模型输出只当作候选文本；每一轮纠错后都重新做表白名单、权限、敏感字段和单语句校验。
+                AiSqlSafetyValidator.ValidatedSql validatedSql = sqlSafetyValidator.validate(currentSql);
+                recordSqlStage("安全校验", message, "校验通过，tables=" + validatedSql.tables(), true);
+                preflight(validatedSql.sql());
+                List<Map<String, Object>> rows = jdbcTemplate.queryForList(wrapLimit(validatedSql.sql()));
+                List<Map<String, Object>> formatted = formatRows(rows);
+                String summary = summary(formatted);
+                log.info("AI 生成 SQL 查询完成，tables={}, rows={}, repairAttempt={}, sql={}",
+                        validatedSql.tables(), formatted.size(), repairAttempt, LogMaskUtils.maskText(validatedSql.sql()));
+                recordSqlStage("执行", message, "执行成功，rows=" + formatted.size()
+                        + (repairAttempt > 0 ? "，纠错次数=" + repairAttempt : ""), true);
+                return new AiGeneratedSqlQueryResult(true, summary, formatted);
+            } catch (BadSqlGrammarException exception) {
+                if (repairAttempt >= MAX_SQL_REPAIR_ATTEMPTS) {
+                    log.warn("AI 生成 SQL 语法预检或执行失败，errorCode=SQL_SYNTAX_ERROR, repairAttempts={}, exceptionType={}",
+                            repairAttempt, exception.getClass().getSimpleName());
+                    recordSqlStage("执行", message, "SQL_SYNTAX_ERROR：临时查询语法错误，已纠错" + repairAttempt + "次", false);
+                    return AiGeneratedSqlQueryResult.message("临时只读查询存在语法问题，已自动纠错多次仍未成功，请换一种描述后重试。");
+                }
+                int nextAttempt = repairAttempt + 1;
+                recordSqlStage("语法纠错", message, "SQL_SYNTAX_ERROR：开始第" + nextAttempt + "次自动纠错", false);
+                Optional<String> repaired = modelGateway.chat(repairSystemPrompt(), repairUserPrompt(message, currentSql, exception, nextAttempt));
+                if (repaired.isEmpty() || !StringUtils.hasText(repaired.get())) {
+                    recordSqlStage("语法纠错", message, "SQL_SELF_CHECK_FAILED：第" + nextAttempt + "次纠错未返回可用 SQL", false);
+                    return AiGeneratedSqlQueryResult.message("临时只读查询自动纠错失败，请换一种描述后重试。");
+                }
+                currentSql = repaired.get();
+                recordSqlStage("语法纠错", message, "第" + nextAttempt + "次纠错完成，准备重新校验", true);
+            }
+        }
+        return AiGeneratedSqlQueryResult.message("临时只读查询存在语法问题，请换一种描述后重试。");
     }
 
     private boolean shouldUseGeneratedSql(String message) {
@@ -171,6 +194,31 @@ public class AiGeneratedSqlQueryService {
 
     private String selfCheckUserPrompt(String message, String candidateSql) {
         return "用户问题：" + message + "\n候选 SQL：\n" + candidateSql + "\n请自检并返回最终可执行的单条 SELECT。";
+    }
+
+    private String repairSystemPrompt() {
+        return """
+                你是物流管理系统的 MySQL SELECT 语法纠错器。
+                你会收到用户问题、上一轮 SQL 和数据库语法错误摘要。请修复语法、字段、别名、聚合和 JOIN 问题。
+                只允许返回一条修正后的 MySQL SELECT 查询，不要解释，不要 Markdown，不要分号。
+                不要扩大查询范围，不要新增写操作，不要返回敏感字段，不要使用 select *。
+                查询必须使用下面的白名单表和字段：
+                """ + sqlSafetyValidator.schemaPrompt();
+    }
+
+    private String repairUserPrompt(String message, String sql, BadSqlGrammarException exception, int attempt) {
+        return "用户问题：" + message
+                + "\n第" + attempt + "次纠错。上一轮 SQL：\n" + sql
+                + "\n数据库语法错误摘要：" + syntaxErrorSummary(exception)
+                + "\n请修正后只返回单条可执行 SELECT。";
+    }
+
+    private String syntaxErrorSummary(BadSqlGrammarException exception) {
+        Throwable cause = exception.getMostSpecificCause();
+        if (cause == null || !StringUtils.hasText(cause.getMessage())) {
+            return exception.getClass().getSimpleName();
+        }
+        return LogMaskUtils.maskText(cause.getMessage());
     }
 
     private String wrapLimit(String sql) {
