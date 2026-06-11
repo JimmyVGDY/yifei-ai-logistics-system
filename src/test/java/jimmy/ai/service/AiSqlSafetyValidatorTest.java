@@ -55,6 +55,10 @@ class AiSqlSafetyValidatorTest {
         assertThatThrownBy(() -> validator.validate("select username, password from sys_user"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("敏感字段");
+
+        assertThatThrownBy(() -> validator.validate("select request_params from sys_operation_log"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("敏感字段");
     }
 
     @Test
@@ -83,6 +87,39 @@ class AiSqlSafetyValidatorTest {
             stp.verifyNoInteractions();
         } finally {
             SseChatContext.clear();
+        }
+    }
+
+    @Test
+    void shouldExposeExpandedRealDatabaseSchema() {
+        String schema = validator.schemaPrompt();
+
+        assertThat(schema)
+                .contains("logistics_warehouse")
+                .contains("logistics_route")
+                .contains("logistics_inventory")
+                .contains("logistics_freight_bill")
+                .contains("sys_permission")
+                .contains("ai_conversation")
+                .contains("load_capacity_kg")
+                .contains("payable_fee");
+        assertThat(schema)
+                .doesNotContain("load_capacity,")
+                .doesNotContain("transport_fee")
+                .doesNotContain("total_fee")
+                .doesNotContain("order_no, start_site");
+    }
+
+    @Test
+    void shouldAllowResourceAndAiAuditTablesWithExpectedPermissions() {
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("resource:query")).thenReturn(true);
+            stp.when(() -> StpUtil.hasPermission("ai:log:analyze")).thenReturn(true);
+
+            assertThat(validator.validate("select warehouse_name from logistics_warehouse").tables())
+                    .containsExactly("logistics_warehouse");
+            assertThat(validator.validate("select conversation_id, message_count from ai_conversation").tables())
+                    .containsExactly("ai_conversation");
         }
     }
 }
