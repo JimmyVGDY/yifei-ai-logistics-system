@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jimmy.ai.model.AgentResult;
 import jimmy.ai.model.AiChatRequest;
+import jimmy.ai.model.DailyBriefingVO;
 import jimmy.ai.model.AiChatResponse;
 import jimmy.ai.model.AiConversationVO;
 import jimmy.ai.model.AiLogAnalysisResponse;
@@ -17,6 +18,7 @@ import jimmy.ai.model.FeedbackRequest;
 import jimmy.ai.service.AiAgentOrchestrator;
 import jimmy.ai.service.AiAssistantService;
 import jimmy.ai.service.AiMemoryService;
+import jimmy.ai.service.AiProactiveAlertService;
 import jimmy.common.model.ApiResponse;
 import jimmy.common.model.PageResult;
 import jimmy.common.trace.TraceContextSupport;
@@ -49,15 +51,18 @@ public class AiAssistantController {
     private final AiAssistantService aiAssistantService;
     private final AiMemoryService aiMemoryService;
     private final AiAgentOrchestrator agentOrchestrator;
+    private final AiProactiveAlertService proactiveAlertService;
     private final TraceContextSupport traceContextSupport;
 
     public AiAssistantController(AiAssistantService aiAssistantService,
                                  AiMemoryService aiMemoryService,
                                  AiAgentOrchestrator agentOrchestrator,
+                                 AiProactiveAlertService proactiveAlertService,
                                  TraceContextSupport traceContextSupport) {
         this.aiAssistantService = aiAssistantService;
         this.aiMemoryService = aiMemoryService;
         this.agentOrchestrator = agentOrchestrator;
+        this.proactiveAlertService = proactiveAlertService;
         this.traceContextSupport = traceContextSupport;
     }
 
@@ -236,6 +241,20 @@ public class AiAssistantController {
             }
         };
         return ResponseEntity.ok(stream);
+    }
+
+    @OperationLog("AI助手-查询每日简报")
+    @GetMapping("/insights/daily")
+    public ApiResponse<DailyBriefingVO> dailyBriefing() {
+        StpUtil.checkLogin();
+        return ApiResponse.success(proactiveAlertService.generateDailyBriefing());
+    }
+
+    @OperationLog("AI助手-查询异常检测")
+    @GetMapping("/insights/anomalies")
+    public ApiResponse<List<String>> anomalies() {
+        StpUtil.checkLogin();
+        return ApiResponse.success(proactiveAlertService.detectAnomalies());
     }
 
     private String resolveConversationId(String conversationId) {

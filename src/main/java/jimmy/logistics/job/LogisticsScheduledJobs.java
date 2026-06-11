@@ -1,6 +1,7 @@
 package jimmy.logistics.job;
 
 import com.xxl.job.core.handler.annotation.XxlJob;
+import jimmy.ai.service.AiProactiveAlertService;
 import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.mapper.LogisticsDashboardMapper;
 import jimmy.logistics.mapper.OperationLogMapper;
@@ -25,6 +26,7 @@ public class LogisticsScheduledJobs {
 
     private final LogisticsDashboardMapper dashboardMapper;
     private final OperationLogMapper operationLogMapper;
+    private final AiProactiveAlertService proactiveAlertService;
     private final TraceContextSupport traceContextSupport;
 
     @Value("${app.operation-log.retention-days:180}")
@@ -32,9 +34,11 @@ public class LogisticsScheduledJobs {
 
     public LogisticsScheduledJobs(LogisticsDashboardMapper dashboardMapper,
                                   OperationLogMapper operationLogMapper,
+                                  AiProactiveAlertService proactiveAlertService,
                                   TraceContextSupport traceContextSupport) {
         this.dashboardMapper = dashboardMapper;
         this.operationLogMapper = operationLogMapper;
+        this.proactiveAlertService = proactiveAlertService;
         this.traceContextSupport = traceContextSupport;
     }
 
@@ -124,6 +128,43 @@ public class LogisticsScheduledJobs {
             log.info("操作日志归档开始，保留天数={}", operationLogRetentionDays);
             int archived = operationLogMapper.archiveOperationLogs(operationLogRetentionDays);
             log.info("操作日志归档完成，本次归档 {} 条", archived);
+        });
+    }
+
+    /**
+     * AI 每日运营简报：利用 AI 模型生成自然语言运营摘要和异常检测。
+     * <p>
+     * 建议每日凌晨执行（XXL-Job Cron: {@code 0 0 6 * * ?}）。
+     * AI 模型不可用时自动降级为纯数据统计报告。
+     */
+    @XxlJob("dailyBriefing")
+    public void dailyBriefing() {
+        runJob("dailyBriefing", () -> {
+            log.info("AI 每日运营简报生成开始");
+            var briefing = proactiveAlertService.generateDailyBriefing();
+            log.info("AI 每日运营简报生成完成，date={}, anomalies={}, suggestions={}",
+                    briefing.date(), briefing.anomalies().size(), briefing.suggestions().size());
+            for (String anomaly : briefing.anomalies()) {
+                log.warn("AI 运营异常告警：{}", anomaly);
+            }
+        });
+    }
+
+    /**
+     * AI 异常检测：定期扫描业务数据，发现异常模式时输出告警日志。
+     */
+    @XxlJob("anomalyDetection")
+    public void anomalyDetection() {
+        runJob("anomalyDetection", () -> {
+            log.info("AI 异常检测开始");
+            var anomalies = proactiveAlertService.detectAnomalies();
+            if (anomalies.isEmpty()) {
+                log.info("AI 异常检测完成，未发现异常");
+            } else {
+                for (String anomaly : anomalies) {
+                    log.warn("AI 异常检测告警：{}", anomaly);
+                }
+            }
         });
     }
 
