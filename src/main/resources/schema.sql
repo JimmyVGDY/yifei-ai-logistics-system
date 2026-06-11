@@ -74,9 +74,12 @@ create table if not exists sys_permission (
     status tinyint not null,
     create_time timestamp not null,
     update_time timestamp not null,
+    deleted tinyint not null default 0 comment '逻辑删除：0未删除，1已删除',
+    version int not null default 0 comment '乐观锁版本号',
     index idx_sys_permission_menu (menu_id),
     index idx_sys_permission_module (module_code, action_code),
-    index idx_sys_permission_status (status)
+    index idx_sys_permission_status (status),
+    index idx_sp_deleted (deleted)
 );
 
 create table if not exists sys_role_permission (
@@ -84,7 +87,10 @@ create table if not exists sys_role_permission (
     role_id bigint not null,
     permission_id bigint not null,
     unique key uk_sys_role_permission (role_id, permission_id),
-    index idx_sys_role_permission_role (role_id)
+    index idx_sys_role_permission_role (role_id),
+    deleted tinyint not null default 0 comment '逻辑删除：0未删除，1已删除',
+    version int not null default 0 comment '乐观锁版本号',
+    index idx_srp_deleted (deleted)
 );
 
 create table if not exists sys_user_permission (
@@ -96,7 +102,10 @@ create table if not exists sys_user_permission (
     update_time timestamp not null,
     unique key uk_sys_user_permission (user_id, permission_id),
     index idx_sys_user_permission_user (user_id),
-    index idx_sys_user_permission_grant (grant_type)
+    index idx_sys_user_permission_grant (grant_type),
+    deleted tinyint not null default 0 comment '逻辑删除：0未删除，1已删除',
+    version int not null default 0 comment '乐观锁版本号',
+    index idx_sup_deleted (deleted)
 );
 
 create table if not exists sys_operation_log (
@@ -440,6 +449,9 @@ create table if not exists sys_login_history (
     fail_reason varchar(128) null comment '失败原因',
     require_captcha tinyint default 0 comment '是否需要验证码',
     login_time timestamp not null comment '登录时间',
+    deleted tinyint not null default 0 comment '逻辑删除：0未删除，1已删除',
+    version int not null default 0 comment '乐观锁版本号',
     index idx_login_history_user_time (user_id, login_time),
-    index idx_login_history_ip (login_ip)
+    index idx_login_history_ip (login_ip),
+    index idx_slh_deleted (deleted)
 );
