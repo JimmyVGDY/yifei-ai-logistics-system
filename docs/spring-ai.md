@@ -451,7 +451,44 @@ POST /ai/logs/analyze
 GET /ai/memory/profile
 GET /ai/memory/items?page=1&pageSize=10
 PUT /ai/memory/settings
-{
+```
+
+## Token 用量追踪
+
+每次调用模型（对话、SQL 生成/自检/纠错、记忆提炼）都会自动记录到 `ai_token_usage` 表：
+
+| 字段 | 说明 |
+|------|------|
+| `model_name` | 模型名称（如 `deepseek-chat`、`gpt-4o-mini`） |
+| `purpose` | 调用用途：`chat` / `sql_generate` / `sql_self_check` / `sql_repair` / `memory_extract` |
+| `prompt_tokens` / `completion_tokens` / `total_tokens` | Token 消耗统计 |
+| `estimated_cost` | 估算费用（美元），按模型单价 × Token 数计算 |
+| `duration_ms` | 调用耗时（毫秒） |
+
+**模型单价参考（美元/百万 Token）：**
+
+| 模型 | 单价 |
+|------|------|
+| `deepseek-chat` | $0.28 |
+| `gpt-4o-mini` | $0.60 |
+| `gpt-4o` | $5.00 |
+| 其他 | $0.60（默认） |
+
+配置开关：`APP_AI_TOKEN_USAGE_ENABLED=true`（默认开启）。写入失败不影响主业务。
+
+SQL 查询示例：
+
+```sql
+-- 最近 30 天各模型调用统计
+select model_name, purpose, count(*) as calls,
+       sum(total_tokens) as tokens,
+       round(sum(estimated_cost), 4) as cost_usd
+from ai_token_usage
+where created_at >= date_sub(now(), interval 30 day)
+  and deleted = 0
+group by model_name, purpose
+order by cost_usd desc;
+```
   "memoryEnabled": true,
   "answerStyle": "先给结论，再列关键依据"
 }
