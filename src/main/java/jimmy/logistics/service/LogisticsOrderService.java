@@ -15,7 +15,6 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * 物流订单服务 —— 订单创建、查询、缓存/索引同步、MQ 事件发布的核心编排层。
@@ -182,11 +181,22 @@ public class LogisticsOrderService {
         }
     }
 
+    /**
+     * 生成订单号：前缀 LO + 14 位时间戳 + 8 位 Snowflake 唯一后缀。
+     * <p>
+     * 后缀取自 {@link CompactSnowflakeIdGenerator#nextId()} 的后 8 位十进制数字，
+     * 同一秒内 Snowflake 序列号 (0~999) 保证唯一，单秒并发上限 1000。
+     * 相比 UUID 随机 8 位十六进制字符 (32 bit 随机空间)，
+     * Snowflake 的秒级时间戳 + 序列号在高并发下碰撞概率更低。
+     * <p>
+     * 格式示例：LO2026061114302500000123 (24 位)
+     */
     private String generateOrderNo(LocalDateTime now) {
-        // 单号由时间戳和随机片段组成，便于按创建时间排查，同时降低并发重复概率。
         String datePart = now.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        String randomPart = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
-        return "LO" + datePart + randomPart;
+        // 使用 Snowflake ID 后 8 位替代 UUID 随机数，唯一性由 Snowflake 序列号保证
+        long snowflakeId = idGenerator.nextId();
+        String uniquePart = String.format("%08d", snowflakeId % 100_000_000);
+        return "LO" + datePart + uniquePart;
     }
 
     private Long currentCustomerScopeOrNull() {
