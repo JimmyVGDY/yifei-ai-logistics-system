@@ -3,19 +3,14 @@ package jimmy.logistics.service;
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.mapper.LogisticsCrudMapper;
-import jimmy.logistics.model.CrudFieldValue;
 import jimmy.logistics.model.OperationResultVO;
 import jimmy.logistics.util.ColumnExistenceChecker;
 import jimmy.logistics.util.CrudBusinessUtils;
 import jimmy.common.util.FieldEncryptor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.sql.Timestamp;
-import java.security.SecureRandom;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -36,9 +31,6 @@ import java.util.Map;
 @Service
 public class LogisticsCrudService {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-    private static final BCryptPasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
-
     private final LogisticsCrudMapper logisticsCrudMapper;
     private final ColumnExistenceChecker columnChecker;
     private final CrudBusinessUtils utils;
@@ -46,6 +38,7 @@ public class LogisticsCrudService {
     private final FieldEncryptor fieldEncryptor;
     private final CompactSnowflakeIdGenerator idGenerator;
     private final CrudConfigRegistry crudConfigRegistry;
+    private final UserAccountService userAccountService;
 
     public LogisticsCrudService(LogisticsCrudMapper logisticsCrudMapper,
                                 ChangeAuditService changeAudit,
@@ -53,7 +46,8 @@ public class LogisticsCrudService {
                                 CrudBusinessUtils utils,
                                 FieldEncryptor fieldEncryptor,
                                 CompactSnowflakeIdGenerator idGenerator,
-                                CrudConfigRegistry crudConfigRegistry) {
+                                CrudConfigRegistry crudConfigRegistry,
+                                UserAccountService userAccountService) {
         this.logisticsCrudMapper = logisticsCrudMapper;
         this.columnChecker = columnChecker;
         this.utils = utils;
@@ -61,6 +55,7 @@ public class LogisticsCrudService {
         this.fieldEncryptor = fieldEncryptor;
         this.idGenerator = idGenerator;
         this.crudConfigRegistry = crudConfigRegistry;
+        this.userAccountService = userAccountService;
     }
 
     /**
@@ -76,15 +71,15 @@ public class LogisticsCrudService {
     public OperationResultVO create(String module, Map<String, Object> payload) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> values = filteredPayload(config, payload, false);
-        normalizeUserPassword(module, values, false);
+        userAccountService.normalizeUserPassword(module, values, false);
         Long id = idGenerator.nextId();
         values.put("id", id);
-        normalizeUserCustomerBinding(module, values, id, false);
+        userAccountService.normalizeUserCustomerBinding(module, values, id, false);
         // 业务编号由后端统一生成,前端不需要手填,避免人工输入重复或格式不统一。
         fillBusinessCodeDefaults(config, values);
         fillCreateDefaults(config, values);
         fillAuditDefaults(config, values, true);
-        validateMobileFields(values);
+        userAccountService.validateMobileFields(values);
         fillSensitiveLookupHashes(config, values);
         // 敏感字段加密：手机号等字段入库前加密
         changeAudit.recordCreate(values);
@@ -109,13 +104,13 @@ public class LogisticsCrudService {
     public OperationResultVO update(String module, long id, Map<String, Object> payload) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> values = filteredPayload(config, payload, true);
-        normalizeUserPassword(module, values, true);
-        normalizeUserCustomerBinding(module, values, id, true);
+        userAccountService.normalizeUserPassword(module, values, true);
+        userAccountService.normalizeUserCustomerBinding(module, values, id, true);
         Map<String, Object> changeValues = new LinkedHashMap<>(values);
         Map<String, Object> before = logisticsCrudMapper.selectRecordById(config.tableName, id);
         fillUpdateDefaults(config, values);
         fillAuditDefaults(config, values, false);
-        validateMobileFields(values);
+        userAccountService.validateMobileFields(values);
         fillSensitiveLookupHashes(config, values);
         // 敏感字段加密：手机号等字段入库前加密
         encryptValues(values);
@@ -209,90 +204,6 @@ public class LogisticsCrudService {
         values.put(config.generatedCodeColumn, utils.nextBusinessCode(config.tableName, config.generatedCodeColumn, config.generatedCodePrefix));
     }
 
-    /**
-     * 标准化用户-客户绑定。
-     * <p>
-     * 仅对 users 模块生效：当角色为 CUSTOMER 时强制关联客户，
-     * 支持按客户 ID 或客户名称查找/创建客户记录。首个客户账号标记为 MAIN，后续为 SUB。
-     */
-    private void normalizeUserCustomerBinding(String module, Map<String, Object> values, Long userId, boolean update) {
-        if (!"users".equals(module)) {
-            return;
-        }
-        Long roleId = parseLong(values.get("role_id"));
-        String roleCode = roleId == null ? null : logisticsCrudMapper.selectRoleCodeById(roleId);
-        boolean customerRole = "CUSTOMER".equals(roleCode);
-        if (roleCode != null && !customerRole) {
-            if (columnChecker.hasColumn("sys_user", "customer_id")) {
-                values.put("customer_id", null);
-            }
-            if (columnChecker.hasColumn("sys_user", "customer_account_type")) {
-                values.put("customer_account_type", null);
-            }
-            return;
-        }
-        if (!customerRole && !values.containsKey("customer_id")) {
-            return;
-        }
-        Long customerId = resolveCustomerId(values.get("customer_id"));
-        if (customerId == null) {
-            if (customerRole && !update) {
-                throw new IllegalArgumentException("客户角色账号必须选择或填写客户名称");
-            }
-            values.remove("customer_id");
-            values.remove("customer_account_type");
-            return;
-        }
-        values.put("customer_id", customerId);
-        if (columnChecker.hasColumn("sys_user", "customer_account_type")) {
-            int existingAccounts = logisticsCrudMapper.countCustomerAccounts(customerId, update ? userId : null);
-            values.put("customer_account_type", existingAccounts == 0 ? "MAIN" : "SUB");
-        }
-    }
-
-    private Long resolveCustomerId(Object customerValue) {
-        if (customerValue == null) {
-            return null;
-        }
-        String rawValue = String.valueOf(customerValue).trim();
-        if (rawValue.isEmpty()) {
-            return null;
-        }
-        Long numericId = parseLong(rawValue);
-        if (numericId != null) {
-            return numericId;
-        }
-        Long orderCustomerId = logisticsCrudMapper.selectCustomerIdFromOrdersByName(rawValue);
-        if (orderCustomerId != null) {
-            logisticsCrudMapper.updateOrderCustomerIdByName(orderCustomerId, rawValue);
-            return orderCustomerId;
-        }
-        Long existingCustomerId = logisticsCrudMapper.selectCustomerIdByName(rawValue);
-        if (existingCustomerId != null) {
-            logisticsCrudMapper.updateOrderCustomerIdByName(existingCustomerId, rawValue);
-            return existingCustomerId;
-        }
-        Long newCustomerId = idGenerator.nextId();
-        String customerCode = utils.nextBusinessCode("logistics_customer", "customer_code", "CUST");
-        logisticsCrudMapper.insertCustomerForAccount(newCustomerId, customerCode, rawValue, new Timestamp(System.currentTimeMillis()));
-        logisticsCrudMapper.updateOrderCustomerIdByName(newCustomerId, rawValue);
-        return newCustomerId;
-    }
-
-    private Long parseLong(Object value) {
-        if (value == null) {
-            return null;
-        }
-        try {
-            return Long.valueOf(String.valueOf(value).trim());
-        } catch (NumberFormatException ex) {
-            return null;
-        }
-    }
-
-
-
-
     private void fillUpdateDefaults(CrudConfig config, Map<String, Object> values) {
         if (config.updateTimeColumn != null && columnChecker.hasColumn(config.tableName, config.updateTimeColumn)) {
             values.put(config.updateTimeColumn, new Timestamp(System.currentTimeMillis()));
@@ -329,34 +240,6 @@ public class LogisticsCrudService {
         Object mobile = values.get("mobile");
         if (mobile instanceof String mobileText && StringUtils.hasText(mobileText)) {
             values.put("mobile_hash", fieldEncryptor.lookupHash(mobileText));
-        }
-    }
-
-    private void normalizeUserPassword(String module, Map<String, Object> values, boolean update) {
-        if (!"users".equals(module) || !values.containsKey("password")) {
-            return;
-        }
-        Object rawPassword = values.get("password");
-        if (rawPassword == null || !StringUtils.hasText(String.valueOf(rawPassword))) {
-            values.remove("password");
-            return;
-        }
-        String password = String.valueOf(rawPassword);
-        if (password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$")) {
-            return;
-        }
-        values.put("password", PASSWORD_ENCODER.encode(password));
-    }
-
-    private void validateMobileFields(Map<String, Object> values) {
-        for (String column : Arrays.asList("mobile", "phone")) {
-            Object value = values.get(column);
-            if (value == null || String.valueOf(value).trim().isEmpty()) {
-                continue;
-            }
-            if (!String.valueOf(value).trim().matches("^1[3-9]\\d{9}$")) {
-                throw new IllegalArgumentException("手机号必须是11位中国大陆手机号");
-            }
         }
     }
 
