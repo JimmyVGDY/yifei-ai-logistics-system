@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.ai.mapper.AiTokenUsageMapper">
+
+    <insert id="insert">
+        insert into ai_token_usage (
+            id, model_name, purpose, prompt_tokens, completion_tokens, total_tokens,
+            user_id, user_code, conversation_id, estimated_cost, model_base_url, duration_ms, created_at
+        ) values (
+            #{id}, #{modelName}, #{purpose}, #{promptTokens}, #{completionTokens}, #{totalTokens},
+            #{userId}, #{userCode}, #{conversationId}, #{estimatedCost}, #{modelBaseUrl}, #{durationMs}, #{createdAt}
+        )
+    </insert>
+
+    <select id="selectByTimeRange" resultType="jimmy.ai.entity.AiTokenUsage">
+        select id, model_name, purpose, prompt_tokens, completion_tokens, total_tokens,
+               user_id, user_code, conversation_id, estimated_cost, model_base_url, duration_ms, created_at
+        from ai_token_usage
+        where created_at between #{startTime} and #{endTime}
+          and deleted = 0
+        <if test="modelName != null and modelName != ''">
+          and model_name = #{modelName}
+        </if>
+        <if test="purpose != null and purpose != ''">
+          and purpose = #{purpose}
+        </if>
+        order by created_at desc
+        limit #{offset}, #{limit}
+    </select>
+
+    <select id="sumByModelAndPurpose" resultType="map">
+        select model_name, purpose,
+               count(*) as call_count,
+               sum(prompt_tokens) as total_prompt_tokens,
+               sum(completion_tokens) as total_completion_tokens,
+               sum(estimated_cost) as total_estimated_cost
+        from ai_token_usage
+        where created_at between #{startTime} and #{endTime}
+          and deleted = 0
+        group by model_name, purpose
+        order by total_estimated_cost desc
+    </select>
+
+    <select id="sumCostByDays" resultType="java.math.BigDecimal">
+        select coalesce(sum(estimated_cost), 0)
+        from ai_token_usage
+        where created_at >= date_sub(now(), interval #{days} day)
+          and deleted = 0
+    </select>
+
+</mapper>

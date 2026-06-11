@@ -312,7 +312,7 @@ public class AiAssistantService {
     private Optional<String> callModelWithTools(String systemPrompt, String userPrompt) {
         toolCallContext.begin();
         try {
-            return modelGateway.chat(systemPrompt, userPrompt, businessQueryTools);
+            return modelGateway.chat(systemPrompt, userPrompt, "chat", null, businessQueryTools);
         } catch (RuntimeException exception) {
             toolCallContext.snapshotAndClear();
             throw exception;

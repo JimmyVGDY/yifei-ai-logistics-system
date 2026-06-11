@@ -64,14 +64,14 @@ public class AiGeneratedSqlQueryService {
             return AiGeneratedSqlQueryResult.message("当前未配置模型，无法生成临时只读 SQL。请使用普通业务查询。");
         }
         try {
-            Optional<String> candidate = modelGateway.chat(systemPrompt(), userPrompt(message));
+            Optional<String> candidate = modelGateway.chat(systemPrompt(), userPrompt(message), "sql_generate");
             if (candidate.isEmpty()) {
                 recordSqlStage("生成", message, "SQL_GENERATE_EMPTY：模型未生成 SQL", false);
                 return AiGeneratedSqlQueryResult.message("模型暂时无法生成只读查询语句，请稍后重试。");
             }
             recordSqlStage("生成", message, "候选 SQL 已生成", true);
 
-            Optional<String> checked = modelGateway.chat(selfCheckSystemPrompt(), selfCheckUserPrompt(message, candidate.get()));
+            Optional<String> checked = modelGateway.chat(selfCheckSystemPrompt(), selfCheckUserPrompt(message, candidate.get()), "sql_self_check");
             if (checked.isEmpty() || !StringUtils.hasText(checked.get())) {
                 recordSqlStage("自检", message, "SQL_SELF_CHECK_FAILED：模型自检未返回可用 SQL", false);
                 return AiGeneratedSqlQueryResult.message("临时只读查询自检失败，请换一种描述后重试。");
@@ -116,7 +116,7 @@ public class AiGeneratedSqlQueryService {
                 }
                 int nextAttempt = repairAttempt + 1;
                 recordSqlStage("语法纠错", message, "SQL_SYNTAX_ERROR：开始第" + nextAttempt + "次自动纠错", false);
-                Optional<String> repaired = modelGateway.chat(repairSystemPrompt(), repairUserPrompt(message, currentSql, exception, nextAttempt));
+                Optional<String> repaired = modelGateway.chat(repairSystemPrompt(), repairUserPrompt(message, currentSql, exception, nextAttempt), "sql_repair");
                 if (repaired.isEmpty() || !StringUtils.hasText(repaired.get())) {
                     recordSqlStage("语法纠错", message, "SQL_SELF_CHECK_FAILED：第" + nextAttempt + "次纠错未返回可用 SQL", false);
                     return AiGeneratedSqlQueryResult.message("临时只读查询自动纠错失败，请换一种描述后重试。");

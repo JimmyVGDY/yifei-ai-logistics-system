@@ -89,7 +89,7 @@ public class AiMemoryExtractor {
         userPrompt.append("AI 回答摘要：").append(truncate(assistantMessage, 300));
 
         try {
-            Optional<String> result = modelGateway.chat(SYSTEM_PROMPT, userPrompt.toString());
+            Optional<String> result = modelGateway.chat(SYSTEM_PROMPT, userPrompt.toString(), "memory_extract");
             if (result.isEmpty()) {
                 return ExtractionDecision.unavailable(); // 模型调用异常，降级关键词匹配
             }
