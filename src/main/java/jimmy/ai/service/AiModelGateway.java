@@ -106,7 +106,7 @@ public class AiModelGateway {
         try {
             Usage usage = chatResponse.getMetadata() != null ? chatResponse.getMetadata().getUsage() : null;
             int promptTokens = usage != null ? (int) usage.getPromptTokens() : 0;
-            int completionTokens = usage != null ? (int) usage.getGenerationTokens() : 0;
+            int completionTokens = usage != null ? (int) usage.getCompletionTokens() : 0;
             tokenUsageService.record(
                     properties.model(), purpose, promptTokens, completionTokens,
                     currentUserId(), currentUserCode(), conversationId,

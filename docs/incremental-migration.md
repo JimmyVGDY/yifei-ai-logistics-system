@@ -18,6 +18,7 @@ source scripts/sql/20260610_incremental_ai_menu_for_all_roles.sql;
 source scripts/sql/20260611_incremental_ai_conversation_persistence.sql;
 source scripts/sql/20260611_incremental_add_deleted_version.sql;
 source scripts/sql/20260611_incremental_operation_log_archive.sql;
+source scripts/sql/20260611_incremental_ai_token_usage.sql;
 ```
 
 这些脚本会保留现有数据，并补充：
@@ -132,3 +133,13 @@ source scripts/sql/20260611_incremental_operation_log_archive.sql;
 - 保留天数通过 `APP_OPERATION_LOG_RETENTION_DAYS` 环境变量配置（默认 180 天）。
 
 该脚本可重复执行，归档表不存在时自动创建。
+
+### `20260611_incremental_ai_token_usage.sql`
+
+该脚本用于创建 AI Token 用量追踪表：
+
+- `ai_token_usage`：记录每次模型调用的 Token 消耗（prompt/completion/total）和预估费用。
+- 支持按模型、用途（chat/sql_generate/memory_extract 等）、用户、时间维度汇总查询。
+- 模型网关 `AiModelGateway` 自动记录每次调用，写入失败不影响主业务。
+
+该脚本可重复执行。
