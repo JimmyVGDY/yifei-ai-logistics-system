@@ -35,6 +35,7 @@ class CrudConfig {
 
     private CrudConfig(String tableName, String createTimeColumn, String updateTimeColumn, List<String> nullableColumns,
                        String generatedCodeColumn, String generatedCodePrefix, String... columns) {
+        CrudConfigRegistry.validateTableName(tableName);
         this.tableName = tableName;
         this.createTimeColumn = createTimeColumn;
         this.updateTimeColumn = updateTimeColumn;

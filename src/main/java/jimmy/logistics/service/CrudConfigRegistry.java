@@ -5,14 +5,25 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * 通用 CRUD 白名单注册表。
  * <p>
  * 新增可被通用管理页维护的模块时，只在这里登记表名、时间列、业务编号和允许写入字段。
+ * 所有表名必须在构建时通过 {@link #validateTableName} 正则校验，
+ * 防止白名单被意外加入恶意表名后通过动态 SQL 注入。
  */
 @Component
 public class CrudConfigRegistry {
+
+    /**
+     * 表名白名单正则：只允许小写字母、数字和下划线，且必须以小写字母开头。
+     * <p>
+     * 与 MySQL 未加引号标识符规则一致，同时排除 {@code information_schema}、
+     * {@code mysql}、{@code performance_schema} 等系统库前缀。
+     */
+    private static final Pattern TABLE_NAME_PATTERN = Pattern.compile("^[a-z][a-z0-9_]{0,63}$");
 
     private final Map<String, CrudConfig> configs = buildConfigs();
 
@@ -22,6 +33,21 @@ public class CrudConfigRegistry {
             throw new IllegalArgumentException("当前模块不支持增删改操作");
         }
         return config;
+    }
+
+    /**
+     * 校验表名是否符合白名单格式。
+     * <p>
+     * 防御性校验：虽然表名来自硬编码白名单，但增加格式校验作为纵深防御，
+     * 避免未来白名单被意外扩展时引入 SQL 注入风险。
+     *
+     * @param tableName 待校验的表名
+     * @throws IllegalArgumentException 表名格式不合法
+     */
+    static void validateTableName(String tableName) {
+        if (tableName == null || !TABLE_NAME_PATTERN.matcher(tableName).matches()) {
+            throw new IllegalArgumentException("表名格式不合法: " + (tableName == null ? "null" : tableName));
+        }
     }
 
     private Map<String, CrudConfig> buildConfigs() {
