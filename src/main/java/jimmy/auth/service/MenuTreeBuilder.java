@@ -253,6 +253,15 @@ public class MenuTreeBuilder {
         };
     }
 
+    /**
+     * 根据 key 集合从默认菜单总表中按需取出菜单项。
+     * <p>
+     * 将 defaultMenus 中指定的 key 映射到 allDefaultMenus 中的实际菜单对象，
+     * 跳过总表中不存在的 key（安全兜底）。
+     *
+     * @param keys 菜单 key 数组（如 "orders", "customers"）
+     * @return 对应的菜单对象列表
+     */
     private List<MenuVO> menus(String... keys) {
         Map<String, MenuVO> all = allDefaultMenus();
         List<MenuVO> result = new ArrayList<>();
@@ -265,6 +274,14 @@ public class MenuTreeBuilder {
         return result;
     }
 
+    /**
+     * 构建全部默认菜单对象的总映射表。
+     * <p>
+     * 使用负值 ID 避免与数据库中的真实菜单 ID 冲突，
+     * sortNo 控制侧边栏排序（业务菜单从小到大，系统管理 900+、AI 助手 960）。
+     *
+     * @return key → MenuVO 的映射（key 如 "orders", "customers"）
+     */
     private Map<String, MenuVO> allDefaultMenus() {
         Map<String, MenuVO> menus = new LinkedHashMap<>();
         menus.put("dashboard", menu(-1L, 0L, "运营看板", "/dashboard", "dashboard:view", 10));
@@ -296,6 +313,19 @@ public class MenuTreeBuilder {
         return menus;
     }
 
+    /**
+     * 快捷构建单个菜单对象。
+     * <p>
+     * 用于 allDefaultMenus 中统一构造默认菜单，减少重复赋值代码。
+     *
+     * @param id             菜单 ID（默认菜单使用负数，避免冲突）
+     * @param parentId       父菜单 ID（0 表示根节点）
+     * @param name           菜单显示名称
+     * @param path           前端路由路径
+     * @param permissionCode 权限码
+     * @param sortNo         排序号
+     * @return 构建好的 MenuVO 对象
+     */
     private MenuVO menu(Long id, Long parentId, String name, String path, String permissionCode, Integer sortNo) {
         MenuVO menu = new MenuVO();
         menu.setId(id);

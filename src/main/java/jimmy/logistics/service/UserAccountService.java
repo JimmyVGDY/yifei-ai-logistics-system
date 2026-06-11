@@ -172,6 +172,15 @@ public class UserAccountService {
         return newCustomerId;
     }
 
+    /**
+     * 安全地将 Object 转换为 Long，转换失败返回 null 而非抛异常。
+     * <p>
+     * 支持 Number（Long/Integer/BigInteger 等）和数字字符串两种输入，
+     * 非数字字符串返回 null，由调用方决定后续处理（如按客户名称查找）。
+     *
+     * @param value 任意类型的值
+     * @return 转换后的 Long，不可转换时返回 null
+     */
     private Long parseLong(Object value) {
         if (value == null) {
             return null;

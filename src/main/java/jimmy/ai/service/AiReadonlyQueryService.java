@@ -546,10 +546,16 @@ public class AiReadonlyQueryService {
         return scenes;
     }
 
+    /**
+     * 将搜索模块名称列表拼接为中文顿号分隔的字符串，用于 AI 工具调用返回结果的标题展示。
+     */
     private String joinModuleNames(List<SearchModule> modules) {
         return String.join("、", modules.stream().map(SearchModule::moduleName).toList());
     }
 
+    /**
+     * 快捷构建单条 AI 只读查询结果，自动脱敏消息并生成工具调用记录。
+     */
     private AiReadonlyQueryResult simpleResult(String toolName, String target, String message) {
         String safeMessage = masker.mask(message);
         return new AiReadonlyQueryResult(true, safeMessage,
@@ -557,6 +563,9 @@ public class AiReadonlyQueryService {
                 List.of(new AiToolCall(toolName, target, safeMessage)));
     }
 
+    /**
+     * 安全解包查询意图，null 时回退为"未匹配"意图，避免后续空指针。
+     */
     private AiQueryIntent nullToUnmatched(AiQueryIntent intent) {
         return intent == null ? AiQueryIntent.unmatched() : intent;
     }
@@ -575,10 +584,16 @@ public class AiReadonlyQueryService {
         return StpUtil.hasPermission(permission);
     }
 
+    /**
+     * 快捷构建 AI 引用来源对象，自动脱敏摘要内容。
+     */
     private AiCitation citation(String target, String snippet) {
         return new AiCitation("business-query", "业务数据查询", target, masker.mask(snippet));
     }
 
+    /**
+     * 检查文本是否包含给定词列表中的任意一个词，用于关键词匹配判断。
+     */
     private boolean containsAny(String text, List<String> words) {
         for (String word : words) {
             if (text.contains(word)) {
@@ -588,6 +603,11 @@ public class AiReadonlyQueryService {
         return false;
     }
 
+    /**
+     * 搜索文本标准化：Unicode 正规化（NFKC）+ 去除零宽字符 + 空白合并。
+     * <p>
+     * 统一用户输入中的全角/半角、变体字符和不可见控制字符，提升模糊搜索命中率。
+     */
     private String normalizeForSearch(String value) {
         if (!hasText(value)) {
             return "";
@@ -599,6 +619,14 @@ public class AiReadonlyQueryService {
                 .trim();
     }
 
+    /**
+     * 搜索关键词清洗：去标点、去语气词、限制长度，提取可用于数据库模糊查询的核心词。
+     * <p>
+     * 处理步骤：标准化 → 去除首尾标点 → 去掉口语化后缀 → 去除引号 → 长度校验（最少 2 字符，最多 80 字符）。
+     *
+     * @param value 原始用户输入
+     * @return 清洗后的关键词，无法提取有效关键词时返回 null
+     */
     private String cleanupKeyword(String value) {
         if (!hasText(value)) {
             return null;
@@ -615,6 +643,9 @@ public class AiReadonlyQueryService {
         return keyword.length() > 80 ? keyword.substring(0, 80) : keyword;
     }
 
+    /**
+     * 安全判断字符串是否有文本内容，null-safe 的空值检查快捷方法。
+     */
     private boolean hasText(String value) {
         return StringUtils.hasText(value);
     }

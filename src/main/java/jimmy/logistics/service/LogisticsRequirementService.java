@@ -262,6 +262,12 @@ public class LogisticsRequirementService {
         return records;
     }
 
+    /**
+     * 格式化数据库返回值中的时间类型为统一字符串格式，便于前端展示。
+     * <p>
+     * 支持 LocalDateTime 和 Timestamp 两种常见 JDBC 返回值，
+     * 使用线程安全的 DateTimeFormatter，非时间类型直接原值返回。
+     */
     private Object formatValue(Object value) {
         if (value instanceof LocalDateTime localDateTime) {
             return localDateTime.format(DATE_TIME_FORMATTER);
@@ -273,14 +279,23 @@ public class LogisticsRequirementService {
         return value;
     }
 
+    /**
+     * 安全获取 Long 值，null 时返回 0，用于看板统计防 NPE。
+     */
     private long safeLong(Long value) {
         return value == null ? 0 : value;
     }
 
+    /**
+     * 安全获取 BigDecimal 值，null 时返回 BigDecimal.ZERO，用于金额汇总防 NPE。
+     */
     private BigDecimal safeBigDecimal(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    /**
+     * 快捷构建模块查询入参对象，统一设置分页和过滤条件。
+     */
     private ModuleQueryDTO query(int page, int pageSize, String keyword, String startTime, String endTime) {
         ModuleQueryDTO query = new ModuleQueryDTO();
         query.setPage(page);
@@ -291,15 +306,24 @@ public class LogisticsRequirementService {
         return query;
     }
 
+    /**
+     * 安全获取页码：最小为 1，防止前端传入 0 或负数导致 SQL 偏移量异常。
+     */
     private int safePage(ModuleQueryDTO query) {
         return Math.max(1, query == null ? 1 : query.getPage());
     }
 
+    /**
+     * 安全获取每页条数：限制在 [1, 100] 闭区间内，防止前端传入超大 pageSize 压垮数据库。
+     */
     private int safePageSize(ModuleQueryDTO query) {
         int pageSize = query == null ? 20 : query.getPageSize();
         return Math.max(1, Math.min(pageSize, 100));
     }
 
+    /**
+     * 字符串 trim 并转换空串为 null，用于查询过滤条件去噪。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }

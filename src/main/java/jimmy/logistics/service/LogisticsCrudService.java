@@ -1,6 +1,7 @@
 package jimmy.logistics.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.alibaba.nacos.common.utils.StringUtils;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.logistics.mapper.LogisticsCrudMapper;
 import jimmy.logistics.model.OperationResultVO;

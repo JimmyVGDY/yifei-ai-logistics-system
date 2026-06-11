@@ -54,6 +54,9 @@ public class LogisticsOrderCacheService {
                 logisticsOrder.getOrderNo(), logisticsProperties.getOrderCacheTtlSeconds());
     }
 
+    /**
+     * 生成订单缓存的 Redis Key，格式为 {@code 前缀:order:订单号}，支持按前缀批量清理。
+     */
     private String orderCacheKey(String orderNo) {
         return logisticsProperties.getCachePrefix() + ":order:" + orderNo;
     }

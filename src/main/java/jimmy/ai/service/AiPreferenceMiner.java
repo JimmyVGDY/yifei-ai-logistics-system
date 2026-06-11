@@ -174,6 +174,14 @@ public class AiPreferenceMiner {
         }
     }
 
+    /**
+     * 检查 AI 记忆表是否已迁移生命周期相关字段（status / last_reinforced_at / reinforce_count）。
+     * <p>
+     * 若字段未就绪则跳过本次生命周期管理，避免因列不存在导致 SQL 报错，
+     * 日志会提示执行对应的增量迁移脚本。
+     *
+     * @return true 表示字段齐全，可安全执行生命周期操作
+     */
     private boolean lifecycleColumnsReady() {
         return columnChecker.hasColumn("ai_user_memory", "status")
                 && columnChecker.hasColumn("ai_user_memory", "last_reinforced_at")

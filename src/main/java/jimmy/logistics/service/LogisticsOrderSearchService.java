@@ -86,6 +86,9 @@ public class LogisticsOrderSearchService {
         }
     }
 
+    /**
+     * 将 ES 搜索文档转换为前端展示 VO，仅映射客户端可见的业务字段。
+     */
     private LogisticsOrderVO toVo(LogisticsOrderSearchDocument document) {
         LogisticsOrder order = new LogisticsOrder();
         order.setOrderNo(document.getOrderNo());
@@ -98,6 +101,9 @@ public class LogisticsOrderSearchService {
         return LogisticsOrderVO.from(order);
     }
 
+    /**
+     * 获取当前登录客户的 ID，仅 CUSTOMER 角色返回有效值，用于 ES 搜索结果的数据权限过滤。
+     */
     private Long currentCustomerScopeOrNull() {
         try {
             Object loginId = StpUtil.getLoginIdDefaultNull();

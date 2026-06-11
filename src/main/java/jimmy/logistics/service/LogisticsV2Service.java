@@ -174,12 +174,22 @@ public class LogisticsV2Service {
         return record("imported", imported);
     }
 
+    /**
+     * 校验文件扩展名是否在白名单内，拒绝上传不支持的文件类型。
+     *
+     * @throws IllegalArgumentException 文件类型不在白名单中
+     */
     private void validateAllowedExtension(String suffix, Set<String> allowedExtensions) {
         if (!StringUtils.hasText(suffix) || !allowedExtensions.contains(suffix.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException("不支持的文件类型");
         }
     }
 
+    /**
+     * 从文件名中提取扩展名（含点号），如 ".xlsx"。
+     * <p>
+     * 使用 Paths.getFileName 安全截取文件名，防范路径穿越注入。
+     */
     private String extension(String filename) {
         if (!StringUtils.hasText(filename)) {
             return "";
@@ -189,10 +199,16 @@ public class LogisticsV2Service {
         return dotIndex >= 0 ? safeName.substring(dotIndex) : "";
     }
 
+    /**
+     * 安全获取文本值，有值时 trim 返回，无值时返回默认值。
+     */
     private String text(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value.trim() : defaultValue;
     }
 
+    /**
+     * 读取 Excel 单元格内容为字符串，空单元格返回空串。
+     */
     private String cell(Row row, int index) {
         Cell cell = row.getCell(index);
         if (cell == null) {
@@ -201,11 +217,19 @@ public class LogisticsV2Service {
         return DATA_FORMATTER.formatCellValue(cell).trim();
     }
 
+    /**
+     * 获取当前登录用户标识，未登录时回退为 "admin"（兼容后台任务场景）。
+     */
     private String currentUser() {
         Object loginId = StpUtil.getLoginIdDefaultNull();
         return loginId == null ? "admin" : String.valueOf(loginId);
     }
 
+    /**
+     * 快捷构建 Map，按 key-value 对交替传入，用于统一返回格式。
+     * <p>
+     * 使用示例：{@code record("imported", 100, "skipped", 3)} → {"imported": 100, "skipped": 3}
+     */
     private Map<String, Object> record(Object... pairs) {
         Map<String, Object> result = new LinkedHashMap<>();
         for (int i = 0; i + 1 < pairs.length; i += 2) {
