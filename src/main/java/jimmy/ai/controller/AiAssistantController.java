@@ -1,7 +1,9 @@
 package jimmy.ai.controller;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import jimmy.ai.model.AgentResult;
 import jimmy.ai.model.AiChatRequest;
 import jimmy.ai.model.AiChatResponse;
 import jimmy.ai.model.AiConversationVO;
@@ -9,15 +11,19 @@ import jimmy.ai.model.AiLogAnalysisResponse;
 import jimmy.ai.model.AiLogAnalyzeRequest;
 import jimmy.ai.model.AiMemoryItemVO;
 import jimmy.ai.model.AiMemoryProfileVO;
+import jimmy.ai.model.AgentResult;
 import jimmy.ai.model.AiMemorySettingsRequest;
 import jimmy.ai.model.FeedbackRequest;
+import jimmy.ai.service.AiAgentOrchestrator;
 import jimmy.ai.service.AiAssistantService;
 import jimmy.ai.service.AiMemoryService;
 import jimmy.common.model.ApiResponse;
 import jimmy.common.model.PageResult;
 import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.annotation.OperationLog;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.util.StringUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,17 +41,24 @@ import java.util.List;
 /**
  * AI 助手接口：只开放只读问答、日志排障、当前用户会话和长期记忆管理能力。
  */
+@Slf4j
 @RestController
 @RequestMapping("/ai")
 public class AiAssistantController {
 
     private final AiAssistantService aiAssistantService;
     private final AiMemoryService aiMemoryService;
+    private final AiAgentOrchestrator agentOrchestrator;
+    private final TraceContextSupport traceContextSupport;
 
     public AiAssistantController(AiAssistantService aiAssistantService,
-                                 AiMemoryService aiMemoryService) {
+                                 AiMemoryService aiMemoryService,
+                                 AiAgentOrchestrator agentOrchestrator,
+                                 TraceContextSupport traceContextSupport) {
         this.aiAssistantService = aiAssistantService;
         this.aiMemoryService = aiMemoryService;
+        this.agentOrchestrator = agentOrchestrator;
+        this.traceContextSupport = traceContextSupport;
     }
 
     @OperationLog("AI助手-普通问答")
@@ -183,5 +196,49 @@ public class AiAssistantController {
     public ApiResponse<Void> submitFeedback(@Valid @RequestBody FeedbackRequest request) {
         aiAssistantService.recordFeedback(request);
         return ApiResponse.success(null);
+    }
+
+    /**
+     * AI Agent 自主编排流式端点。
+     * <p>
+     * 模型自主判断是否需要多步工具调用，循环执行直到完成或达到上限（5轮）。
+     * SSE 事件：agent_start → thinking → tool_start → tool_result → ... → agent_done
+     */
+    @OperationLog("AI助手-Agent编排")
+    @PostMapping(value = "/agent/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<StreamingResponseBody> agentStream(
+            @Valid @RequestBody AiChatRequest request,
+            HttpServletResponse httpResponse) {
+        StpUtil.checkLogin();
+        Object loginId = StpUtil.getLoginId();
+        String loginIdStr = String.valueOf(loginId);
+        List<String> permissions = StpUtil.getPermissionList(loginId);
+        String roleCode = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("roleCode", ""));
+        String customerId = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("customerId", ""));
+        String username = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("username", ""));
+        String userCode = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("userCode", ""));
+        String loginSessionId = String.valueOf(StpUtil.getSessionByLoginId(loginId)
+                .get(TraceContextSupport.LOGIN_SESSION_ID, ""));
+
+        httpResponse.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+        httpResponse.setCharacterEncoding("UTF-8");
+        httpResponse.setHeader("Cache-Control", "no-cache");
+        httpResponse.setHeader("X-Accel-Buffering", "no");
+
+        StreamingResponseBody stream = outputStream -> {
+            try {
+                AgentResult result = agentOrchestrator.execute(
+                        request.message(), resolveConversationId(request.conversationId()), outputStream);
+                log.info("AI Agent 编排完成，iterations={}, toolCalls={}, costMs={}",
+                        result.totalIterations(), result.totalToolCalls(), result.durationMs());
+            } catch (RuntimeException exception) {
+                log.error("AI Agent 编排异常", exception);
+            }
+        };
+        return ResponseEntity.ok(stream);
+    }
+
+    private String resolveConversationId(String conversationId) {
+        return StringUtils.hasText(conversationId) ? conversationId : traceContextSupport.newOperationId();
     }
 }
