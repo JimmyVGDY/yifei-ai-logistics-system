@@ -81,6 +81,16 @@ public class AiAuditLogService {
                 truncate(memoryId, 64), truncate(eventType, 64), truncate(source, 64), hitCount, traceSummary);
     }
 
+    public void recordSqlStage(String conversationId,
+                               String stage,
+                               String promptSummary,
+                               String resultSummary,
+                               boolean success) {
+        record("AI助手-临时SQL" + stage, SOURCE_AI_TOOL, EXECUTOR_AI, conversationId,
+                "临时只读SQL", stage, true, promptSummary,
+                (success ? "SUCCESS：" : "FAILED：") + resultSummary, 0L);
+    }
+
     private void record(String operation,
                         String operationSource,
                         String executorType,
