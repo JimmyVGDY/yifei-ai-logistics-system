@@ -12,6 +12,7 @@ import jimmy.ai.model.AiMemoryRecallResult;
 import jimmy.ai.model.AiToolCall;
 import jimmy.ai.util.SseChatContext;
 import jimmy.ai.model.AiReadonlyQueryResult;
+import jimmy.common.model.PageResult;
 import jimmy.common.trace.TraceContextSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -70,11 +71,12 @@ public class AiAssistantService {
         long start = System.currentTimeMillis();
         String safeMessage = masker.mask(request.message());
         String conversationId = resolveConversationId(request.conversationId());
+        AiConversationVO currentConversation = currentConversation(conversationId);
+        String previousUserMessage = latestUserMessage(currentConversation);
+        conversationService.appendUserMessage(currentUserId(), currentUserCode(), conversationId, safeMessage);
         auditLogService.recordUserQuestion(conversationId, safeMessage);
         List<AiCitation> citations = new ArrayList<>(knowledgeService.search(safeMessage));
         List<AiToolCall> toolCalls = new ArrayList<>();
-        AiConversationVO currentConversation = currentConversation(conversationId);
-        String previousUserMessage = latestUserMessage(currentConversation);
         AiMemoryRecallResult memoryRecall = memoryService.recall(safeMessage, conversationId);
 
         StringBuilder context = new StringBuilder(contextText(citations));
@@ -129,7 +131,7 @@ public class AiAssistantService {
             auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
         }
         String answer = fallbackQueryExecuted ? fallbackAnswer(context.toString(), toolCalls) : modelAnswer.orElseGet(() -> fallbackAnswer(context.toString(), toolCalls));
-        AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer);
+        AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, toolCalls, citations);
         memoryService.rememberInteraction(conversation.conversationId(), safeMessage, answer, toolCalls);
         auditLogService.recordResponse(conversation.conversationId(), safeMessage,
                 "引用来源=" + citations.size() + "，工具调用=" + toolCalls.size() + "，模型已配置=" + modelGateway.configured(),
@@ -176,6 +178,7 @@ public class AiAssistantService {
         String conversationId = resolveConversationId(request.conversationId());
         List<AiCitation> citations = new ArrayList<>();
         List<AiToolCall> toolCalls = new ArrayList<>();
+        String previousUserMessage = null;
 
         try {
             // 初始化 SSE 上下文——使用 OutputStream 直接写字节，无异步 dispatch 竞态
@@ -185,7 +188,8 @@ public class AiAssistantService {
             auditLogService.recordUserQuestion(conversationId, safeMessage);
             citations.addAll(new ArrayList<>(knowledgeService.search(safeMessage)));
             AiConversationVO currentConversation = currentConversation(conversationId);
-            String previousUserMessage = latestUserMessage(currentConversation);
+            previousUserMessage = latestUserMessage(currentConversation);
+            conversationService.appendUserMessage(currentUserId(), currentUserCode(), conversationId, safeMessage);
             AiMemoryRecallResult memoryRecall = memoryService.recall(safeMessage, conversationId);
 
             StringBuilder context = new StringBuilder(contextText(citations));
@@ -237,7 +241,7 @@ public class AiAssistantService {
                 auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
             }
             String answer = fallbackQueryExecuted ? fallbackAnswer(context.toString(), toolCalls) : modelAnswer.orElseGet(() -> fallbackAnswer(context.toString(), toolCalls));
-            AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer);
+            AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, toolCalls, citations);
             memoryService.rememberInteraction(conversation.conversationId(), safeMessage, answer, toolCalls);
             auditLogService.recordResponse(conversation.conversationId(), safeMessage,
                     "引用来源=" + citations.size() + "，工具调用=" + toolCalls.size() + "，模型已配置=" + modelGateway.configured(),
@@ -246,9 +250,15 @@ public class AiAssistantService {
                     conversation.conversationId(), modelGateway.configured(), citations.size(), toolCalls.size(), System.currentTimeMillis() - start);
 
             // 推送最终答案
-            toolCallContext.notifyDone(answer, citations, toolCalls);
+            toolCallContext.notifyDone(conversation.conversationId(), answer, citations, toolCalls);
         } catch (Exception exception) {
             log.error("AI助手SSE问答异常，conversationId={}, message={}", conversationId, exception.getMessage(), exception);
+            try {
+                conversationService.appendFailedAssistantMessage(currentUserId(), currentUserCode(), conversationId,
+                        "系统响应超时，请稍后重试", previousUserMessage);
+            } catch (RuntimeException saveException) {
+                log.debug("AI SSE 失败消息落库失败，conversationId={}, reason={}", conversationId, saveException.getMessage());
+            }
             toolCallContext.notifyError("系统响应超时，请稍后重试");
         } finally {
             // StreamingResponseBody lambda 返回后 Spring MVC 会自动关闭输出流，无需手动 complete()
@@ -309,19 +319,44 @@ public class AiAssistantService {
         return response;
     }
 
-    public List<AiConversationVO> conversations() {
-        return conversationService.list(currentUserId());
+    public PageResult<AiConversationVO> conversations(String status, String keyword, int page, int pageSize) {
+        return conversationService.page(currentUserId(), currentUserCode(), status, keyword, page, pageSize);
     }
 
     public AiConversationVO conversation(String conversationId) {
-        return conversationService.find(currentUserId(), conversationId);
+        return conversationService.find(currentUserId(), currentUserCode(), conversationId);
     }
 
-    private AiConversationVO saveConversation(String conversationId, String safeMessage, String answer) {
+    public void archiveConversation(String conversationId) {
+        conversationService.archive(currentUserId(), currentUserCode(), conversationId);
+        auditLogService.recordToolCall(conversationId, "会话管理", "归档会话", conversationId, "用户归档 AI 会话");
+    }
+
+    public void restoreConversation(String conversationId) {
+        conversationService.restore(currentUserId(), currentUserCode(), conversationId);
+        auditLogService.recordToolCall(conversationId, "会话管理", "恢复会话", conversationId, "用户恢复 AI 会话");
+    }
+
+    public void deleteConversation(String conversationId) {
+        conversationService.delete(currentUserId(), currentUserCode(), conversationId);
+        auditLogService.recordToolCall(conversationId, "会话管理", "删除会话", conversationId, "用户删除 AI 会话");
+    }
+
+    public void clearConversations(String status) {
+        conversationService.clear(currentUserId(), currentUserCode(), status);
+        auditLogService.recordToolCall("-", "会话管理", "清空会话", "清空当前账号 AI 会话", "用户清空 AI 会话，范围=" + status);
+    }
+
+    private AiConversationVO saveConversation(String conversationId,
+                                              String safeMessage,
+                                              String answer,
+                                              List<AiToolCall> toolCalls,
+                                              List<AiCitation> citations) {
         try {
-            return conversationService.append(currentUserId(), conversationId, safeMessage, answer);
+            return conversationService.appendAssistantMessage(currentUserId(), currentUserCode(), conversationId,
+                    answer, toolCalls, citations, safeMessage);
         } catch (RuntimeException exception) {
-            log.warn("AI 会话缓存失败，已使用临时会话兜底，reason={}", exception.getMessage());
+            log.warn("AI 会话持久化失败，已使用临时会话兜底，reason={}", exception.getMessage());
             String id = StringUtils.hasText(conversationId) ? conversationId : traceContextSupport.newOperationId();
             return new AiConversationVO(id, "临时会话", "", "", List.of());
         }
@@ -439,12 +474,25 @@ public class AiAssistantService {
         return loginId == null ? "anonymous" : String.valueOf(loginId);
     }
 
+    private String currentUserCode() {
+        String sseUserCode = SseChatContext.getUserCode();
+        if (StringUtils.hasText(sseUserCode) && !"null".equalsIgnoreCase(sseUserCode)) {
+            return sseUserCode;
+        }
+        try {
+            Object loginId = StpUtil.getLoginIdDefaultNull();
+            return loginId == null ? "" : String.valueOf(StpUtil.getSessionByLoginId(loginId).get("userCode", ""));
+        } catch (RuntimeException exception) {
+            return "";
+        }
+    }
+
     private AiConversationVO currentConversation(String conversationId) {
         if (!StringUtils.hasText(conversationId)) {
             return null;
         }
         try {
-            return conversationService.find(currentUserId(), conversationId);
+            return conversationService.find(currentUserId(), currentUserCode(), conversationId);
         } catch (RuntimeException exception) {
             return null;
         }

@@ -52,5 +52,8 @@ class SaTokenConfigTest {
         assertThat(config.resolveDynamicPermission("/ai/logs/analyze", "POST")).isEqualTo("ai:log:analyze");
         assertThat(config.resolveDynamicPermission("/ai/conversations", "GET")).isEqualTo("ai:conversation:query");
         assertThat(config.resolveDynamicPermission("/ai/conversations/100", "GET")).isEqualTo("ai:conversation:query");
+        assertThat(config.resolveDynamicPermission("/ai/conversations/100/archive", "PUT")).isEqualTo("ai:conversation:archive");
+        assertThat(config.resolveDynamicPermission("/ai/conversations/100/restore", "PUT")).isEqualTo("ai:conversation:archive");
+        assertThat(config.resolveDynamicPermission("/ai/conversations/100", "DELETE")).isEqualTo("ai:conversation:delete");
     }
 }

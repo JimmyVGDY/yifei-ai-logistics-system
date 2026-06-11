@@ -126,6 +126,10 @@ public class AiToolCallContext {
      * StreamingResponseBody lambda 返回后 Spring MVC 会自动关闭输出流。
      */
     public void notifyDone(String answer, List<AiCitation> citations, List<AiToolCall> toolCalls) {
+        notifyDone(null, answer, citations, toolCalls);
+    }
+
+    public void notifyDone(String conversationId, String answer, List<AiCitation> citations, List<AiToolCall> toolCalls) {
         Holder current = holder.get();
         if (current == null || current.outputStream == null) {
             log.warn("SSE notifyDone 跳过（holder 为空或 outputStream 为 null），holder={}", current);
@@ -133,6 +137,7 @@ public class AiToolCallContext {
         }
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("type", "done");
+        data.put("conversationId", nullToEmpty(conversationId));
         data.put("answer", nullToEmpty(answer));
         data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
         data.put("citationCount", citations == null ? 0 : citations.size());

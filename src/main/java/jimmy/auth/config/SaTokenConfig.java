@@ -134,8 +134,8 @@ public class SaTokenConfig implements WebMvcConfigurer {
         SaRouter.match("/ai/chat", r -> StpUtil.checkPermission("ai:chat"));
         SaRouter.match("/ai/chat/stream", r -> StpUtil.checkPermission("ai:chat"));
         SaRouter.match("/ai/logs/analyze", r -> StpUtil.checkPermission("ai:log:analyze"));
-        SaRouter.match("/ai/conversations", r -> StpUtil.checkPermission("ai:conversation:query"));
-        SaRouter.match("/ai/conversations/**", r -> StpUtil.checkPermission("ai:conversation:query"));
+        SaRouter.match("/ai/conversations", r -> StpUtil.checkPermission(resolveAiConversationPermission(currentRequest())));
+        SaRouter.match("/ai/conversations/**", r -> StpUtil.checkPermission(resolveAiConversationPermission(currentRequest())));
         SaRouter.match("/ai/memory/profile", r -> StpUtil.checkPermission("ai:memory:query"));
         SaRouter.match("/ai/memory/items", r -> StpUtil.checkPermission(permissionAction("ai:memory")));
         SaRouter.match("/ai/memory/items/**", r -> StpUtil.checkPermission("ai:memory:delete"));
@@ -211,7 +211,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
             return "ai:log:analyze";
         }
         if (uri.startsWith("/ai/conversations")) {
-            return "ai:conversation:query";
+            return resolveAiConversationPermission(uri, method);
         }
         if (uri.equals("/ai/memory/profile")) {
             return "ai:memory:query";
@@ -251,6 +251,26 @@ public class SaTokenConfig implements WebMvcConfigurer {
             return prefix + ":query";
         }
         return prefix + ":update";
+    }
+
+    private String resolveAiConversationPermission(HttpServletRequest request) {
+        if (request == null) {
+            return "ai:conversation:query";
+        }
+        return resolveAiConversationPermission(request.getRequestURI(), request.getMethod());
+    }
+
+    private String resolveAiConversationPermission(String uri, String method) {
+        if ("GET".equalsIgnoreCase(method)) {
+            return "ai:conversation:query";
+        }
+        if ("DELETE".equalsIgnoreCase(method)) {
+            return "ai:conversation:delete";
+        }
+        if (uri.endsWith("/archive") || uri.endsWith("/restore")) {
+            return "ai:conversation:archive";
+        }
+        return "ai:conversation:query";
     }
 
     private HttpServletRequest currentRequest() {

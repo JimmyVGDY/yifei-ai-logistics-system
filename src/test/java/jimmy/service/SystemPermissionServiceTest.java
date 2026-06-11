@@ -65,7 +65,8 @@ class SystemPermissionServiceTest {
 
         List<String> permissions = service.effectivePermissionCodes(10L, 1L);
 
-        assertThat(permissions).contains("ai:chat", "ai:conversation:query", "ai:memory:query", "ai:memory:delete", "ai:memory:settings");
+        assertThat(permissions).contains("ai:chat", "ai:conversation:query", "ai:conversation:archive",
+                "ai:conversation:delete", "ai:memory:query", "ai:memory:delete", "ai:memory:settings");
         assertThat(permissions).doesNotContain("ai:log:analyze");
         assertThat(permissions).doesNotContain("ai:create", "ai:update", "ai:delete");
     }

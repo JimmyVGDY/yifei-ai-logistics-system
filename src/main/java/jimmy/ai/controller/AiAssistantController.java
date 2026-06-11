@@ -101,14 +101,45 @@ public class AiAssistantController {
 
     @OperationLog("AI助手-查询会话列表")
     @GetMapping("/conversations")
-    public ApiResponse<List<AiConversationVO>> conversations() {
-        return ApiResponse.success(aiAssistantService.conversations());
+    public ApiResponse<PageResult<AiConversationVO>> conversations(@RequestParam(defaultValue = "ACTIVE") String status,
+                                                                   @RequestParam(required = false) String keyword,
+                                                                   @RequestParam(defaultValue = "1") int page,
+                                                                   @RequestParam(defaultValue = "20") int pageSize) {
+        return ApiResponse.success(aiAssistantService.conversations(status, keyword, page, pageSize));
     }
 
     @OperationLog("AI助手-查询会话详情")
     @GetMapping("/conversations/{id}")
     public ApiResponse<AiConversationVO> conversation(@PathVariable String id) {
         return ApiResponse.success(aiAssistantService.conversation(id));
+    }
+
+    @OperationLog("AI助手-归档会话")
+    @PutMapping("/conversations/{id}/archive")
+    public ApiResponse<Void> archiveConversation(@PathVariable String id) {
+        aiAssistantService.archiveConversation(id);
+        return ApiResponse.success(null);
+    }
+
+    @OperationLog("AI助手-恢复会话")
+    @PutMapping("/conversations/{id}/restore")
+    public ApiResponse<Void> restoreConversation(@PathVariable String id) {
+        aiAssistantService.restoreConversation(id);
+        return ApiResponse.success(null);
+    }
+
+    @OperationLog("AI助手-删除会话")
+    @DeleteMapping("/conversations/{id}")
+    public ApiResponse<Void> deleteConversation(@PathVariable String id) {
+        aiAssistantService.deleteConversation(id);
+        return ApiResponse.success(null);
+    }
+
+    @OperationLog("AI助手-清空会话")
+    @DeleteMapping("/conversations")
+    public ApiResponse<Void> clearConversations(@RequestParam(defaultValue = "ACTIVE") String status) {
+        aiAssistantService.clearConversations(status);
+        return ApiResponse.success(null);
     }
 
     @OperationLog("AI助手-查询长期记忆画像")

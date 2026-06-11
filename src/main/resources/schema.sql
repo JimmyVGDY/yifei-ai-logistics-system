@@ -140,6 +140,49 @@ create table if not exists sys_operation_log (
     index idx_operation_log_time (operation_time)
 );
 
+create table if not exists ai_conversation (
+    id bigint primary key comment '短位随机主键',
+    conversation_id varchar(64) not null comment 'AI 会话 ID',
+    user_id varchar(64) not null comment '登录用户ID，保持原值用于审计追踪',
+    user_code varchar(64) null comment '登录用户业务编号，保持原值用于审计追踪',
+    title varchar(255) not null comment '脱敏后的会话标题',
+    status varchar(32) not null default 'ACTIVE' comment 'ACTIVE/ARCHIVED/DELETED',
+    context_snapshot text null comment '脱敏后的会话上下文快照',
+    message_count int not null default 0 comment '有效消息数量',
+    last_message_at datetime null comment '最近消息时间',
+    archived_at datetime null comment '归档时间',
+    deleted_at datetime null comment '删除时间',
+    created_at datetime not null default current_timestamp,
+    updated_at datetime not null default current_timestamp on update current_timestamp,
+    deleted tinyint not null default 0 comment '逻辑删除标记',
+    unique key uk_ai_conversation_id (conversation_id),
+    key idx_ai_conversation_user_status (user_id, user_code, status, deleted, last_message_at),
+    key idx_ai_conversation_trace_time (last_message_at, updated_at)
+) comment='AI会话主表';
+
+create table if not exists ai_conversation_message (
+    id bigint primary key comment '短位随机主键',
+    message_id varchar(64) not null comment 'AI 单条消息 ID',
+    conversation_id varchar(64) not null comment 'AI 会话 ID',
+    user_id varchar(64) not null comment '登录用户ID，保持原值用于审计追踪',
+    user_code varchar(64) null comment '登录用户业务编号，保持原值用于审计追踪',
+    role varchar(32) not null comment 'user/assistant/system/tool',
+    content text not null comment '脱敏后的消息内容',
+    status varchar(32) not null default 'SUCCESS' comment 'SUCCESS/FAILED',
+    trace_id varchar(64) null,
+    operation_id varchar(64) null,
+    login_session_id varchar(64) null,
+    tool_summary text null comment '脱敏后的工具调用摘要',
+    citation_summary text null comment '脱敏后的引用来源摘要',
+    created_at datetime not null default current_timestamp,
+    updated_at datetime not null default current_timestamp on update current_timestamp,
+    deleted tinyint not null default 0 comment '逻辑删除标记',
+    unique key uk_ai_message_id (message_id),
+    key idx_ai_message_conversation_time (conversation_id, deleted, created_at),
+    key idx_ai_message_user_time (user_id, user_code, created_at),
+    key idx_ai_message_trace (trace_id, operation_id, login_session_id)
+) comment='AI会话消息表';
+
 create table if not exists sys_uploaded_file (
     id bigint primary key,
     original_name varchar(255) not null,

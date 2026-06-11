@@ -647,7 +647,8 @@ public class SystemPermissionService {
         if ("ai:chat".equals(permissionCode)) {
             // AI 菜单默认只展开当前用户自己的对话和长期记忆能力。
             // 日志排障是跨用户审计能力，必须单独分配 ai:log:analyze。
-            return Arrays.asList("chat", "conversation:query", "memory:query", "memory:delete", "memory:settings");
+            return Arrays.asList("chat", "conversation:query", "conversation:archive", "conversation:delete",
+                    "memory:query", "memory:delete", "memory:settings");
         }
         if (permissionCode.endsWith(":manage")) {
             return MANAGE_ACTIONS;
@@ -686,6 +687,8 @@ public class SystemPermissionService {
         map.put("chat", "AI问答");
         map.put("log:analyze", "日志分析");
         map.put("conversation:query", "会话查询");
+        map.put("conversation:archive", "会话归档");
+        map.put("conversation:delete", "会话删除");
         map.putIfAbsent("memory:query", "AI长期记忆查询");
         map.putIfAbsent("memory:delete", "AI长期记忆删除");
         map.putIfAbsent("memory:settings", "AI长期记忆设置");

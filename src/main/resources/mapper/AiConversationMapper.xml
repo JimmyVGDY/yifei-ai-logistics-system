@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.ai.mapper.AiConversationMapper">
+
+    <sql id="conversationScope">
+        user_id = #{userId}
+        and ifnull(user_code, '') = ifnull(#{userCode}, '')
+        and deleted = 0
+    </sql>
+
+    <insert id="upsertConversation">
+        insert into ai_conversation (
+            id, conversation_id, user_id, user_code, title, status,
+            context_snapshot, message_count, created_at, updated_at, last_message_at, deleted
+        )
+        values (
+            #{id}, #{conversationId}, #{userId}, #{userCode}, #{title}, 'ACTIVE',
+            #{contextSnapshot, jdbcType=VARCHAR}, 0, current_timestamp, current_timestamp, current_timestamp, 0
+        )
+        on duplicate key update
+            title = if(title is null or title = '' or title = '新会话', values(title), title),
+            status = if(status = 'DELETED', 'ACTIVE', status),
+            context_snapshot = coalesce(values(context_snapshot), context_snapshot),
+            updated_at = current_timestamp,
+            last_message_at = current_timestamp,
+            deleted = 0
+    </insert>
+
+    <update id="updateConversationSummary">
+        update ai_conversation
+        set context_snapshot = #{contextSnapshot, jdbcType=VARCHAR},
+            message_count = (
+                select count(1)
+                from ai_conversation_message m
+                where m.conversation_id = #{conversationId}
+                  and m.deleted = 0
+            ),
+            updated_at = current_timestamp,
+            last_message_at = current_timestamp
+        where conversation_id = #{conversationId}
+          and <include refid="conversationScope"/>
+    </update>
+
+    <sql id="conversationFilters">
+        where <include refid="conversationScope"/>
+        <choose>
+            <when test="status != null and status != ''">
+                and status = #{status}
+            </when>
+            <otherwise>
+                and status = 'ACTIVE'
+            </otherwise>
+        </choose>
+        <if test="keyword != null and keyword != ''">
+            and (
+                title like concat('%', #{keyword}, '%')
+                or context_snapshot like concat('%', #{keyword}, '%')
+                or exists (
+                    select 1 from ai_conversation_message m
+                    where m.conversation_id = ai_conversation.conversation_id
+                      and m.deleted = 0
+                      and m.content like concat('%', #{keyword}, '%')
+                )
+            )
+        </if>
+    </sql>
+
+    <select id="countConversations" resultType="long">
+        select count(1)
+        from ai_conversation
+        <include refid="conversationFilters"/>
+    </select>
+
+    <select id="selectConversations" resultType="jimmy.ai.model.AiConversationVO">
+        select conversation_id as conversationId,
+               title,
+               status,
+               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createdAt,
+               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updatedAt,
+               date_format(archived_at, '%Y-%m-%d %H:%i:%s') as archivedAt,
+               message_count as messageCount,
+               context_snapshot as contextSnapshot
+        from ai_conversation
+        <include refid="conversationFilters"/>
+        order by coalesce(last_message_at, updated_at, created_at) desc
+        limit #{pageSize} offset #{offset}
+    </select>
+
+    <select id="selectConversation" resultType="jimmy.ai.model.AiConversationVO">
+        select conversation_id as conversationId,
+               title,
+               status,
+               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createdAt,
+               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updatedAt,
+               date_format(archived_at, '%Y-%m-%d %H:%i:%s') as archivedAt,
+               message_count as messageCount,
+               context_snapshot as contextSnapshot
+        from ai_conversation
+        where conversation_id = #{conversationId}
+          and <include refid="conversationScope"/>
+        limit 1
+    </select>
+
+    <select id="selectMessages" resultType="jimmy.ai.model.AiMessageVO">
+        select message_id as messageId,
+               role,
+               content,
+               status,
+               date_format(created_at, '%Y-%m-%d %H:%i:%s') as time,
+               trace_id as traceId,
+               operation_id as operationId,
+               login_session_id as loginSessionId
+        from ai_conversation_message
+        where conversation_id = #{conversationId}
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and deleted = 0
+        order by created_at asc, id asc
+        limit #{limit}
+    </select>
+
+    <insert id="insertMessage">
+        insert into ai_conversation_message (
+            id, message_id, conversation_id, user_id, user_code, role, content, status,
+            trace_id, operation_id, login_session_id, tool_summary, citation_summary,
+            created_at, updated_at, deleted
+        )
+        values (
+            #{id}, #{messageId}, #{conversationId}, #{userId}, #{userCode}, #{role}, #{content}, #{status},
+            #{traceId}, #{operationId}, #{loginSessionId}, #{toolSummary, jdbcType=VARCHAR}, #{citationSummary, jdbcType=VARCHAR},
+            current_timestamp, current_timestamp, 0
+        )
+    </insert>
+
+    <update id="archiveConversation">
+        update ai_conversation
+        set status = 'ARCHIVED',
+            archived_at = current_timestamp,
+            updated_at = current_timestamp
+        where conversation_id = #{conversationId}
+          and <include refid="conversationScope"/>
+          and status != 'DELETED'
+    </update>
+
+    <update id="restoreConversation">
+        update ai_conversation
+        set status = 'ACTIVE',
+            archived_at = null,
+            updated_at = current_timestamp
+        where conversation_id = #{conversationId}
+          and <include refid="conversationScope"/>
+          and status = 'ARCHIVED'
+    </update>
+
+    <update id="deleteConversation">
+        update ai_conversation
+        set status = 'DELETED',
+            deleted = 1,
+            deleted_at = current_timestamp,
+            updated_at = current_timestamp
+        where conversation_id = #{conversationId}
+          and <include refid="conversationScope"/>
+    </update>
+
+    <update id="clearConversations">
+        update ai_conversation
+        set status = 'DELETED',
+            deleted = 1,
+            deleted_at = current_timestamp,
+            updated_at = current_timestamp
+        where <include refid="conversationScope"/>
+          and status = #{status}
+    </update>
+</mapper>
