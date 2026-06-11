@@ -104,10 +104,11 @@ public class AiAssistantService {
             toolCalls.add(logToolCall);
         }
 
+        String conversationHistory = conversationHistory(conversationId);
         String systemPrompt = buildSystemPrompt();
         String userPrompt = "用户问题：" + safeMessage
                 + "\n页面上下文：" + nullToBlank(request.pageContext())
-                + "\n上一轮用户问题：" + nullToBlank(previousUserMessage)
+                + "\n对话历史：\n" + conversationHistory
                 + "\n参考资料：\n" + context;
         Optional<String> modelAnswer = callModelWithTools(systemPrompt, userPrompt);
         AiToolCallContext.Snapshot toolSnapshot = toolCallContext.snapshotAndClear();
@@ -213,10 +214,11 @@ public class AiAssistantService {
                 toolCalls.add(new AiToolCall("日志排障", "操作日志", analysis.summary()));
             }
 
+            String conversationHistory = conversationHistory(conversationId);
             String systemPrompt = buildSystemPrompt();
             String userPrompt = "用户问题：" + safeMessage
                     + "\n页面上下文：" + nullToBlank(request.pageContext())
-                    + "\n上一轮用户问题：" + nullToBlank(previousUserMessage)
+                    + "\n对话历史：\n" + conversationHistory
                     + "\n参考资料：\n" + context;
 
             // 模型调用 —— 工具方法内部会通过 AiToolCallContext 自动推送 tool_start / tool_result 事件
@@ -298,6 +300,7 @@ public class AiAssistantService {
         return """
                 你是物流管理系统的 AI 助手，只能做只读问答、系统使用说明、业务数据摘要和日志排障。
                 你可以调用后端只读工具查询业务数据，但不能承诺已经新增、修改、删除、导入、导出或上传数据。
+                如果对话历史中有最近几轮的对话内容，请结合上下文理解用户的追问和省略表达。
                 用户说得模糊时，优先使用全场景模糊搜索；用户提到客户全貌、订单完整链路、司机任务链路、车辆任务链路或异常影响时，使用业务联合查询。
                 涉及统计、排名、汇总、关联或连表分析时，才使用临时只读 SQL 工具。
                 如果上下文或工具结果提示权限不足，只能回复友好的中文权限提示，不要暴露权限码、内部模块名、字段名、SQL 或异常堆栈。
@@ -444,6 +447,53 @@ public class AiAssistantService {
             }
         }
         return null;
+    }
+
+    /**
+     * 构建多轮对话历史文本，注入模型上下文。
+     * <p>
+     * 从 MySQL 读取最近 10 条消息（最多 5 轮对话），去重后拼接为角色标注文本。
+     * 限制总长 2000 字符，保留最近轮次优先。
+     * 新会话（无历史消息）返回空字符串。
+     */
+    private String conversationHistory(String conversationId) {
+        if (!StringUtils.hasText(conversationId)) {
+            return "";
+        }
+        try {
+            List<AiMessageVO> messages = conversationService.recentMessages(conversationId, currentUserId(), currentUserCode(), 10);
+            if (messages == null || messages.isEmpty()) {
+                return "";
+            }
+            // 去重：连续同角色同内容的消息只保留一条
+            List<AiMessageVO> deduped = new ArrayList<>();
+            String lastContent = "";
+            for (AiMessageVO message : messages) {
+                if (message.content().equals(lastContent)) {
+                    continue;
+                }
+                deduped.add(message);
+                lastContent = message.content();
+            }
+            StringBuilder history = new StringBuilder();
+            int totalLength = 0;
+            int maxLength = 2000;
+            // 逆序拼接，优先保留最近的消息
+            for (int i = deduped.size() - 1; i >= 0 && totalLength < maxLength; i--) {
+                AiMessageVO message = deduped.get(i);
+                String roleLabel = "user".equals(message.role()) ? "用户" : "AI助手";
+                String line = roleLabel + "：" + message.content() + "\n";
+                if (totalLength + line.length() > maxLength) {
+                    break;
+                }
+                history.insert(0, line);
+                totalLength += line.length();
+            }
+            return history.toString().trim();
+        } catch (RuntimeException exception) {
+            log.debug("构建多轮对话历史失败，conversationId={}, reason={}", conversationId, exception.getMessage());
+            return "";
+        }
     }
 
     private String nullToBlank(String value) {

@@ -194,6 +194,26 @@ public class AiConversationService {
         redisTemplate.delete(key(userId, conversationId));
     }
 
+    /**
+     * 获取会话中最近 N 条消息，用于构建多轮对话上下文。
+     * <p>
+     * 最多返回 10 条（5 轮对话），按时间升序排列，确保历史消息先于当前问题。
+     * 消息内容已在入库时脱敏，可直接注入模型上下文。
+     *
+     * @param conversationId 会话 ID
+     * @param userId          用户 ID
+     * @param userCode        用户业务编号
+     * @param limit           最大返回条数
+     * @return 最近消息列表（升序）
+     */
+    public List<AiMessageVO> recentMessages(String conversationId, String userId, String userCode, int limit) {
+        if (!StringUtils.hasText(conversationId) || !StringUtils.hasText(userId)) {
+            return List.of();
+        }
+        int safeLimit = Math.max(1, Math.min(limit, 10));
+        return conversationMapper.selectMessages(conversationId, userId, userCode, safeLimit);
+    }
+
     public void clear(String userId, String userCode, String status) {
         conversationMapper.clearConversations(userId, userCode, normalizeStatus(status));
         Set<String> keys = redisTemplate.keys(key(userId, "*"));
