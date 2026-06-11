@@ -13,6 +13,9 @@ source scripts/sql/20260601_incremental_customer_account_binding.sql;
 source scripts/sql/20260603_incremental_security_hardening.sql;
 source scripts/sql/20260605_incremental_ai_operation_audit.sql;
 source scripts/sql/20260605_incremental_ai_long_term_memory.sql;
+source scripts/sql/20260610_incremental_ai_memory_lifecycle.sql;
+source scripts/sql/20260610_incremental_ai_menu_for_all_roles.sql;
+source scripts/sql/20260611_incremental_ai_conversation_persistence.sql;
 ```
 
 这些脚本会保留现有数据，并补充：
@@ -31,6 +34,7 @@ source scripts/sql/20260605_incremental_ai_long_term_memory.sql;
 - 存量订单客户归属回填：按 `logistics_order.customer_name = logistics_customer.customer_name` 补齐 `customer_id`
 - AI 分层审计字段：区分用户提问、AI 只读工具调用、AI 回答生成
 - AI 长期记忆表和审计字段：`ai_user_profile`、`ai_user_memory`、`ai_memory_event` 以及 `sys_operation_log.ai_memory_*`
+- AI 会话持久化表：`ai_conversation`、`ai_conversation_message`，服务重启后仍可回显历史会话
 
 权限增量脚本会根据现有 `sys_menu` 和 `sys_role_menu` 推导默认权限数据，不会删除旧角色、旧用户或旧菜单。
 
@@ -86,6 +90,17 @@ source scripts/sql/20260605_incremental_ai_long_term_memory.sql;
 - 所有角色默认获得 AI 助手入口、普通问答、当前用户会话和当前用户长期记忆管理权限。
 - `ai:log:analyze` 属于跨用户审计权限，只默认授予 `ADMIN`、`AUDITOR`、`FINANCE_MANAGER`。
 - 脚本使用 `insert ignore` 和 `not exists` 补齐缺失数据，可重复执行；同时会收回非审计类角色历史上被默认授予的 `ai:log:analyze`，避免普通角色保留跨用户日志排障能力。
+
+### `20260611_incremental_ai_conversation_persistence.sql`
+
+该脚本用于把 AI 会话历史从 Redis 短期缓存升级为 MySQL 持久化主存储：
+
+- 新增 `ai_conversation` 保存会话标题、状态、归档/删除时间、最近消息时间、消息数量和上下文摘要。
+- 新增 `ai_conversation_message` 保存脱敏后的用户消息、AI 回复、工具调用摘要、引用来源摘要和链路审计标识。
+- 补齐 `ai:conversation:archive`、`ai:conversation:delete` 权限，并授予已有 AI 助手可用角色。
+- Redis 继续作为最近上下文热缓存，不再作为会话历史的唯一来源。
+
+该脚本可重复执行，不清库、不重建现有表。执行后可通过 [Spring AI 接入说明](spring-ai.md) 和 [链路追踪与会话审计标识说明](trace-context-audit.md) 查看会话持久化和审计链路。
 
 ## 相关文档
 

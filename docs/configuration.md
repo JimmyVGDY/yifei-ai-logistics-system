@@ -42,7 +42,7 @@
 | `SPRING_AI_OPENAI_API_KEY` | `missing` | Spring AI OpenAI 兼容接口密钥；未配置时 AI 接口走本地兜底，不影响应用启动 |
 | `SPRING_AI_OPENAI_BASE_URL` | `https://api.openai.com` | OpenAI 兼容接口地址，可替换为内网模型网关 |
 | `SPRING_AI_OPENAI_CHAT_MODEL` | `gpt-4o-mini` | AI 问答使用的聊天模型名称 |
-| `APP_AI_CONVERSATION_TTL_SECONDS` | `3600` | Redis 中 AI 短期会话保留时间，单位秒 |
+| `APP_AI_CONVERSATION_TTL_SECONDS` | `3600` | Redis 中 AI 最近上下文热缓存保留时间，单位秒；会话历史以 MySQL 为准 |
 | `SA_TOKEN_NAME` | `satoken` | Sa-Token 请求头名称 |
 | `SA_TOKEN_TIMEOUT` | `86400` | 登录有效期，单位秒 |
 | `SA_TOKEN_ACTIVE_TIMEOUT` | `1800` | 无操作有效期，单位秒 |

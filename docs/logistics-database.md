@@ -40,6 +40,8 @@ password: 空（按实际配置）
 
 ### AI 长期记忆表
 
+- `ai_conversation`: AI 会话主表，保存会话标题、状态、归档/删除时间、消息数量、最近消息时间和脱敏后的上下文快照。Redis 只做热缓存，历史会话以该表为准。
+- `ai_conversation_message`: AI 会话消息表，保存脱敏后的用户消息、AI 回复、工具调用摘要、引用来源摘要，并记录 `traceId`、`operationId`、`loginSessionId`、`aiConversationId`、`aiMessageId`。
 - `ai_user_profile`: 账号级 AI 画像，保存长期记忆开关、默认回答风格、常用模块、常用查询习惯、记忆数量和最近召回时间。
 - `ai_user_memory`: 账号级长期记忆主表，保存记忆分类、置信度、脱敏标题、脱敏摘要、Qdrant 向量点 ID、创建来源会话和逻辑删除字段。
 - `ai_memory_event`: 长期记忆审计事件表，记录创建、召回、跳过写入、删除、清空和设置变更，并保留 `traceId`、`operationId`、`loginSessionId`、`aiConversationId`。
@@ -139,6 +141,14 @@ mysql -uroot logistics_management < scripts/sql/20260610_incremental_ai_menu_for
 ```
 
 该脚本会给所有角色补齐 AI 助手入口和当前用户自己的基础 AI 权限；`ai:log:analyze` 仅默认授予管理员、审计员和财务经理，并会收回非审计类角色历史上被默认授予的日志分析权限，避免普通角色保留跨用户日志排障能力。
+
+如果需要启用 AI 会话持久化、归档删除和会话级上下文快照，可执行：
+
+```bash
+mysql -uroot logistics_management < scripts/sql/20260611_incremental_ai_conversation_persistence.sql
+```
+
+该脚本只新增 `ai_conversation`、`ai_conversation_message` 表，并补齐 `ai:conversation:archive`、`ai:conversation:delete` 权限；不会清空或重建现有业务表。执行后，AI 会话历史不再依赖 Redis 存活。
 
 如果需要补齐客户数据隔离、手机号查重摘要和逻辑删除安全字段，可执行：
 
