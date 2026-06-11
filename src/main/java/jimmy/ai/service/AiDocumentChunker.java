@@ -115,6 +115,8 @@ public class AiDocumentChunker {
 
     /**
      * 将单个 section 按字符数分块，相邻块保留重叠。
+     * <p>
+     * 安全措施：最多生成 50 个块、确保 start 单调前进防止死循环。
      */
     private List<DocumentChunk> chunkSection(Section section, String fileName, String docTitle) {
         List<DocumentChunk> chunks = new ArrayList<>();
@@ -122,8 +124,20 @@ public class AiDocumentChunker {
         if (!StringUtils.hasText(text)) {
             return chunks;
         }
+        // 文本较短时直接返回单块
+        if (text.length() <= MAX_CHUNK_CHARS) {
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            metadata.put("source", fileName);
+            metadata.put("title", docTitle);
+            metadata.put("section", section.heading());
+            chunks.add(new DocumentChunk(UUID.randomUUID().toString(), text, metadata));
+            return chunks;
+        }
         int start = 0;
-        while (start < text.length()) {
+        int iteration = 0;
+        int maxIterations = Math.min(50, text.length() / (MAX_CHUNK_CHARS - OVERLAP_CHARS) + 2);
+        while (start < text.length() && iteration < maxIterations) {
+            iteration++;
             int end = Math.min(start + MAX_CHUNK_CHARS, text.length());
             // 尽量在段落边界处断开（向后找最近的空行）
             if (end < text.length()) {
@@ -141,16 +155,18 @@ public class AiDocumentChunker {
                 metadata.put("startPos", start);
                 chunks.add(new DocumentChunk(UUID.randomUUID().toString(), chunkText, metadata));
             }
-            // 下一块从 end - overlap 开始
-            start = end - OVERLAP_CHARS;
-            if (start >= text.length()) {
+            // 到达文末，结束循环
+            if (end >= text.length()) {
                 break;
             }
-            // 确保 start 在段落开头
-            int paragraphStart = text.indexOf("\n\n", start);
-            if (paragraphStart > start && paragraphStart - start < OVERLAP_CHARS * 2) {
-                start = paragraphStart + 2;
+            // 下一块起点 = 当前块终点 - 重叠量，但必须严格大于当前 start 防止死循环
+            int nextStart = Math.max(start + 1, end - OVERLAP_CHARS);
+            // 确保 nextStart 在段落开头
+            int paragraphStart = text.indexOf("\n\n", nextStart);
+            if (paragraphStart > nextStart && paragraphStart - nextStart < OVERLAP_CHARS * 2) {
+                nextStart = paragraphStart + 2;
             }
+            start = nextStart;
         }
         return chunks;
     }

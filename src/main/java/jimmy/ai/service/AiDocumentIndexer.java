@@ -82,6 +82,11 @@ public class AiDocumentIndexer {
                     continue;
                 }
                 List<DocumentChunk> chunks = chunker.chunk(file, fileName);
+                // 单文件最多索引 50 块，防止超大文件耗尽内存
+                if (chunks.size() > 50) {
+                    log.warn("RAG 文档分块超限，file={}, chunks={}，仅索引前 50 块", fileName, chunks.size());
+                    chunks = chunks.subList(0, 50);
+                }
                 totalChunks += chunks.size();
                 for (DocumentChunk chunk : chunks) {
                     if (upsertChunk(chunk)) {
@@ -95,6 +100,8 @@ public class AiDocumentIndexer {
             log.info("RAG 文档索引全部完成，文件数={}, 总块数={}, 已索引={}", files.size(), totalChunks, totalIndexed);
         } catch (RuntimeException exception) {
             log.warn("RAG 文档索引异常，已跳过，reason={}", exception.getMessage());
+        } catch (Error error) {
+            log.warn("RAG 文档索引发生严重错误（可能内存不足），已跳过，AI知识检索将降级为关键词匹配。error={}", error.toString());
         }
     }
 
