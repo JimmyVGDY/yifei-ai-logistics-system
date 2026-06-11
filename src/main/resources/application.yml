@@ -157,5 +157,7 @@ app:
     admin:
       username: ${APP_ADMIN_USERNAME:admin}
       password: ${APP_ADMIN_PASSWORD:xlh963311213}
+  operation-log:
+    retention-days: ${APP_OPERATION_LOG_RETENTION_DAYS:180}
   upload:
     root-directory: ${APP_UPLOAD_ROOT:uploads}

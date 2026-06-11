@@ -114,4 +114,9 @@
             current_timestamp
         )
     </insert>
+
+    <!-- 操作日志归档：调用存储过程 archive_operation_logs，按保留天数批量迁移至归档表。 -->
+    <select id="archiveOperationLogs" statementType="CALLABLE" resultType="int">
+        {call archive_operation_logs(#{retentionDays, mode=IN, jdbcType=INTEGER})}
+    </select>
 </mapper>

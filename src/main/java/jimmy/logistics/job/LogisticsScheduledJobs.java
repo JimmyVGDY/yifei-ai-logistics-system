@@ -3,7 +3,9 @@ package jimmy.logistics.job;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.mapper.LogisticsDashboardMapper;
+import jimmy.logistics.mapper.OperationLogMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -22,11 +24,17 @@ public class LogisticsScheduledJobs {
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final LogisticsDashboardMapper dashboardMapper;
+    private final OperationLogMapper operationLogMapper;
     private final TraceContextSupport traceContextSupport;
 
+    @Value("${app.operation-log.retention-days:180}")
+    private int operationLogRetentionDays;
+
     public LogisticsScheduledJobs(LogisticsDashboardMapper dashboardMapper,
+                                  OperationLogMapper operationLogMapper,
                                   TraceContextSupport traceContextSupport) {
         this.dashboardMapper = dashboardMapper;
+        this.operationLogMapper = operationLogMapper;
         this.traceContextSupport = traceContextSupport;
     }
 
@@ -100,6 +108,22 @@ public class LogisticsScheduledJobs {
             log.info("定时任务缓存预热开始");
             Long todayOrders = dashboardMapper.countTodayOrders(null);
             log.info("定时任务缓存预热完成，今日订单数={}", todayOrders == null ? 0 : todayOrders);
+        });
+    }
+
+    /**
+     * 操作日志归档：将超过保留期的操作日志分批迁移至归档表 sys_operation_log_archive。
+     * <p>
+     * 保留天数通过 {@code app.operation-log.retention-days} 配置（默认 180 天）。
+     * 每批迁移 5000 条，避免长事务锁表阻塞正常写入。
+     * 建议每月执行一次（XXL-Job Cron: {@code 0 0 2 1 * ?}）。
+     */
+    @XxlJob("operationLogArchive")
+    public void operationLogArchive() {
+        runJob("operationLogArchive", () -> {
+            log.info("操作日志归档开始，保留天数={}", operationLogRetentionDays);
+            int archived = operationLogMapper.archiveOperationLogs(operationLogRetentionDays);
+            log.info("操作日志归档完成，本次归档 {} 条", archived);
         });
     }
 

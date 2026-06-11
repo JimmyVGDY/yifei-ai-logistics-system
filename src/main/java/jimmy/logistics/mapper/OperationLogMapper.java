@@ -113,6 +113,16 @@ public interface OperationLogMapper {
                                  @Param("requestMethod") String requestMethod,
                                  @Param("operationStatus") String operationStatus);
 
+    /**
+     * 调用归档存储过程，将超过保留期的操作日志迁移至归档表。
+     * <p>
+     * 存储过程 archive_operation_logs 按每批 5000 条分批迁移，避免长事务锁表。
+     *
+     * @param retentionDays 保留天数，超过此天数的记录会被归档
+     * @return 归档的记录总数
+     */
+    int archiveOperationLogs(@Param("retentionDays") int retentionDays);
+
     int insertAiAuditLog(@Param("id") Long id,
                          @Param("operationId") String operationId,
                          @Param("traceId") String traceId,
