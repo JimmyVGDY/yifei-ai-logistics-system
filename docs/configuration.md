@@ -35,6 +35,7 @@
 | `BLOOM_FILTER_FALSE_POSITIVE_PROBABILITY` | `0.01` | 布隆过滤器误判率 |
 | `APP_ADMIN_USERNAME` | `admin` | 后台管理员账号 |
 | `APP_ADMIN_PASSWORD` | 见 `application.yml` | 后台管理员密码，建议本地通过环境变量覆盖 |
+| `APP_OPERATION_LOG_RETENTION_DAYS` | `180` | 操作日志保留天数，超期自动归档至 `sys_operation_log_archive` |
 | `APP_ENCRYPT_ENABLED` | `true` | 是否启用手机号等敏感字段加密 |
 | `APP_ENCRYPT_KEY` | 空 | 敏感字段加密密钥；生产环境必须配置 |
 | `APP_ENCRYPT_REQUIRE_KEY` | `false`，生产为 `true` | 是否要求显式配置加密密钥 |

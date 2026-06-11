@@ -16,6 +16,8 @@ source scripts/sql/20260605_incremental_ai_long_term_memory.sql;
 source scripts/sql/20260610_incremental_ai_memory_lifecycle.sql;
 source scripts/sql/20260610_incremental_ai_menu_for_all_roles.sql;
 source scripts/sql/20260611_incremental_ai_conversation_persistence.sql;
+source scripts/sql/20260611_incremental_add_deleted_version.sql;
+source scripts/sql/20260611_incremental_operation_log_archive.sql;
 ```
 
 这些脚本会保留现有数据，并补充：
@@ -109,3 +111,24 @@ source scripts/sql/20260611_incremental_ai_conversation_persistence.sql;
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
 - [配置说明](configuration.md)
 - [Spring AI 接入说明](spring-ai.md)
+
+### `20260611_incremental_add_deleted_version.sql`
+
+该脚本用于为前三批迁移未覆盖的表补齐 `deleted` 和 `version` 字段：
+
+- 补齐 `sys_permission`、`sys_role_permission`、`sys_user_permission` 的 `deleted/version` 字段。
+- 补齐 `sys_login_history` 的 `deleted/version` 字段。
+- 为上述表的 `deleted` 列添加索引，提升逻辑删除查询性能。
+
+该脚本可重复执行，使用存储过程自动跳过已存在的列和索引。
+
+### `20260611_incremental_operation_log_archive.sql`
+
+该脚本用于创建操作日志归档表 `sys_operation_log_archive` 和归档存储过程：
+
+- `sys_operation_log_archive`：与主表结构一致，额外增加 `archived_at` 字段记录归档时间。
+- `archive_operation_logs`：按保留天数分批迁移（每批 5000 条），避免长事务锁表。
+- 通过 XXL-Job 处理器 `operationLogArchive` 调用，建议每月执行一次。
+- 保留天数通过 `APP_OPERATION_LOG_RETENTION_DAYS` 环境变量配置（默认 180 天）。
+
+该脚本可重复执行，归档表不存在时自动创建。
