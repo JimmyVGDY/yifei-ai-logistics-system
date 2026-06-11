@@ -11,19 +11,60 @@
         </el-tooltip>
       </div>
 
+      <div class="conversation-tools">
+        <el-radio-group v-model="conversationStatus" size="small" @change="reloadConversations">
+          <el-radio-button label="ACTIVE">当前</el-radio-button>
+          <el-radio-button label="ARCHIVED">归档</el-radio-button>
+        </el-radio-group>
+        <el-input
+          v-model="conversationKeyword"
+          size="small"
+          clearable
+          placeholder="搜索会话"
+          @clear="reloadConversations"
+          @keyup.enter="reloadConversations"
+        />
+      </div>
+
       <el-scrollbar class="conversation-list">
-        <button
+        <div
           v-for="item in conversations"
           :key="item.conversationId"
           class="conversation-item"
           :class="{ active: item.conversationId === conversationId }"
           @click="selectConversation(item.conversationId)"
         >
-          <span class="conversation-title">{{ item.title || '新会话' }}</span>
-          <span class="conversation-time">{{ item.updatedAt || item.createdAt }}</span>
-        </button>
+          <div class="conversation-main">
+            <span class="conversation-title">{{ item.title || '新会话' }}</span>
+            <span class="conversation-time">{{ item.updatedAt || item.createdAt }}</span>
+          </div>
+          <div class="conversation-actions">
+            <el-button
+              v-if="conversationStatus === 'ACTIVE'"
+              link
+              size="small"
+              @click.stop="archiveConversation(item.conversationId)"
+            >归档</el-button>
+            <el-button
+              v-else
+              link
+              size="small"
+              type="success"
+              @click.stop="restoreConversation(item.conversationId)"
+            >恢复</el-button>
+            <el-button link size="small" type="danger" @click.stop="removeConversation(item.conversationId)">删除</el-button>
+          </div>
+        </div>
         <el-empty v-if="!conversations.length" :image-size="72" description="暂无会话" />
       </el-scrollbar>
+      <el-button
+        class="clear-conversations"
+        size="small"
+        text
+        type="danger"
+        :disabled="!conversations.length"
+        @click="clearConversations"
+      >清空{{ conversationStatus === 'ARCHIVED' ? '归档' : '当前' }}会话</el-button>
       <div class="memory-card">
         <div class="memory-title">
           <div>
@@ -222,18 +263,26 @@ import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
 import {
   analyzeAiLogs,
+  archiveAiConversation,
   chatWithAiStream,
+  clearAiConversations,
   clearAiMemories,
+  deleteAiConversation,
   deleteAiMemoryItem,
   fetchAiConversation,
   fetchAiConversations,
   fetchAiMemoryItems,
   fetchAiMemoryProfile,
+  restoreAiConversation,
   updateAiMemorySettings
 } from '../api/ai-assistant'
 import { hasPermission } from '../stores/auth-store'
 
 const conversations = ref([])
+const conversationStatus = ref('ACTIVE')
+const conversationKeyword = ref('')
+const conversationPage = ref(1)
+const conversationTotal = ref(0)
 const conversationId = ref('')
 const messages = ref([])
 const message = ref('')
@@ -269,7 +318,19 @@ const logForm = reactive({
 })
 
 async function loadConversations() {
-  conversations.value = await fetchAiConversations()
+  const page = await fetchAiConversations({
+    status: conversationStatus.value,
+    keyword: conversationKeyword.value || undefined,
+    page: conversationPage.value,
+    pageSize: 30
+  })
+  conversations.value = page?.records || []
+  conversationTotal.value = page?.total || 0
+}
+
+async function reloadConversations() {
+  conversationPage.value = 1
+  await loadConversations()
 }
 
 async function selectConversation(id) {
@@ -327,6 +388,45 @@ async function sendMessage() {
     stopElapsedTimer()
     await scrollToBottom()
   }
+}
+
+async function archiveConversation(id) {
+  await archiveAiConversation(id)
+  ElMessage.success('会话已归档')
+  if (conversationId.value === id) {
+    conversationId.value = ''
+    messages.value = []
+  }
+  await loadConversations()
+}
+
+async function restoreConversation(id) {
+  await restoreAiConversation(id)
+  ElMessage.success('会话已恢复')
+  await loadConversations()
+}
+
+async function removeConversation(id) {
+  await ElMessageBox.confirm('确认删除该 AI 会话吗？删除后当前列表将不再显示。', '删除会话')
+  await deleteAiConversation(id)
+  ElMessage.success('会话已删除')
+  if (conversationId.value === id) {
+    conversationId.value = ''
+    messages.value = []
+    lastResponse.value = null
+  }
+  await loadConversations()
+}
+
+async function clearConversations() {
+  const scopeText = conversationStatus.value === 'ARCHIVED' ? '已归档会话' : '当前会话'
+  await ElMessageBox.confirm(`确认清空当前账号的${scopeText}吗？该操作会隐藏该范围内的会话。`, '清空会话')
+  await clearAiConversations({ status: conversationStatus.value })
+  ElMessage.success('会话已清空')
+  conversationId.value = ''
+  messages.value = []
+  lastResponse.value = null
+  await loadConversations()
 }
 
 function handleStreamEvent(event) {
@@ -634,6 +734,12 @@ onBeforeUnmount(() => {
   height: auto;
 }
 
+.conversation-tools {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
 .conversation-item {
   width: 100%;
   border: 1px solid transparent;
@@ -642,6 +748,21 @@ onBeforeUnmount(() => {
   padding: 12px;
   text-align: left;
   cursor: pointer;
+}
+
+.conversation-main {
+  min-width: 0;
+}
+
+.conversation-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.clear-conversations {
+  margin-top: 8px;
+  justify-content: flex-start;
 }
 
 .conversation-item + .conversation-item {

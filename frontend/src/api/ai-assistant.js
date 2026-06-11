@@ -76,7 +76,7 @@ export function chatWithAiStream({ message, conversationId, pageContext, onEvent
             const data = JSON.parse(eventData)
             if (eventName === 'done') {
               result = {
-                conversationId: conversationId || '',
+                conversationId: data.conversationId || conversationId || '',
                 answer: data.answer || '',
                 citations: [],
                 toolCalls: [],
@@ -116,12 +116,28 @@ export function analyzeAiLogs(payload) {
   return http.post('/ai/logs/analyze', payload)
 }
 
-export function fetchAiConversations() {
-  return http.get('/ai/conversations')
+export function fetchAiConversations(params = {}) {
+  return http.get('/ai/conversations', { params })
 }
 
 export function fetchAiConversation(id) {
   return http.get(`/ai/conversations/${id}`)
+}
+
+export function archiveAiConversation(id) {
+  return http.put(`/ai/conversations/${id}/archive`)
+}
+
+export function restoreAiConversation(id) {
+  return http.put(`/ai/conversations/${id}/restore`)
+}
+
+export function deleteAiConversation(id) {
+  return http.delete(`/ai/conversations/${id}`)
+}
+
+export function clearAiConversations(params = {}) {
+  return http.delete('/ai/conversations', { params })
 }
 
 export function fetchAiMemoryProfile() {
