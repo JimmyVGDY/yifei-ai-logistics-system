@@ -113,6 +113,10 @@
               <div class="message-meta">{{ item.role === 'user' ? '你' : '物流AI助手' }}</div>
               <p v-if="item.role === 'user'">{{ item.content }}</p>
               <div v-else class="markdown-body" v-html="renderMarkdown(item.content)"></div>
+              <div v-if="item.role === 'assistant' && item.messageId" class="message-feedback">
+                <button :class="{ active: item._rating === 'UP' }" title="有帮助" @click="handleFeedback(item, 'UP')">👍</button>
+                <button :class="{ active: item._rating === 'DOWN' }" title="有待改进" @click="handleFeedback(item, 'DOWN')">👎</button>
+              </div>
             </div>
           </div>
 
@@ -262,7 +266,7 @@ import { Promotion, Refresh, Search } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
 import {
-  analyzeAiLogs,
+  analyzeAiLogs, submitFeedback,
   archiveAiConversation,
   chatWithAiStream,
   clearAiConversations,
@@ -543,6 +547,22 @@ function stopThinking() {
   chatLoading.value = false
   window.clearInterval(thinkingTimer)
   thinkingTimer = null
+}
+
+/** 提交 AI 回答的点赞/点踩反馈 */
+async function handleFeedback(item, rating) {
+  if (item._rating === rating) return // 不重复提交
+  try {
+    await submitFeedback({
+      messageId: item.messageId,
+      conversationId: item.conversationId,
+      rating
+    })
+    item._rating = rating
+    ElMessage.success(rating === 'UP' ? '感谢反馈，我们会继续优化' : '感谢反馈，我们会努力改进')
+  } catch {
+    // 静默失败，不影响使用体验
+  }
 }
 
 function renderMarkdown(content) {
@@ -1228,5 +1248,33 @@ onBeforeUnmount(() => {
   .message-body {
     max-width: 86%;
   }
+}
+
+.message-feedback {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.message-feedback button {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.5;
+  transition: all 0.2s;
+}
+
+.message-feedback button:hover {
+  opacity: 1;
+  border-color: #94a3b8;
+}
+
+.message-feedback button.active {
+  opacity: 1;
+  border-color: #2563eb;
+  background: #eff6ff;
 }
 </style>

@@ -10,6 +10,7 @@ import jimmy.ai.model.AiLogAnalyzeRequest;
 import jimmy.ai.model.AiMemoryItemVO;
 import jimmy.ai.model.AiMemoryProfileVO;
 import jimmy.ai.model.AiMemorySettingsRequest;
+import jimmy.ai.model.FeedbackRequest;
 import jimmy.ai.service.AiAssistantService;
 import jimmy.ai.service.AiMemoryService;
 import jimmy.common.model.ApiResponse;
@@ -175,5 +176,12 @@ public class AiAssistantController {
     @PutMapping("/memory/settings")
     public ApiResponse<AiMemoryProfileVO> updateMemorySettings(@RequestBody AiMemorySettingsRequest request) {
         return ApiResponse.success(aiMemoryService.updateSettings(request));
+    }
+
+    @OperationLog("AI助手-提交反馈")
+    @PostMapping("/feedback")
+    public ApiResponse<Void> submitFeedback(@Valid @RequestBody FeedbackRequest request) {
+        aiAssistantService.recordFeedback(request);
+        return ApiResponse.success(null);
     }
 }

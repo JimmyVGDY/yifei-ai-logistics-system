@@ -159,3 +159,7 @@ export function deleteAiMemoryItem(id) {
 export function clearAiMemories() {
   return http.delete('/ai/memory/items')
 }
+
+export function submitFeedback(payload) {
+  return http.post('/ai/feedback', payload)
+}

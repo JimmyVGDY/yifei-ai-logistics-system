@@ -10,8 +10,12 @@ import jimmy.ai.model.AiLogAnalyzeRequest;
 import jimmy.ai.model.AiMessageVO;
 import jimmy.ai.model.AiMemoryRecallResult;
 import jimmy.ai.model.AiToolCall;
+import jimmy.ai.entity.AiMessageFeedback;
+import jimmy.ai.mapper.AiMessageFeedbackMapper;
+import jimmy.ai.model.FeedbackRequest;
 import jimmy.ai.util.SseChatContext;
 import jimmy.ai.model.AiReadonlyQueryResult;
+import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.common.model.PageResult;
 import jimmy.common.trace.TraceContextSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +47,8 @@ public class AiAssistantService {
     private final AiToolCallContext toolCallContext;
     private final AiMemoryService memoryService;
     private final AiFallbackHandler fallbackHandler;
+    private final AiMessageFeedbackMapper feedbackMapper;
+    private final CompactSnowflakeIdGenerator idGenerator;
 
     public AiAssistantService(AiKnowledgeService knowledgeService,
                               AiReadonlyQueryService readonlyQueryService,
@@ -55,7 +61,9 @@ public class AiAssistantService {
                               AiBusinessQueryTools businessQueryTools,
                               AiToolCallContext toolCallContext,
                               AiMemoryService memoryService,
-                              AiFallbackHandler fallbackHandler) {
+                              AiFallbackHandler fallbackHandler,
+                              AiMessageFeedbackMapper feedbackMapper,
+                              CompactSnowflakeIdGenerator idGenerator) {
         this.knowledgeService = knowledgeService;
         this.readonlyQueryService = readonlyQueryService;
         this.logAnalysisService = logAnalysisService;
@@ -68,6 +76,8 @@ public class AiAssistantService {
         this.toolCallContext = toolCallContext;
         this.memoryService = memoryService;
         this.fallbackHandler = fallbackHandler;
+        this.feedbackMapper = feedbackMapper;
+        this.idGenerator = idGenerator;
     }
 
     public AiChatResponse chat(AiChatRequest request) {
@@ -447,6 +457,32 @@ public class AiAssistantService {
             }
         }
         return null;
+    }
+
+    /**
+     * 记录用户对 AI 回答的点赞/点踩反馈。
+     * <p>
+     * 写入失败不抛出异常，仅记录日志，确保不影响主流程。
+     *
+     * @param request 反馈请求（messageId / conversationId / rating / 可选 comment）
+     */
+    public void recordFeedback(FeedbackRequest request) {
+        try {
+            AiMessageFeedback feedback = new AiMessageFeedback();
+            feedback.setId(idGenerator.nextId());
+            feedback.setMessageId(request.messageId());
+            feedback.setConversationId(request.conversationId());
+            feedback.setUserId(currentUserId());
+            feedback.setRating(request.rating());
+            feedback.setComment(request.comment());
+            feedback.setCreatedAt(java.time.LocalDateTime.now());
+            feedbackMapper.insert(feedback);
+            log.info("AI 反馈已记录，messageId={}, rating={}", request.messageId(), request.rating());
+            auditLogService.recordToolCall(request.conversationId(), "用户反馈", request.rating(),
+                    request.messageId(), "用户对 AI 回答提交了反馈");
+        } catch (RuntimeException exception) {
+            log.debug("AI 反馈记录失败，messageId={}, reason={}", request.messageId(), exception.getMessage());
+        }
     }
 
     /**
