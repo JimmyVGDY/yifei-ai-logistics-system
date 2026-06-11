@@ -17,6 +17,7 @@ import jimmy.ai.model.AiMemorySettingsRequest;
 import jimmy.ai.model.FeedbackRequest;
 import jimmy.ai.service.AiAgentOrchestrator;
 import jimmy.ai.service.AiAssistantService;
+import jimmy.ai.service.AiFileAnalysisService;
 import jimmy.ai.service.AiMemoryService;
 import jimmy.ai.service.AiProactiveAlertService;
 import jimmy.common.model.ApiResponse;
@@ -35,7 +36,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.List;
@@ -52,17 +55,20 @@ public class AiAssistantController {
     private final AiMemoryService aiMemoryService;
     private final AiAgentOrchestrator agentOrchestrator;
     private final AiProactiveAlertService proactiveAlertService;
+    private final AiFileAnalysisService fileAnalysisService;
     private final TraceContextSupport traceContextSupport;
 
     public AiAssistantController(AiAssistantService aiAssistantService,
                                  AiMemoryService aiMemoryService,
                                  AiAgentOrchestrator agentOrchestrator,
                                  AiProactiveAlertService proactiveAlertService,
+                                 AiFileAnalysisService fileAnalysisService,
                                  TraceContextSupport traceContextSupport) {
         this.aiAssistantService = aiAssistantService;
         this.aiMemoryService = aiMemoryService;
         this.agentOrchestrator = agentOrchestrator;
         this.proactiveAlertService = proactiveAlertService;
+        this.fileAnalysisService = fileAnalysisService;
         this.traceContextSupport = traceContextSupport;
     }
 
@@ -255,6 +261,20 @@ public class AiAssistantController {
     public ApiResponse<List<String>> anomalies() {
         StpUtil.checkLogin();
         return ApiResponse.success(proactiveAlertService.detectAnomalies());
+    }
+
+    /**
+     * 多模态文件分析：上传文件（Excel/CSV/TXT）由 AI 分析并返回摘要。
+     * <p>
+     * 支持格式：.xlsx / .xls / .csv / .txt，文件上限 10MB。
+     */
+    @OperationLog("AI助手-文件分析")
+    @PostMapping(value = "/chat/with-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<String> chatWithFile(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(value = "message", defaultValue = "") String message) {
+        StpUtil.checkLogin();
+        return ApiResponse.success(fileAnalysisService.analyze(file, message));
     }
 
     private String resolveConversationId(String conversationId) {
