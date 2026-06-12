@@ -3,6 +3,7 @@ package jimmy.ai.service;
 import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiToolCall;
 import jimmy.ai.model.AiGeneratedSqlQueryResult;
+import jimmy.ai.model.AiQueryIntent;
 import jimmy.ai.model.AiReadonlyQueryResult;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -26,13 +27,16 @@ public class AiBusinessQueryTools {
     private final AiReadonlyQueryService readonlyQueryService;
     private final AiGeneratedSqlQueryService generatedSqlQueryService;
     private final AiToolCallContext toolCallContext;
+    private final AiQueryIntentParser intentParser;
 
     public AiBusinessQueryTools(AiReadonlyQueryService readonlyQueryService,
                                 AiGeneratedSqlQueryService generatedSqlQueryService,
-                                AiToolCallContext toolCallContext) {
+                                AiToolCallContext toolCallContext,
+                                AiQueryIntentParser intentParser) {
         this.readonlyQueryService = readonlyQueryService;
         this.generatedSqlQueryService = generatedSqlQueryService;
         this.toolCallContext = toolCallContext;
+        this.intentParser = intentParser;
     }
 
     @Tool(description = "查询单个物流业务模块。只读工具，可查订单、运单、客户、调度、任务、轨迹、司机、车辆、异常、费用、用户、角色、文件、操作日志。")
@@ -44,7 +48,8 @@ public class AiBusinessQueryTools {
         String target = nullToEmpty(module);
         toolCallContext.incrementAndCheck();
         toolCallContext.notifyToolStart("业务数据查询", target);
-        AiReadonlyQueryResult result = readonlyQueryService.queryModule(module, keyword, blankToNull(startTime), blankToNull(endTime));
+        String[] safeRange = normalizeRelativeTimeRange(startTime, endTime);
+        AiReadonlyQueryResult result = readonlyQueryService.queryModule(module, keyword, safeRange[0], safeRange[1]);
         toolCallContext.record(result);
         toolCallContext.notifyToolResult("业务数据查询", target, toolResultSummary(result), result.rows(), result.columns());
         return result.answerContext();
@@ -57,7 +62,8 @@ public class AiBusinessQueryTools {
             @ToolParam(description = "结束时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String endTime) {
         toolCallContext.incrementAndCheck();
         toolCallContext.notifyToolStart("全场景模糊搜索", "业务模块");
-        AiReadonlyQueryResult result = readonlyQueryService.globalSearch(keyword, blankToNull(startTime), blankToNull(endTime));
+        String[] safeRange = normalizeRelativeTimeRange(startTime, endTime);
+        AiReadonlyQueryResult result = readonlyQueryService.globalSearch(keyword, safeRange[0], safeRange[1]);
         toolCallContext.record(result);
         toolCallContext.notifyToolResult("全场景模糊搜索", "业务模块", toolResultSummary(result), result.rows(), result.columns());
         return result.answerContext();
@@ -72,7 +78,8 @@ public class AiBusinessQueryTools {
         String target = nullToEmpty(scene);
         toolCallContext.incrementAndCheck();
         toolCallContext.notifyToolStart("业务联合查询", target);
-        AiReadonlyQueryResult result = readonlyQueryService.joinedSearch(scene, keyword, blankToNull(startTime), blankToNull(endTime));
+        String[] safeRange = normalizeRelativeTimeRange(startTime, endTime);
+        AiReadonlyQueryResult result = readonlyQueryService.joinedSearch(scene, keyword, safeRange[0], safeRange[1]);
         toolCallContext.record(result);
         toolCallContext.notifyToolResult("业务联合查询", target, toolResultSummary(result), result.rows(), result.columns());
         return result.answerContext();
@@ -118,6 +125,35 @@ public class AiBusinessQueryTools {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    /**
+     * Tool Calling 由模型负责填参，但模型可能把“今天/昨天/最近7天”等相对日期算成历史日期。
+     * 这里用用户原始问题重新走后端规则解析，只在明确出现相对时间词时覆盖模型入参，
+     * 避免影响“查询 2025-07-24 的订单”这类用户明确指定的历史查询。
+     */
+    private String[] normalizeRelativeTimeRange(String startTime, String endTime) {
+        String originalQuestion = toolCallContext.originalQuestion();
+        if (hasRelativeDateWord(originalQuestion)) {
+            AiQueryIntent intent = intentParser.parse(originalQuestion);
+            if (intent != null && (intent.startTime() != null || intent.endTime() != null)) {
+                return new String[]{blankToNull(intent.startTime()), blankToNull(intent.endTime())};
+            }
+        }
+        return new String[]{blankToNull(startTime), blankToNull(endTime)};
+    }
+
+    private boolean hasRelativeDateWord(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        return text.contains("今天")
+                || text.contains("今日")
+                || text.contains("昨天")
+                || text.contains("最近7天")
+                || text.contains("近7天")
+                || text.contains("最近30天")
+                || text.contains("近30天");
     }
 
     private String nullToEmpty(String value) {

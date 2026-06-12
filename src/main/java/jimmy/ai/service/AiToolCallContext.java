@@ -44,6 +44,7 @@ public class AiToolCallContext {
         // 如果外层已通过 begin(outputStream) 绑定通道，新 Holder 应继承 outputStream 以保证工具通知能被推送
         if (existing != null) {
             h.outputStream = existing.outputStream;
+            h.originalQuestion = existing.originalQuestion;
         }
         holder.set(h);
     }
@@ -57,6 +58,24 @@ public class AiToolCallContext {
         Holder h = new Holder();
         h.outputStream = outputStream;
         holder.set(h);
+    }
+
+    /**
+     * 记录用户原始问题，供 Tool Calling 入参兜底使用。
+     * <p>
+     * 模型可能把“今天、昨天、最近7天”等相对时间算错，工具执行前会优先参考原始问题，
+     * 用后端当前业务日期重新推导时间范围，避免查询落到错误日期。
+     */
+    public void setOriginalQuestion(String originalQuestion) {
+        Holder current = holder.get();
+        if (current != null) {
+            current.originalQuestion = originalQuestion;
+        }
+    }
+
+    public String originalQuestion() {
+        Holder current = holder.get();
+        return current == null ? null : current.originalQuestion;
     }
 
     /**
@@ -253,6 +272,7 @@ public class AiToolCallContext {
     private static class Holder {
         /** 直接 HTTP 响应输出流，不用 SseEmitter 避免异步 dispatch 竞态 */
         private OutputStream outputStream;
+        private String originalQuestion;
         private int callCount = 0;
         private final long startTime = System.currentTimeMillis();
         private final List<AiCitation> citations = new ArrayList<>();

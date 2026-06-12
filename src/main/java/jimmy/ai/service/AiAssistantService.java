@@ -118,10 +118,11 @@ public class AiAssistantService {
         String conversationHistory = conversationHistory(conversationId);
         String systemPrompt = buildSystemPrompt();
         String userPrompt = "用户问题：" + safeMessage
+                + "\n当前业务日期：" + currentBusinessDate()
                 + "\n页面上下文：" + nullToBlank(request.pageContext())
                 + "\n对话历史：\n" + conversationHistory
                 + "\n参考资料：\n" + context;
-        Optional<String> modelAnswer = callModelWithTools(systemPrompt, userPrompt);
+        Optional<String> modelAnswer = callModelWithTools(systemPrompt, userPrompt, safeMessage);
         AiToolCallContext.Snapshot toolSnapshot = toolCallContext.snapshotAndClear();
         citations.addAll(toolSnapshot.citations());
         toolCalls.addAll(toolSnapshot.toolCalls());
@@ -237,12 +238,13 @@ public class AiAssistantService {
             String conversationHistory = conversationHistory(conversationId);
             String systemPrompt = buildSystemPrompt();
             String userPrompt = "用户问题：" + safeMessage
+                    + "\n当前业务日期：" + currentBusinessDate()
                     + "\n页面上下文：" + nullToBlank(request.pageContext())
                     + "\n对话历史：\n" + conversationHistory
                     + "\n参考资料：\n" + context;
 
             // 模型调用 —— 工具方法内部会通过 AiToolCallContext 自动推送 tool_start / tool_result 事件
-            Optional<String> modelAnswer = safeChatWithTools(systemPrompt, userPrompt);
+            Optional<String> modelAnswer = safeChatWithTools(systemPrompt, userPrompt, safeMessage);
             // snapshotAndClear() 会移出 Holder，需要立即重新绑定 outputStream 以保证 notifyDone() 能推送最终事件
             AiToolCallContext.Snapshot toolSnapshot = toolCallContext.snapshotAndClear();
             toolCallContext.begin(outputStream);
@@ -307,9 +309,9 @@ public class AiAssistantService {
      * 安全的模型调用：与 callModelWithTools 相同但不抛出异常。
      * 异常时返回 empty，由调用方走 fallbackAnswer 兜底。
      */
-    private Optional<String> safeChatWithTools(String systemPrompt, String userPrompt) {
+    private Optional<String> safeChatWithTools(String systemPrompt, String userPrompt, String originalQuestion) {
         try {
-            return callModelWithTools(systemPrompt, userPrompt);
+            return callModelWithTools(systemPrompt, userPrompt, originalQuestion);
         } catch (RuntimeException exception) {
             log.warn("SSE 模型调用失败，将使用兜底回答，reason={}", exception.getMessage());
             return Optional.empty();
@@ -319,6 +321,7 @@ public class AiAssistantService {
     private String buildSystemPrompt() {
         return """
                 你是物流管理系统的 AI 助手，只能做只读问答、系统使用说明、业务数据摘要和日志排障。
+                当前业务日期由系统在用户提示中提供，涉及“今天、今日、昨天、最近7天、最近30天”等相对时间时，必须按该日期计算，不要使用模型训练时的历史日期。
                 你可以调用后端只读工具查询业务数据，但不能承诺已经新增、修改、删除、导入、导出或上传数据。
                 如果对话历史中有最近几轮的对话内容，请结合上下文理解用户的追问和省略表达。
                 用户说得模糊时，优先使用全场景模糊搜索；用户提到客户全貌、订单完整链路、司机任务链路、车辆任务链路或异常影响时，使用业务联合查询。
@@ -329,14 +332,20 @@ public class AiAssistantService {
                 """;
     }
 
-    private Optional<String> callModelWithTools(String systemPrompt, String userPrompt) {
+    private Optional<String> callModelWithTools(String systemPrompt, String userPrompt, String originalQuestion) {
         toolCallContext.begin();
+        toolCallContext.setOriginalQuestion(originalQuestion);
         try {
             return modelGateway.chat(systemPrompt, userPrompt, "chat", null, businessQueryTools);
         } catch (RuntimeException exception) {
             toolCallContext.snapshotAndClear();
             throw exception;
         }
+    }
+
+    private String currentBusinessDate() {
+        return java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"))
+                .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE);
     }
 
     public AiLogAnalysisResponse analyzeLogs(AiLogAnalyzeRequest request) {
