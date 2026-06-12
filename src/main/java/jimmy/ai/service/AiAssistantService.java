@@ -5,6 +5,7 @@ import jimmy.ai.model.AiChatRequest;
 import jimmy.ai.model.AiChatResponse;
 import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiConversationVO;
+import jimmy.ai.model.AiDataResult;
 import jimmy.ai.model.AiLogAnalysisResponse;
 import jimmy.ai.model.AiLogAnalyzeRequest;
 import jimmy.ai.model.AiMessageVO;
@@ -124,6 +125,7 @@ public class AiAssistantService {
         AiToolCallContext.Snapshot toolSnapshot = toolCallContext.snapshotAndClear();
         citations.addAll(toolSnapshot.citations());
         toolCalls.addAll(toolSnapshot.toolCalls());
+        List<AiDataResult> dataResults = new ArrayList<>(toolSnapshot.dataResults());
         toolSnapshot.contexts().forEach(toolContext -> context.append("\nAI 工具调用摘要：").append(toolContext).append("\n"));
 
         /*
@@ -137,6 +139,13 @@ public class AiAssistantService {
                 fallbackQueryExecuted = true;
                 citations.addAll(queryResult.citations());
                 toolCalls.addAll(queryResult.toolCalls());
+                if (queryResult.rows() != null && !queryResult.rows().isEmpty()) {
+                    AiToolCall firstToolCall = queryResult.toolCalls().isEmpty()
+                            ? new AiToolCall("业务数据查询", "业务数据", "已返回结构化数据")
+                            : queryResult.toolCalls().getFirst();
+                    dataResults.add(new AiDataResult(firstToolCall.toolName(), firstToolCall.target(),
+                            firstToolCall.result(), queryResult.columns(), queryResult.rows()));
+                }
                 context.append("\n业务只读查询摘要：").append(queryResult.answerContext()).append("\n");
             }
         }
@@ -157,6 +166,7 @@ public class AiAssistantService {
                 answer,
                 citations,
                 toolCalls,
+                dataResults,
                 traceContextSupport.currentOrNewTraceId(),
                 traceContextSupport.currentOrNewOperationId()
         );

@@ -40,6 +40,8 @@ public class AiReadonlyQueryService {
     private static final String CUSTOMER_NOT_BOUND_MESSAGE = "当前账号未绑定客户档案，无法查询相关业务数据，请联系系统管理员。";
     private static final String QUERY_FAILED_MESSAGE = "查询暂时失败，请稍后重试或联系系统管理员。";
     private static final String WRITE_REFUSED_MESSAGE = "当前 AI 助手仅支持只读查询和信息整理，不能执行新增、修改、删除、导入、导出或上传操作。";
+    /** AI 回答仍只展示摘要，结构化表格最多加载 50 条，供前端“查看全部”使用。 */
+    private static final int STRUCTURED_RESULT_LIMIT = 50;
 
     private static final List<SearchModule> SEARCH_MODULES = List.of(
             new SearchModule("customers", "客户管理", "customer:query", 10),
@@ -173,7 +175,7 @@ public class AiReadonlyQueryService {
         if (module == null) {
             return simpleResult("业务数据查询", "业务模块", "未识别要查询的业务模块，请补充订单、客户、车辆、司机、异常、费用等查询范围。");
         }
-        return queryModule(module, cleanupKeyword(keyword), startTime, endTime, 10, "业务数据查询");
+        return queryModule(module, cleanupKeyword(keyword), startTime, endTime, STRUCTURED_RESULT_LIMIT, "业务数据查询");
     }
 
     public AiReadonlyQueryResult globalSearch(String keyword, String startTime, String endTime) {
@@ -246,7 +248,7 @@ public class AiReadonlyQueryService {
         if (module == null) {
             return AiReadonlyQueryResult.empty();
         }
-        return queryModule(module, intent.keyword(), intent.startTime(), intent.endTime(), 10, "业务数据查询");
+        return queryModule(module, intent.keyword(), intent.startTime(), intent.endTime(), STRUCTURED_RESULT_LIMIT, "业务数据查询");
     }
 
     private AiReadonlyQueryResult queryDashboard(AiQueryIntent intent) {

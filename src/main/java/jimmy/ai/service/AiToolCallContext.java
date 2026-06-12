@@ -2,8 +2,9 @@ package jimmy.ai.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jimmy.ai.model.AiCitation;
-import jimmy.ai.model.AiToolCall;
+import jimmy.ai.model.AiDataResult;
 import jimmy.ai.model.AiReadonlyQueryResult;
+import jimmy.ai.model.AiToolCall;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -221,6 +222,19 @@ public class AiToolCallContext {
         }
         current.citations.addAll(result.citations());
         current.toolCalls.addAll(result.toolCalls());
+        if (result.rows() != null && !result.rows().isEmpty()) {
+            AiToolCall firstToolCall = result.toolCalls() == null || result.toolCalls().isEmpty()
+                    ? new AiToolCall("业务数据查询", "业务数据", "已返回结构化数据")
+                    : result.toolCalls().getFirst();
+            // 结构化结果只用于前端表格承载，模型上下文仍使用 answerContext 文本摘要。
+            current.dataResults.add(new AiDataResult(
+                    firstToolCall.toolName(),
+                    firstToolCall.target(),
+                    firstToolCall.result(),
+                    result.columns(),
+                    result.rows()
+            ));
+        }
         if (result.answerContext() != null && !result.answerContext().isBlank()) {
             current.contexts.add(result.answerContext());
         }
@@ -230,9 +244,10 @@ public class AiToolCallContext {
         Holder current = holder.get();
         holder.remove();
         if (current == null) {
-            return new Snapshot(List.of(), List.of(), List.of());
+            return new Snapshot(List.of(), List.of(), List.of(), List.of());
         }
-        return new Snapshot(List.copyOf(current.citations), List.copyOf(current.toolCalls), List.copyOf(current.contexts));
+        return new Snapshot(List.copyOf(current.citations), List.copyOf(current.toolCalls),
+                List.copyOf(current.contexts), List.copyOf(current.dataResults));
     }
 
     private static class Holder {
@@ -243,9 +258,11 @@ public class AiToolCallContext {
         private final List<AiCitation> citations = new ArrayList<>();
         private final List<AiToolCall> toolCalls = new ArrayList<>();
         private final List<String> contexts = new ArrayList<>();
+        private final List<AiDataResult> dataResults = new ArrayList<>();
     }
 
-    public record Snapshot(List<AiCitation> citations, List<AiToolCall> toolCalls, List<String> contexts) {
+    public record Snapshot(List<AiCitation> citations, List<AiToolCall> toolCalls,
+                           List<String> contexts, List<AiDataResult> dataResults) {
     }
 
     public static class ToolCallLimitExceededException extends RuntimeException {

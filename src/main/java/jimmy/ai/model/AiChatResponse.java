@@ -10,6 +10,7 @@ public record AiChatResponse(
         String answer,
         List<AiCitation> citations,
         List<AiToolCall> toolCalls,
+        List<AiDataResult> dataResults,
         String traceId,
         String operationId) {
 }
