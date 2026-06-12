@@ -20,13 +20,13 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class XxlJobConfig {
 
-    @Bean(initMethod = "start", destroyMethod = "destroy")
+    @Bean
     @ConditionalOnProperty(prefix = "xxl.job", name = "enabled", havingValue = "true")
     @ConditionalOnMissingBean(XxlJobSpringExecutor.class)
     public XxlJobSpringExecutor xxlJobExecutor(
             @Value("${xxl.job.admin.addresses:}") String adminAddresses,
             @Value("${xxl.job.executor.appname:logistics-app}") String appname,
-            @Value("${xxl.job.executor.port:9999}") int port,
+            @Value("${xxl.job.executor.port:10999}") int port,
             @Value("${xxl.job.executor.logpath:/app/logs/xxl-job}") String logpath,
             @Value("${xxl.job.accessToken:}") String accessToken) {
         XxlJobSpringExecutor executor = new XxlJobSpringExecutor();
