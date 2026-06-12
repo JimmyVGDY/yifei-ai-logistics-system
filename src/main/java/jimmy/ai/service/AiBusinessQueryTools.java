@@ -9,6 +9,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Spring AI 业务查询工具集。
@@ -45,7 +46,7 @@ public class AiBusinessQueryTools {
         toolCallContext.notifyToolStart("业务数据查询", target);
         AiReadonlyQueryResult result = readonlyQueryService.queryModule(module, keyword, blankToNull(startTime), blankToNull(endTime));
         toolCallContext.record(result);
-        toolCallContext.notifyToolResult("业务数据查询", target, toolResultSummary(result));
+        toolCallContext.notifyToolResult("业务数据查询", target, toolResultSummary(result), result.rows(), result.columns());
         return result.answerContext();
     }
 
@@ -58,7 +59,7 @@ public class AiBusinessQueryTools {
         toolCallContext.notifyToolStart("全场景模糊搜索", "业务模块");
         AiReadonlyQueryResult result = readonlyQueryService.globalSearch(keyword, blankToNull(startTime), blankToNull(endTime));
         toolCallContext.record(result);
-        toolCallContext.notifyToolResult("全场景模糊搜索", "业务模块", toolResultSummary(result));
+        toolCallContext.notifyToolResult("全场景模糊搜索", "业务模块", toolResultSummary(result), result.rows(), result.columns());
         return result.answerContext();
     }
 
@@ -73,7 +74,7 @@ public class AiBusinessQueryTools {
         toolCallContext.notifyToolStart("业务联合查询", target);
         AiReadonlyQueryResult result = readonlyQueryService.joinedSearch(scene, keyword, blankToNull(startTime), blankToNull(endTime));
         toolCallContext.record(result);
-        toolCallContext.notifyToolResult("业务联合查询", target, toolResultSummary(result));
+        toolCallContext.notifyToolResult("业务联合查询", target, toolResultSummary(result), result.rows(), result.columns());
         return result.answerContext();
     }
 
@@ -83,7 +84,7 @@ public class AiBusinessQueryTools {
         toolCallContext.notifyToolStart("运营看板查询", "运营看板");
         AiReadonlyQueryResult result = readonlyQueryService.queryDashboard();
         toolCallContext.record(result);
-        toolCallContext.notifyToolResult("运营看板查询", "运营看板", toolResultSummary(result));
+        toolCallContext.notifyToolResult("运营看板查询", "运营看板", toolResultSummary(result), result.rows(), result.columns());
         return result.answerContext();
     }
 

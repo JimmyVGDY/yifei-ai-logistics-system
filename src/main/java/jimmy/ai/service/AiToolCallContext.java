@@ -105,18 +105,33 @@ public class AiToolCallContext {
      * 推送"工具调用结果"事件。
      */
     public void notifyToolResult(String toolName, String target, String result) {
+        notifyToolResult(toolName, target, result, null, null);
+    }
+
+    /**
+     * 推送"工具调用结果"事件，可附带结构化表格数据供前端渲染。
+     *
+     * @param rows    查询返回的数据行（key 为字段名，value 为字段值）；无表格数据时传 null
+     * @param columns 字段名列表（保持顺序）；无表格数据时传 null
+     */
+    public void notifyToolResult(String toolName, String target, String result,
+                                  List<Map<String, Object>> rows, List<String> columns) {
         Holder current = holder.get();
         if (current == null || current.outputStream == null) {
             return;
         }
-        sendEvent(current, "tool_result", Map.of(
-                "toolName", nullToEmpty(toolName),
-                "target", nullToEmpty(target),
-                "result", nullToEmpty(result),
-                "toolCallCount", current.callCount,
-                "maxToolCalls", MAX_TOOL_CALLS,
-                "elapsedMs", System.currentTimeMillis() - current.startTime
-        ));
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("toolName", nullToEmpty(toolName));
+        data.put("target", nullToEmpty(target));
+        data.put("result", nullToEmpty(result));
+        data.put("toolCallCount", current.callCount);
+        data.put("maxToolCalls", MAX_TOOL_CALLS);
+        data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
+        if (rows != null && !rows.isEmpty()) {
+            data.put("rows", rows);
+            data.put("columns", columns == null ? List.of() : columns);
+        }
+        sendEvent(current, "tool_result", data);
     }
 
     /**

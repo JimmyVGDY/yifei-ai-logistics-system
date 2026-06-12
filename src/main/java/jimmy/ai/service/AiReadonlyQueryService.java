@@ -194,9 +194,11 @@ public class AiReadonlyQueryService {
                 .append(hasText(keywordToUse) ? "，关键词“" + keywordToUse + "”。" : "，默认最近数据。");
         long total = 0;
         int queriedModules = 0;
+        List<Map<String, Object>> allRows = new ArrayList<>();
+        List<String> allColumns = null;
 
         for (SearchModule module : modules) {
-            AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 5, "业务联合查询");
+            AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 20, "业务联合查询");
             if (!result.executed()) {
                 continue;
             }
@@ -205,6 +207,12 @@ public class AiReadonlyQueryService {
             citations.addAll(result.citations());
             toolCalls.addAll(result.toolCalls());
             answer.append("\n\n").append(result.answerContext());
+            if (result.rows() != null && !result.rows().isEmpty()) {
+                allRows.addAll(result.rows());
+                if (allColumns == null && result.columns() != null) {
+                    allColumns = result.columns();
+                }
+            }
         }
 
         if (queriedModules == 0) {
@@ -214,7 +222,8 @@ public class AiReadonlyQueryService {
             String message = "已在当前账号可访问的关联业务模块中查询，暂未匹配到记录。已查询范围：" + joinModuleNames(modules) + "。";
             return simpleResult("业务联合查询", joinModuleNames(modules), message);
         }
-        return new AiReadonlyQueryResult(true, masker.mask(answer.toString()), citations, toolCalls);
+        return new AiReadonlyQueryResult(true, masker.mask(answer.toString()), citations, toolCalls,
+                allRows, allColumns == null ? List.of() : allColumns);
     }
 
     public AiReadonlyQueryResult queryDashboard() {
@@ -291,9 +300,20 @@ public class AiReadonlyQueryService {
                     keyword, startTime, endTime, false, false, true);
             String summary = masker.mask(summaryService.moduleSummary(intent, page));
             String result = masker.mask(summaryService.queryConditionSummary(intent) + "，命中 " + page.total() + " 条记录。");
+            // 提取结构化数据行和列名，供前端表格渲染
+            List<Map<String, Object>> rows = new ArrayList<>();
+            List<String> columns = new ArrayList<>();
+            if (!mergedRecords.isEmpty()) {
+                ModuleRecordVO first = mergedRecords.get(0);
+                columns.addAll(first.keySet());
+                for (ModuleRecordVO record : mergedRecords) {
+                    rows.add(new LinkedHashMap<>(record));
+                }
+            }
             return new AiReadonlyQueryResult(true, summary,
                     List.of(citation(module.moduleName(), summary)),
-                    List.of(new AiToolCall(toolName, module.moduleName(), result)));
+                    List.of(new AiToolCall(toolName, module.moduleName(), result)),
+                    rows, columns);
         } catch (IllegalStateException exception) {
             log.info("AI 只读查询被数据范围拦截，module={}, reason={}", module.module(), exception.getMessage());
             return simpleResult(toolName, module.moduleName(), CUSTOMER_NOT_BOUND_MESSAGE);
@@ -314,6 +334,8 @@ public class AiReadonlyQueryService {
 
         List<AiCitation> citations = new ArrayList<>();
         List<AiToolCall> toolCalls = new ArrayList<>();
+        List<Map<String, Object>> allRows = new ArrayList<>();
+        List<String> allColumns = null;
         StringBuilder answer = new StringBuilder("已按关键词“").append(keywordToUse).append("”进行全场景模糊搜索。");
         long total = 0;
         int queriedModules = 0;
@@ -325,7 +347,7 @@ public class AiReadonlyQueryService {
             if (!hasPermission(module.permission())) {
                 continue;
             }
-            AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 5, "全场景模糊搜索");
+            AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 20, "全场景模糊搜索");
             if (!result.executed()) {
                 continue;
             }
@@ -336,6 +358,12 @@ public class AiReadonlyQueryService {
                 citations.addAll(result.citations());
                 toolCalls.addAll(result.toolCalls());
                 answer.append("\n\n").append(result.answerContext());
+                if (result.rows() != null && !result.rows().isEmpty()) {
+                    allRows.addAll(result.rows());
+                    if (allColumns == null && result.columns() != null) {
+                        allColumns = result.columns();
+                    }
+                }
             }
         }
 
@@ -347,7 +375,8 @@ public class AiReadonlyQueryService {
                     + "可补充订单号、运单号、客户名称、手机号、车牌号、司机姓名、地址或时间范围继续查询。";
             return simpleResult("全场景模糊搜索", "业务模块", message);
         }
-        return new AiReadonlyQueryResult(true, masker.mask(answer.toString()), citations, toolCalls);
+        return new AiReadonlyQueryResult(true, masker.mask(answer.toString()), citations, toolCalls,
+                allRows, allColumns == null ? List.of() : allColumns);
     }
 
     private boolean shouldFallbackToGlobalSearch(AiQueryIntent intent, AiReadonlyQueryResult result) {
