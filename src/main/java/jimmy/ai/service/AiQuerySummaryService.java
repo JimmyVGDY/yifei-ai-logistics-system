@@ -18,19 +18,22 @@ import jimmy.ai.model.AiQueryIntent;
 @Component
 public class AiQuerySummaryService {
 
-    private static final int MAX_ROWS = 5;
+    /**
+     * 提供模型上下文的摘要上限。模型能同时看到这么多条记录，
+     * 在回答中完整列出后再由前端 AiDataTable 承接结构化数据。
+     */
+    private static final int MAX_ROWS = 20;
 
     public String moduleSummary(AiQueryIntent intent, PageResult<ModuleRecordVO> page) {
         StringBuilder builder = new StringBuilder();
         builder.append("已查询").append(intent.moduleName()).append("，")
                 .append(queryConditionSummary(intent)).append("。")
-                .append("共匹配 ").append(page.total()).append(" 条记录，本次展示 ")
-                .append(page.records().size()).append(" 条。");
+                .append("共匹配 ").append(page.total()).append(" 条记录。");
         if (page.records().isEmpty()) {
             builder.append("未找到符合条件的数据。");
             return builder.toString();
         }
-        builder.append("\n关键结果：");
+        builder.append("\n请在回答中按 Markdown 表格完整列出以下所有记录，不要省略：");
         int count = 0;
         for (ModuleRecordVO record : page.records()) {
             if (count++ >= MAX_ROWS) {
