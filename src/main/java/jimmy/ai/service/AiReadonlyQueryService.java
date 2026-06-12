@@ -128,6 +128,14 @@ public class AiReadonlyQueryService {
             return simpleResult("只读安全校验", "只读模式", WRITE_REFUSED_MESSAGE);
         }
 
+        /*
+         * “查看剩余、继续看、下一批”这类追问没有新的业务对象，本质是沿用上一轮查询。
+         * 不在这里兜底的话，模型可能把“剩余28条”当成全新关键词，进而丢失上一轮模块和时间条件。
+         */
+        if (isContinuationRequest(normalizedMessage) && hasText(previousUserMessage)) {
+            return query(previousUserMessage, null);
+        }
+
         AiGeneratedSqlQueryResult sqlQueryResult = generatedSqlQueryService.query(normalizedMessage);
         if (sqlQueryResult.executed()) {
             return new AiReadonlyQueryResult(true, sqlQueryResult.message(),
@@ -482,6 +490,16 @@ public class AiReadonlyQueryService {
             return false;
         }
         return containsAny(message, List.of("全局查找", "全局搜索", "全局查询", "全场景", "到处找", "所有模块"));
+    }
+
+    private boolean isContinuationRequest(String message) {
+        if (!hasText(message)) {
+            return false;
+        }
+        return containsAny(message, List.of(
+                "剩余", "余下", "剩下", "后面的", "后续", "更多",
+                "继续看", "接着看", "下一批", "下一页", "查看更多"
+        ));
     }
 
     private boolean isModuleClarification(String message) {

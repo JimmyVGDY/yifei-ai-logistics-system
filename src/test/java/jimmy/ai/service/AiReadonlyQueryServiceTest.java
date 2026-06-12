@@ -182,6 +182,28 @@ class AiReadonlyQueryServiceTest {
     }
 
     @Test
+    void shouldReusePreviousQueryWhenUserRequestsRemainingRecords() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenReturn(
+                new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of(
+                        "order_no", "LO-TEST-REMAIN",
+                        "customer_name", "陈土豆"
+                ))), 1, 50, 48)
+        );
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("order:query")).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("查看剩余的28条", "我要看今天的订单的详细数据");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.answerContext()).contains("运单管理", "共匹配 48 条记录", "LO-TEST-REMAIN");
+            verify(requirementService).modulePage(eq("orders"), any(ModuleQueryDTO.class));
+        }
+    }
+
+    @Test
     void shouldSearchAcrossAllAllowedModulesWhenQuestionOnlyContainsShortKeyword() {
         AiReadonlyQueryService service = serviceWithRealParser(mockRequirementServiceForKeyword("陈土豆"));
 
