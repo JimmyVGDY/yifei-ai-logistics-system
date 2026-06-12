@@ -52,6 +52,8 @@ export function chatWithAiStream({ message, conversationId, pageContext, onEvent
     let buffer = ''
     let result = null
     let streamError = null
+    const toolCalls = []
+    const dataResults = []
 
     while (true) {
       const { done, value } = await reader.read()
@@ -79,8 +81,24 @@ export function chatWithAiStream({ message, conversationId, pageContext, onEvent
                 conversationId: data.conversationId || conversationId || '',
                 answer: data.answer || '',
                 citations: [],
-                toolCalls: [],
+                toolCalls,
+                dataResults,
                 elapsedMs: data.elapsedMs || 0
+              }
+            } else if (eventName === 'tool_result') {
+              toolCalls.push({
+                toolName: data.toolName || '业务数据查询',
+                target: data.target || '',
+                result: data.result || ''
+              })
+              if (Array.isArray(data.rows) && data.rows.length) {
+                dataResults.push({
+                  toolName: data.toolName || '业务数据查询',
+                  target: data.target || '',
+                  summary: data.result || '',
+                  columns: Array.isArray(data.columns) ? data.columns : [],
+                  rows: data.rows
+                })
               }
             } else if (eventName === 'error') {
               streamError = data.message || 'AI 流式响应失败，请稍后重试'

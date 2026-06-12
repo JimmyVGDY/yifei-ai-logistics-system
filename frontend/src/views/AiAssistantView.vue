@@ -154,6 +154,45 @@
       </div>
 
       <div class="ai-meta" v-if="lastResponse || chatLoading">
+        <div v-if="dataResults.length" class="data-result-panel">
+          <div v-for="(result, index) in dataResults" :key="dataResultKey(result, index)" class="data-result-card">
+            <div class="data-result-head">
+              <div>
+                <strong>{{ result.toolName || '业务数据查询' }} · {{ result.target || '查询结果' }}</strong>
+                <p>{{ result.summary || `已加载 ${result.rows?.length || 0} 条结构化数据` }}</p>
+              </div>
+              <el-button
+                v-if="(result.rows?.length || 0) > DATA_PREVIEW_LIMIT"
+                size="small"
+                type="primary"
+                plain
+                @click="openDataDrawer(result)"
+              >
+                查看全部 {{ result.rows.length }} 条
+              </el-button>
+            </div>
+            <el-table
+              v-if="result.rows?.length"
+              :data="previewRows(result)"
+              size="small"
+              border
+              max-height="260"
+              class="data-preview-table"
+            >
+              <el-table-column
+                v-for="column in displayColumns(result)"
+                :key="column"
+                :prop="column"
+                :label="column"
+                min-width="140"
+                show-overflow-tooltip
+              />
+            </el-table>
+            <p v-if="(result.rows?.length || 0) > DATA_PREVIEW_LIMIT" class="data-preview-tip">
+              默认预览前 {{ DATA_PREVIEW_LIMIT }} 条，其余数据可在完整表格中查看。
+            </p>
+          </div>
+        </div>
         <el-collapse>
           <el-collapse-item name="citations">
             <template #title>
@@ -256,6 +295,33 @@
       </div>
       </el-scrollbar>
     </aside>
+
+    <el-drawer v-model="dataDrawerVisible" size="72%" append-to-body>
+      <template #header>
+        <div class="data-drawer-header">
+          <strong>{{ activeDataResult?.toolName || '业务数据查询' }} · {{ activeDataResult?.target || '查询结果' }}</strong>
+          <span>{{ activeDataResult?.rows?.length || 0 }} 条数据</span>
+        </div>
+      </template>
+      <div class="data-drawer-summary">{{ activeDataResult?.summary || '以下为本次 AI 只读查询返回的结构化数据。' }}</div>
+      <el-table
+        v-if="activeDataResult?.rows?.length"
+        :data="activeDataResult.rows"
+        border
+        height="calc(100vh - 190px)"
+        class="data-full-table"
+      >
+        <el-table-column
+          v-for="column in displayColumns(activeDataResult)"
+          :key="column"
+          :prop="column"
+          :label="column"
+          min-width="150"
+          show-overflow-tooltip
+        />
+      </el-table>
+      <el-empty v-else description="暂无结构化数据" />
+    </el-drawer>
   </section>
 </template>
 
@@ -300,6 +366,10 @@ const memoryEnabled = ref(true)
 const memoryLoading = ref(false)
 const chatScrollbarRef = ref(null)
 const canAnalyzeLogs = computed(() => hasPermission('ai:log:analyze'))
+const DATA_PREVIEW_LIMIT = 10
+const dataDrawerVisible = ref(false)
+const activeDataResult = ref(null)
+const dataResults = computed(() => normalizeDataResults(lastResponse.value?.dataResults || []))
 
 /** SSE 流式进度状态 */
 const streamProgress = ref(null)
@@ -571,6 +641,48 @@ function renderMarkdown(content) {
     USE_PROFILES: { html: true },
     ADD_ATTR: ['target', 'rel']
   })
+}
+
+/**
+ * 将后端或 SSE 工具事件返回的结构化结果统一成前端表格可消费的格式。
+ * 这里只做展示层兜底，不改变后端只读查询、权限和脱敏逻辑。
+ */
+function normalizeDataResults(results) {
+  return (results || [])
+    .map((item) => {
+      const rows = Array.isArray(item.rows) ? item.rows : []
+      const columns = Array.isArray(item.columns) && item.columns.length
+        ? item.columns
+        : Object.keys(rows[0] || {})
+      return {
+        toolName: item.toolName || '业务数据查询',
+        target: item.target || '查询结果',
+        summary: item.summary || item.result || '',
+        columns,
+        rows
+      }
+    })
+    .filter((item) => item.rows.length)
+}
+
+function previewRows(result) {
+  return (result?.rows || []).slice(0, DATA_PREVIEW_LIMIT)
+}
+
+function displayColumns(result) {
+  if (Array.isArray(result?.columns) && result.columns.length) {
+    return result.columns
+  }
+  return Object.keys(result?.rows?.[0] || {})
+}
+
+function openDataDrawer(result) {
+  activeDataResult.value = result
+  dataDrawerVisible.value = true
+}
+
+function dataResultKey(result, index) {
+  return `${result.toolName || 'tool'}-${result.target || 'target'}-${index}`
 }
 
 function formatElapsed(ms) {
@@ -1126,6 +1238,63 @@ onBeforeUnmount(() => {
 .ai-meta {
   padding: 0 16px;
   background: #fff;
+}
+
+.data-result-panel {
+  padding: 12px 0;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.data-result-card {
+  padding: 12px;
+  border: 1px solid #dbe7f6;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.data-result-card + .data-result-card {
+  margin-top: 12px;
+}
+
+.data-result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.data-result-head strong {
+  color: #0f172a;
+}
+
+.data-result-head p,
+.data-preview-tip,
+.data-drawer-summary {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.data-preview-table,
+.data-full-table {
+  width: 100%;
+}
+
+.data-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.data-drawer-header span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.data-drawer-summary {
+  margin: 0 0 12px;
 }
 
 .collapse-title {
