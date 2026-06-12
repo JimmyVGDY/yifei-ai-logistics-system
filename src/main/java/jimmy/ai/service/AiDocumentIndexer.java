@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 @Component
 public class AiDocumentIndexer {
 
-    private static final String DOCS_COLLECTION = "logistics_docs";
     private static final int MAX_CHUNKS_PER_FILE = 50;
     private static final int MAX_PAYLOAD_CONTENT_LENGTH = 1200;
 
@@ -44,6 +43,8 @@ public class AiDocumentIndexer {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final boolean enabled;
+    private final boolean indexOnStartup;
+    private final String docsCollection;
 
     public AiDocumentIndexer(AiDocumentChunker chunker,
                              AiMemoryVectorEncoder vectorEncoder,
@@ -52,8 +53,10 @@ public class AiDocumentIndexer {
                              AiSensitiveDataMasker masker,
                              RestClient.Builder builder,
                              ObjectMapper objectMapper,
-                             @Value("${app.ai.memory.qdrant.base-url:http://127.0.0.1:6333}") String baseUrl,
-                             @Value("${app.ai.memory.qdrant.enabled:true}") boolean enabled) {
+                             @Value("${app.ai.rag.qdrant.base-url:${app.ai.memory.qdrant.base-url:http://127.0.0.1:6333}}") String baseUrl,
+                             @Value("${app.ai.rag.enabled:${app.ai.memory.qdrant.enabled:true}}") boolean enabled,
+                             @Value("${app.ai.rag.index-on-startup:true}") boolean indexOnStartup,
+                             @Value("${app.ai.rag.qdrant.collection:logistics_docs}") String docsCollection) {
         this.chunker = chunker;
         this.vectorEncoder = vectorEncoder;
         this.documentIndexMapper = documentIndexMapper;
@@ -62,6 +65,8 @@ public class AiDocumentIndexer {
         this.restClient = builder.baseUrl(baseUrl).build();
         this.objectMapper = objectMapper;
         this.enabled = enabled;
+        this.indexOnStartup = indexOnStartup;
+        this.docsCollection = docsCollection;
     }
 
     /**
@@ -73,6 +78,10 @@ public class AiDocumentIndexer {
     public void indexAll() {
         if (!enabled) {
             log.info("RAG 文档索引已禁用，跳过启动索引");
+            return;
+        }
+        if (!indexOnStartup) {
+            log.info("RAG 启动索引已关闭，跳过启动索引");
             return;
         }
         if (!qdrantReady()) {
@@ -229,7 +238,7 @@ public class AiDocumentIndexer {
                     Map.of("key", key, "match", Map.of("value", value))
             ));
             restClient.post()
-                    .uri("/collections/{collection}/points/delete?wait=true", DOCS_COLLECTION)
+                    .uri("/collections/{collection}/points/delete?wait=true", docsCollection)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("filter", filter))
                     .retrieve()
@@ -250,7 +259,7 @@ public class AiDocumentIndexer {
                     "payload", payload
             )));
             restClient.put()
-                    .uri("/collections/{collection}/points?wait=true", DOCS_COLLECTION)
+                    .uri("/collections/{collection}/points?wait=true", docsCollection)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
@@ -264,14 +273,14 @@ public class AiDocumentIndexer {
 
     private void ensureDocsCollection() {
         try {
-            restClient.get().uri("/collections/{collection}", DOCS_COLLECTION)
+            restClient.get().uri("/collections/{collection}", docsCollection)
                     .retrieve().body(String.class);
             return;
         } catch (RuntimeException ignored) {
             // 集合不存在时继续创建。
         }
         restClient.put()
-                .uri("/collections/{collection}", DOCS_COLLECTION)
+                .uri("/collections/{collection}", docsCollection)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("vectors", Map.of(
                         "size", AiMemoryVectorEncoder.VECTOR_SIZE,
@@ -280,7 +289,7 @@ public class AiDocumentIndexer {
                 .retrieve()
                 .toBodilessEntity();
         log.info("RAG 文档 Qdrant Collection 已创建，collection={}, size={}",
-                DOCS_COLLECTION, AiMemoryVectorEncoder.VECTOR_SIZE);
+                docsCollection, AiMemoryVectorEncoder.VECTOR_SIZE);
     }
 
     private void ensureDocsCollectionReady() {

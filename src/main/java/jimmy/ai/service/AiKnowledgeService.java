@@ -29,23 +29,25 @@ import java.util.Map;
 public class AiKnowledgeService {
 
     private static final int SNIPPET_LENGTH = 420;
-    private static final String DOCS_COLLECTION = "logistics_docs";
     private static final double MIN_SCORE = 0.6;
 
     private final AiMemoryVectorEncoder vectorEncoder;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final boolean vectorEnabled;
+    private final String docsCollection;
 
     public AiKnowledgeService(AiMemoryVectorEncoder vectorEncoder,
                                RestClient.Builder builder,
                                ObjectMapper objectMapper,
-                               @org.springframework.beans.factory.annotation.Value("${app.ai.memory.qdrant.base-url:http://127.0.0.1:6333}") String baseUrl,
-                               @org.springframework.beans.factory.annotation.Value("${app.ai.memory.qdrant.enabled:true}") boolean vectorEnabled) {
+                               @org.springframework.beans.factory.annotation.Value("${app.ai.rag.qdrant.base-url:${app.ai.memory.qdrant.base-url:http://127.0.0.1:6333}}") String baseUrl,
+                               @org.springframework.beans.factory.annotation.Value("${app.ai.rag.enabled:${app.ai.memory.qdrant.enabled:true}}") boolean vectorEnabled,
+                               @org.springframework.beans.factory.annotation.Value("${app.ai.rag.qdrant.collection:logistics_docs}") String docsCollection) {
         this.vectorEncoder = vectorEncoder;
         this.restClient = builder.baseUrl(baseUrl).build();
         this.objectMapper = objectMapper;
         this.vectorEnabled = vectorEnabled;
+        this.docsCollection = docsCollection;
     }
 
     /**
@@ -91,7 +93,7 @@ public class AiKnowledgeService {
                     "with_payload", true
             );
             String json = restClient.post()
-                    .uri("/collections/{collection}/points/search", DOCS_COLLECTION)
+                    .uri("/collections/{collection}/points/search", docsCollection)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
