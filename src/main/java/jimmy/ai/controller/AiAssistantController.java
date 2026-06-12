@@ -12,7 +12,6 @@ import jimmy.ai.model.AiLogAnalysisResponse;
 import jimmy.ai.model.AiLogAnalyzeRequest;
 import jimmy.ai.model.AiMemoryItemVO;
 import jimmy.ai.model.AiMemoryProfileVO;
-import jimmy.ai.model.AgentResult;
 import jimmy.ai.model.AiMemorySettingsRequest;
 import jimmy.ai.model.FeedbackRequest;
 import jimmy.ai.service.AiAgentOrchestrator;
@@ -20,6 +19,7 @@ import jimmy.ai.service.AiAssistantService;
 import jimmy.ai.service.AiFileAnalysisService;
 import jimmy.ai.service.AiMemoryService;
 import jimmy.ai.service.AiProactiveAlertService;
+import jimmy.ai.util.SseChatContext;
 import jimmy.common.model.ApiResponse;
 import jimmy.common.model.PageResult;
 import jimmy.common.trace.TraceContextSupport;
@@ -227,9 +227,12 @@ public class AiAssistantController {
         String roleCode = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("roleCode", ""));
         String customerId = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("customerId", ""));
         String username = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("username", ""));
+        String usernameMasked = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("usernameMasked", ""));
         String userCode = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("userCode", ""));
         String loginSessionId = String.valueOf(StpUtil.getSessionByLoginId(loginId)
                 .get(TraceContextSupport.LOGIN_SESSION_ID, ""));
+        String traceId = traceContextSupport.currentOrNewTraceId();
+        String operationId = traceContextSupport.currentOrNewOperationId();
 
         httpResponse.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         httpResponse.setCharacterEncoding("UTF-8");
@@ -238,12 +241,30 @@ public class AiAssistantController {
 
         StreamingResponseBody stream = outputStream -> {
             try {
+                // StreamingResponseBody 会切换到异步线程执行，Sa-Token 和 MDC 的 ThreadLocal 不会自动传递。
+                // 这里恢复 Controller 预先捕获的权限、数据范围和链路标识，保证 Agent 工具查询仍受原账号约束。
+                SseChatContext.setLoginIdAndPermissions(loginIdStr, permissions);
+                SseChatContext.setRoleCode(roleCode);
+                SseChatContext.setCustomerId(customerId);
+                SseChatContext.setUsername(username);
+                SseChatContext.setUserCode(userCode);
+                SseChatContext.setLoginSessionId(loginSessionId);
+                traceContextSupport.put(TraceContextSupport.TRACE_ID, traceId);
+                traceContextSupport.put(TraceContextSupport.OPERATION_ID, operationId);
+                traceContextSupport.put(TraceContextSupport.LOGIN_SESSION_ID, loginSessionId);
+                traceContextSupport.put(TraceContextSupport.USER_ID, loginIdStr);
+                traceContextSupport.put(TraceContextSupport.USER_CODE, userCode);
+                traceContextSupport.put(TraceContextSupport.USERNAME_MASKED, usernameMasked);
+                traceContextSupport.put(TraceContextSupport.ROLE_CODE, roleCode);
                 AgentResult result = agentOrchestrator.execute(
                         request.message(), resolveConversationId(request.conversationId()), outputStream);
                 log.info("AI Agent 编排完成，iterations={}, toolCalls={}, costMs={}",
                         result.totalIterations(), result.totalToolCalls(), result.durationMs());
             } catch (RuntimeException exception) {
                 log.error("AI Agent 编排异常", exception);
+            } finally {
+                SseChatContext.clear();
+                traceContextSupport.clearTraceContext();
             }
         };
         return ResponseEntity.ok(stream);
