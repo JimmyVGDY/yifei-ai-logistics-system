@@ -45,6 +45,12 @@
 | `SPRING_AI_OPENAI_CHAT_MODEL` | `gpt-4o-mini` | AI 问答使用的聊天模型名称 |
 | `APP_AI_CONVERSATION_TTL_SECONDS` | `3600` | Redis 中 AI 最近上下文热缓存保留时间，单位秒；会话历史以 MySQL 为准 |
 | `APP_AI_TOKEN_USAGE_ENABLED` | `true` | AI Token 用量追踪开关，关闭后不记录每次模型调用的 Token 消耗 |
+| `APP_AI_SSE_TIMEOUT_MS` | `180000` | AI 流式问答的 Spring MVC 异步超时时间，单位毫秒 |
+| `APP_AI_SSE_LEGACY_GET_ENABLED` | `true` | 是否保留旧版 `GET /ai/chat/stream` 流式入口；用户问题放在 URL 中有安全风险，生产环境建议关闭并提示前端刷新使用 POST SSE |
+| `APP_AI_RAG_ENABLED` | 兼容 `APP_AI_MEMORY_QDRANT_ENABLED`，默认 `true` | 是否启用 RAG 文档向量检索；关闭后系统文档问答退回本地轻量检索 |
+| `APP_AI_RAG_INDEX_ON_STARTUP` | `true` | 应用启动时是否扫描 `README.md` 和 `docs/*.md` 并增量索引变更文档 |
+| `APP_AI_RAG_QDRANT_BASE_URL` | 兼容 `APP_AI_MEMORY_QDRANT_BASE_URL`，默认 `http://127.0.0.1:6333` | RAG 文档向量检索使用的 Qdrant HTTP 地址 |
+| `APP_AI_RAG_QDRANT_COLLECTION` | `logistics_docs` | RAG 文档向量集合名称；默认不清空、不重建现有集合 |
 | `SA_TOKEN_NAME` | `satoken` | Sa-Token 请求头名称 |
 | `SA_TOKEN_TIMEOUT` | `86400` | 登录有效期，单位秒 |
 | `SA_TOKEN_ACTIVE_TIMEOUT` | `1800` | 无操作有效期，单位秒 |
@@ -213,9 +219,21 @@ AI 长期记忆配置：
 | 配置 | 默认值 | 说明 |
 | --- | --- | --- |
 | `APP_AI_SSE_TIMEOUT_MS` | `180000` | AI 流式问答异步超时，单位毫秒；模型和工具调用较慢时可适当调大 |
+| `APP_AI_SSE_LEGACY_GET_ENABLED` | `true` | 是否保留旧版 GET 流式入口；生产环境可关闭以收紧 URL 参数风险 |
 | `APP_AI_MEMORY_QDRANT_ENABLED` | `true` | 是否启用 Qdrant 向量召回；不可用时自动降级 |
 | `APP_AI_MEMORY_QDRANT_BASE_URL` | `http://127.0.0.1:6333` | Qdrant HTTP 地址 |
 | `APP_AI_MEMORY_QDRANT_COLLECTION` | `logistics_ai_user_memory` | 长期记忆向量集合；集合维度必须匹配当前 embedding 模型 |
+
+RAG 文档索引配置：
+
+| 配置 | 默认值 | 说明 |
+| --- | --- | --- |
+| `APP_AI_RAG_ENABLED` | 兼容 `APP_AI_MEMORY_QDRANT_ENABLED`，默认 `true` | 是否启用 RAG 文档向量检索；关闭后文档问答退回本地轻量检索 |
+| `APP_AI_RAG_INDEX_ON_STARTUP` | `true` | 应用启动时扫描并增量索引变更文档 |
+| `APP_AI_RAG_QDRANT_BASE_URL` | 兼容 `APP_AI_MEMORY_QDRANT_BASE_URL` | RAG 文档检索的 Qdrant 地址 |
+| `APP_AI_RAG_QDRANT_COLLECTION` | `logistics_docs` | RAG 文档向量集合名称 |
+
+`APP_AI_RAG_*` 配置项支持回退到 `APP_AI_MEMORY_QDRANT_*` 旧配置，方便从旧版升级的项目无需修改环境变量即可使用默认值。
 
 长期记忆的 MySQL 真值表为 `ai_user_profile`、`ai_user_memory`、`ai_memory_event`，需要执行 `scripts/sql/20260605_incremental_ai_long_term_memory.sql`。生命周期字段由 `scripts/sql/20260610_incremental_ai_memory_lifecycle.sql` 补齐，该脚本可重复执行。Qdrant 只保存脱敏摘要向量点，不能作为唯一审计数据源。
 

@@ -153,6 +153,8 @@ controller
 service
 ├── AiAssistantService
 ├── AiKnowledgeService
+├── AiDocumentIndexer
+├── AiDocumentChunker
 ├── AiBusinessQueryTools
 ├── AiToolCallContext
 ├── AiReadonlyQueryService
@@ -392,6 +394,7 @@ AI 助手相关行为必须进入现有审计体系。
 | 订单和运单中心混淆 | 订单管理用于业务订单和下单记录；运单中心用于运输单、WB 运单号和运输状态 |
 | 单模块无结果 | 客户模块未命中时，用同一关键词在当前账号可访问的订单、运单、任务、轨迹、异常和费用中全局只读召回 |
 | 向量召回误命中 | 向量库只能用于候选模块和文档语义召回，最终业务数据必须走白名单查询和权限校验 |
+| SSE 异步上下文丢失 | Controller 预捕获登录态和权限后通过 `SseChatContext` 传入异步线程，下游工具必须读取快照而非直接调 `StpUtil`；`finally` 清理避免泄漏 |
 | 长任务阻塞 | 报表分析、日志大范围扫描等使用 RabbitMQ 异步处理 |
 | 日志过宽 | 前端摘要展示，详情抽屉展开，长 JSON 支持折叠 |
 
