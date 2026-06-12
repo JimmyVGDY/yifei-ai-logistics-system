@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.ai.mapper.AiDocumentIndexMapper">
+
+    <select id="selectBySourcePath" resultType="jimmy.ai.model.AiDocumentIndexRecord">
+        select source_path as sourcePath,
+               content_hash as contentHash,
+               chunk_count as chunkCount,
+               status
+        from ai_document_index
+        where source_path = #{sourcePath}
+          and deleted = 0
+        limit 1
+    </select>
+
+    <!-- 文档索引成功后写入最新哈希；同一 source_path 重复写入时只更新状态和统计。 -->
+    <insert id="upsertSuccess">
+        insert into ai_document_index (
+            id, source_path, file_name, content_hash, chunk_count, status, error_message,
+            indexed_at, created_at, updated_at, deleted
+        )
+        values (
+            #{id}, #{sourcePath}, #{fileName}, #{contentHash}, #{chunkCount}, 'SUCCESS', null,
+            current_timestamp, current_timestamp, current_timestamp, 0
+        )
+        on duplicate key update
+            file_name = values(file_name),
+            content_hash = values(content_hash),
+            chunk_count = values(chunk_count),
+            status = 'SUCCESS',
+            error_message = null,
+            indexed_at = current_timestamp,
+            updated_at = current_timestamp,
+            deleted = 0
+    </insert>
+
+    <!-- 索引失败只记录错误摘要，不阻断应用启动和 AI 主流程。 -->
+    <insert id="markFailed">
+        insert into ai_document_index (
+            id, source_path, file_name, content_hash, chunk_count, status, error_message,
+            indexed_at, created_at, updated_at, deleted
+        )
+        values (
+            #{id}, #{sourcePath}, #{fileName}, #{contentHash}, 0, 'FAILED', #{errorMessage},
+            null, current_timestamp, current_timestamp, 0
+        )
+        on duplicate key update
+            file_name = values(file_name),
+            content_hash = values(content_hash),
+            status = 'FAILED',
+            error_message = values(error_message),
+            updated_at = current_timestamp,
+            deleted = 0
+    </insert>
+</mapper>

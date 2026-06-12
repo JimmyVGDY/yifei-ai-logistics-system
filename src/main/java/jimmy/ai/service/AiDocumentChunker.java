@@ -128,6 +128,7 @@ public class AiDocumentChunker {
         if (text.length() <= MAX_CHUNK_CHARS) {
             Map<String, Object> metadata = new LinkedHashMap<>();
             metadata.put("source", fileName);
+            metadata.put("sourcePath", fileName);
             metadata.put("title", docTitle);
             metadata.put("section", section.heading());
             chunks.add(new DocumentChunk(UUID.randomUUID().toString(), text, metadata));
@@ -150,6 +151,7 @@ public class AiDocumentChunker {
             if (StringUtils.hasText(chunkText)) {
                 Map<String, Object> metadata = new LinkedHashMap<>();
                 metadata.put("source", fileName);
+                metadata.put("sourcePath", fileName);
                 metadata.put("title", docTitle);
                 metadata.put("section", section.heading());
                 metadata.put("startPos", start);
