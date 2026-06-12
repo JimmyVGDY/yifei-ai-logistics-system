@@ -118,7 +118,7 @@ xxl:
     accessToken: ${XXL_JOB_ACCESS_TOKEN:}
     executor:
       appname: ${XXL_JOB_EXECUTOR_APPNAME:logistics-app}
-      port: ${XXL_JOB_EXECUTOR_PORT:9999}
+      port: ${XXL_JOB_EXECUTOR_PORT:10999}
       logpath: ${XXL_JOB_EXECUTOR_LOGPATH:logs/xxl-job}
 
 app:

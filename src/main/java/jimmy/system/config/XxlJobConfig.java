@@ -2,7 +2,9 @@ package jimmy.system.config;
 
 import com.xxl.job.core.executor.impl.XxlJobSpringExecutor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,10 +16,13 @@ import org.springframework.context.annotation.Configuration;
  * </p>
  */
 @Configuration
+// 项目启用了 Spring Cloud bootstrap，父上下文不是 Web 应用；这里限定只在主 Web 上下文启动执行器，避免同一端口被重复绑定。
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class XxlJobConfig {
 
     @Bean(initMethod = "start", destroyMethod = "destroy")
     @ConditionalOnProperty(prefix = "xxl.job", name = "enabled", havingValue = "true")
+    @ConditionalOnMissingBean(XxlJobSpringExecutor.class)
     public XxlJobSpringExecutor xxlJobExecutor(
             @Value("${xxl.job.admin.addresses:}") String adminAddresses,
             @Value("${xxl.job.executor.appname:logistics-app}") String appname,
