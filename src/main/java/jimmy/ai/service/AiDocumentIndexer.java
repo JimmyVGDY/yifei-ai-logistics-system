@@ -34,11 +34,13 @@ public class AiDocumentIndexer {
 
     private static final String DOCS_COLLECTION = "logistics_docs";
     private static final int MAX_CHUNKS_PER_FILE = 50;
+    private static final int MAX_PAYLOAD_CONTENT_LENGTH = 1200;
 
     private final AiDocumentChunker chunker;
     private final AiMemoryVectorEncoder vectorEncoder;
     private final AiDocumentIndexMapper documentIndexMapper;
     private final CompactSnowflakeIdGenerator idGenerator;
+    private final AiSensitiveDataMasker masker;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final boolean enabled;
@@ -47,6 +49,7 @@ public class AiDocumentIndexer {
                              AiMemoryVectorEncoder vectorEncoder,
                              AiDocumentIndexMapper documentIndexMapper,
                              CompactSnowflakeIdGenerator idGenerator,
+                             AiSensitiveDataMasker masker,
                              RestClient.Builder builder,
                              ObjectMapper objectMapper,
                              @Value("${app.ai.memory.qdrant.base-url:http://127.0.0.1:6333}") String baseUrl,
@@ -55,6 +58,7 @@ public class AiDocumentIndexer {
         this.vectorEncoder = vectorEncoder;
         this.documentIndexMapper = documentIndexMapper;
         this.idGenerator = idGenerator;
+        this.masker = masker;
         this.restClient = builder.baseUrl(baseUrl).build();
         this.objectMapper = objectMapper;
         this.enabled = enabled;
@@ -238,7 +242,8 @@ public class AiDocumentIndexer {
     private boolean upsertChunk(DocumentChunk chunk) {
         try {
             Map<String, Object> payload = new java.util.LinkedHashMap<>(chunk.metadata());
-            payload.put("content", chunk.content());
+            // Qdrant payload 只保存脱敏且限长的检索片段，避免文档原文被额外复制到向量库。
+            payload.put("content", safePayloadContent(chunk.content()));
             Map<String, Object> body = Map.of("points", List.of(Map.of(
                     "id", chunk.chunkId(),
                     "vector", vectorEncoder.encode(chunk.content()),
@@ -294,6 +299,13 @@ public class AiDocumentIndexer {
         } catch (Exception exception) {
             throw new IllegalStateException("文档哈希计算失败: " + file, exception);
         }
+    }
+
+    private String safePayloadContent(String content) {
+        String masked = masker.mask(content == null ? "" : content);
+        return masked.length() <= MAX_PAYLOAD_CONTENT_LENGTH
+                ? masked
+                : masked.substring(0, MAX_PAYLOAD_CONTENT_LENGTH) + "...";
     }
 
     private record IndexOutcome(int chunkCount, int indexedCount, boolean skipped) {

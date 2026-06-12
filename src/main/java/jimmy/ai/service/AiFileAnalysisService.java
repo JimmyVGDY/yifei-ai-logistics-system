@@ -78,8 +78,8 @@ public class AiFileAnalysisService {
             }
         }
 
-        // 3. AI 不可用 → 返回文件内容预览
-        return "【文件预览】" + fileName + "\n\n" + content;
+        // 3. AI 不可用时只返回脱敏后的文件预览，避免上传内容原文进入前端或日志。
+        return "【文件预览（已脱敏）】" + fileName + "\n\n" + masker.mask(content);
     }
 
     /**
