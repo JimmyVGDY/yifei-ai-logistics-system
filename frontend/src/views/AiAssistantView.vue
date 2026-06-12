@@ -113,11 +113,6 @@
               <div class="message-meta">{{ item.role === 'user' ? '你' : '物流AI助手' }}</div>
               <p v-if="item.role === 'user'">{{ item.content }}</p>
               <div v-else class="markdown-body" v-html="renderMarkdown(item.content)"></div>
-              <AiDataTable
-                v-if="item.role === 'assistant' && item._tableData"
-                :columns="item._tableData.columns"
-                :rows="item._tableData.rows"
-              />
               <div v-if="item.role === 'assistant' && item.messageId" class="message-feedback">
                 <button :class="{ active: item._rating === 'UP' }" title="有帮助" @click="handleFeedback(item, 'UP')">👍</button>
                 <button :class="{ active: item._rating === 'DOWN' }" title="有待改进" @click="handleFeedback(item, 'DOWN')">👎</button>
@@ -270,7 +265,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Promotion, Refresh, Search } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
-import AiDataTable from '../components/AiDataTable.vue'
 import {
   analyzeAiLogs, submitFeedback,
   archiveAiConversation,
@@ -312,7 +306,6 @@ const streamProgress = ref(null)
 const streamStepIndex = ref(0)
 const streamElapsed = ref(0)
 const streamToolLog = ref([])
-const streamTableData = ref(null)      // 工具调用返回的结构化表格数据 {columns, rows}
 let streamElapsedTimer = null
 let streamAbort = null
 const markdown = new MarkdownIt({
@@ -368,7 +361,6 @@ async function sendMessage() {
   streamStepIndex.value = 0
   streamElapsed.value = 0
   streamToolLog.value = []
-  streamTableData.value = null
   startElapsedTimer()
   await scrollToBottom()
 
@@ -384,11 +376,7 @@ async function sendMessage() {
     const response = await stream.promise
     conversationId.value = response.conversationId
     lastResponse.value = response
-    messages.value.push({
-      role: 'assistant',
-      content: response.answer,
-      _tableData: streamTableData.value
-    })
+    messages.value.push({ role: 'assistant', content: response.answer })
     await loadConversations()
     await loadMemory()
   } catch (err) {
@@ -469,13 +457,6 @@ function handleStreamEvent(event) {
           streamToolLog.value[i].result = event.result || ''
           streamToolLog.value[i].status = 'done'
           break
-        }
-      }
-      // 收集结构化表格数据
-      if (event.rows && event.rows.length && event.columns && event.columns.length) {
-        streamTableData.value = {
-          columns: event.columns,
-          rows: event.rows
         }
       }
       break
