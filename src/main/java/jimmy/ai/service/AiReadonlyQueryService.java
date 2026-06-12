@@ -300,16 +300,9 @@ public class AiReadonlyQueryService {
                     keyword, startTime, endTime, false, false, true);
             String summary = masker.mask(summaryService.moduleSummary(intent, page));
             String result = masker.mask(summaryService.queryConditionSummary(intent) + "，命中 " + page.total() + " 条记录。");
-            // 提取结构化数据行和列名，供前端表格渲染
-            List<Map<String, Object>> rows = new ArrayList<>();
-            List<String> columns = new ArrayList<>();
-            if (!mergedRecords.isEmpty()) {
-                ModuleRecordVO first = mergedRecords.get(0);
-                columns.addAll(first.keySet());
-                for (ModuleRecordVO record : mergedRecords) {
-                    rows.add(new LinkedHashMap<>(record));
-                }
-            }
+            // 提取结构化数据行，过滤内部字段并映射为中文列名
+            List<Map<String, Object>> rows = buildDisplayRows(mergedRecords);
+            List<String> columns = rows.isEmpty() ? List.of() : new ArrayList<>(rows.get(0).keySet());
             return new AiReadonlyQueryResult(true, summary,
                     List.of(citation(module.moduleName(), summary)),
                     List.of(new AiToolCall(toolName, module.moduleName(), result)),
@@ -585,6 +578,93 @@ public class AiReadonlyQueryService {
     /**
      * 快捷构建单条 AI 只读查询结果，自动脱敏消息并生成工具调用记录。
      */
+    /**
+     * 将原始数据库记录转换为仅包含面向用户字段的中文显示行。
+     * 排除 id、时间戳、审计字段、原始状态码（保留 statusLabel），并映射为中文列名。
+     */
+    private List<Map<String, Object>> buildDisplayRows(List<ModuleRecordVO> records) {
+        // 不展示给用户的内部字段
+        Set<String> EXCLUDE_FIELDS = Set.of(
+            "id", "created_at", "updated_at", "create_time", "update_time",
+            "deleted", "version", "create_by", "update_by",
+            "login_session_id", "trace_id", "operation_id"
+        );
+        // 有 statusLabel 时隐藏原始 status 字段
+        Set<String> REDUNDANT_STATUS = Set.of(
+            "status", "transport_status", "dispatch_status", "task_status",
+            "exception_status", "payment_status", "pay_status"
+        );
+        // 数据库字段名 → 中文显示名
+        Map<String, String> LABELS = new LinkedHashMap<>();
+        LABELS.put("customer_name", "客户名称");
+        LABELS.put("customer_code", "客户编码");
+        LABELS.put("contact_name", "联系人");
+        LABELS.put("contact_phone", "联系电话");
+        LABELS.put("province", "省份");
+        LABELS.put("city", "城市");
+        LABELS.put("address", "地址");
+        LABELS.put("statusLabel", "状态");
+        LABELS.put("order_no", "订单号");
+        LABELS.put("waybill_no", "运单号");
+        LABELS.put("task_no", "任务号");
+        LABELS.put("cargo_name", "货物名称");
+        LABELS.put("cargo_weight", "货物重量(kg)");
+        LABELS.put("driver_name", "司机");
+        LABELS.put("driver_code", "司机编号");
+        LABELS.put("vehicle_no", "车牌号");
+        LABELS.put("vehicle_type", "车型");
+        LABELS.put("real_name", "姓名");
+        LABELS.put("username", "用户名");
+        LABELS.put("user_code", "用户编号");
+        LABELS.put("role_name", "角色");
+        LABELS.put("role_code", "角色编码");
+        LABELS.put("start_site", "出发地");
+        LABELS.put("target_site", "目的地");
+        LABELS.put("current_location", "当前位置");
+        LABELS.put("sender_address", "发货地址");
+        LABELS.put("receiver_address", "收货地址");
+        LABELS.put("base_fee", "基础运费");
+        LABELS.put("payable_fee", "应付金额");
+        LABELS.put("actual_fee", "实付金额");
+        LABELS.put("exception_type", "异常类型");
+        LABELS.put("exception_desc", "异常描述");
+        LABELS.put("report_user", "上报人");
+        LABELS.put("report_time", "上报时间");
+        LABELS.put("handle_user", "处理人");
+        LABELS.put("handle_time", "处理时间");
+        LABELS.put("operator_name", "操作人");
+        LABELS.put("operation_desc", "操作描述");
+        LABELS.put("operation_time", "操作时间");
+        LABELS.put("warehouse_name", "仓库");
+        LABELS.put("route_code", "路线编号");
+        LABELS.put("distance_km", "距离(km)");
+        LABELS.put("bill_no", "账单号");
+        LABELS.put("base_amount", "基础金额");
+        LABELS.put("payable_amount", "应付金额");
+        LABELS.put("proof_url", "凭证链接");
+        LABELS.put("comment", "备注");
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (ModuleRecordVO record : records) {
+            Map<String, Object> displayRow = new LinkedHashMap<>();
+            // 检查是否有 statusLabel 类字段
+            boolean hasStatusLabel = record.keySet().stream().anyMatch(k -> k.endsWith("Label"));
+            for (String key : record.keySet()) {
+                if (EXCLUDE_FIELDS.contains(key)) continue;
+                if (hasStatusLabel && REDUNDANT_STATUS.contains(key)) continue;
+                String label = LABELS.getOrDefault(key, null);
+                if (label != null) {
+                    displayRow.put(label, record.get(key));
+                } else {
+                    // 未映射的字段用原 key（兜底，避免丢数据）
+                    displayRow.put(key, record.get(key));
+                }
+            }
+            result.add(displayRow);
+        }
+        return result;
+    }
+
     private AiReadonlyQueryResult simpleResult(String toolName, String target, String message) {
         String safeMessage = masker.mask(message);
         return new AiReadonlyQueryResult(true, safeMessage,
