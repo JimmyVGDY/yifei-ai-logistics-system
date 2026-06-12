@@ -25,6 +25,7 @@ import jimmy.common.model.PageResult;
 import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.annotation.OperationLog;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 import org.springframework.http.ResponseEntity;
@@ -41,6 +42,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -57,19 +59,22 @@ public class AiAssistantController {
     private final AiProactiveAlertService proactiveAlertService;
     private final AiFileAnalysisService fileAnalysisService;
     private final TraceContextSupport traceContextSupport;
+    private final boolean legacyGetStreamEnabled;
 
     public AiAssistantController(AiAssistantService aiAssistantService,
                                  AiMemoryService aiMemoryService,
                                  AiAgentOrchestrator agentOrchestrator,
                                  AiProactiveAlertService proactiveAlertService,
                                  AiFileAnalysisService fileAnalysisService,
-                                 TraceContextSupport traceContextSupport) {
+                                 TraceContextSupport traceContextSupport,
+                                 @Value("${app.ai.sse.legacy-get-enabled:true}") boolean legacyGetStreamEnabled) {
         this.aiAssistantService = aiAssistantService;
         this.aiMemoryService = aiMemoryService;
         this.agentOrchestrator = agentOrchestrator;
         this.proactiveAlertService = proactiveAlertService;
         this.fileAnalysisService = fileAnalysisService;
         this.traceContextSupport = traceContextSupport;
+        this.legacyGetStreamEnabled = legacyGetStreamEnabled;
     }
 
     @OperationLog("AI助手-普通问答")
@@ -98,6 +103,15 @@ public class AiAssistantController {
     public ResponseEntity<StreamingResponseBody> chatStreamLegacy(@RequestParam String message,
                                                                   @RequestParam(required = false) String conversationId,
                                                                   @RequestParam(required = false) String pageContext) {
+        if (!legacyGetStreamEnabled) {
+            // 旧 GET 入口会把用户问题放进 URL。默认保留兼容，生产可关闭并提示前端刷新使用 POST SSE。
+            StreamingResponseBody disabled = outputStream -> outputStream.write(
+                    "event: error\ndata: {\"message\":\"旧版流式入口已关闭，请刷新页面后重试。\"}\n\n"
+                            .getBytes(StandardCharsets.UTF_8));
+            return ResponseEntity.ok()
+                    .contentType(MediaType.TEXT_EVENT_STREAM)
+                    .body(disabled);
+        }
         return streamResponse(new AiChatRequest(message, conversationId, pageContext));
     }
 

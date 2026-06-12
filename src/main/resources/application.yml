@@ -150,6 +150,7 @@ app:
       enabled: ${APP_AI_TOKEN_USAGE_ENABLED:true}
     sse:
       timeout-ms: ${APP_AI_SSE_TIMEOUT_MS:180000}
+      legacy-get-enabled: ${APP_AI_SSE_LEGACY_GET_ENABLED:true}
     rag:
       enabled: ${APP_AI_RAG_ENABLED:${APP_AI_MEMORY_QDRANT_ENABLED:true}}
       index-on-startup: ${APP_AI_RAG_INDEX_ON_STARTUP:true}
