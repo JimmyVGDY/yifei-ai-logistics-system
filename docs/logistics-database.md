@@ -45,6 +45,7 @@ password: 空（按实际配置）
 - `ai_user_profile`: 账号级 AI 画像，保存长期记忆开关、默认回答风格、常用模块、常用查询习惯、记忆数量和最近召回时间。
 - `ai_user_memory`: 账号级长期记忆主表，保存记忆分类、置信度、脱敏标题、脱敏摘要、Qdrant 向量点 ID、创建来源会话和逻辑删除字段。
 - `ai_memory_event`: 长期记忆审计事件表，记录创建、召回、跳过写入、删除、清空和设置变更，并保留 `traceId`、`operationId`、`loginSessionId`、`aiConversationId`。
+- `ai_document_index`: RAG 文档索引状态表，记录系统文档路径、文件名、内容哈希、分块数量、索引状态、错误摘要和索引时间；不保存文档正文，Qdrant payload 也只保存脱敏摘要。
 
 ### 增量字段说明
 

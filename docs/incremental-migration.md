@@ -19,6 +19,7 @@ source scripts/sql/20260611_incremental_ai_conversation_persistence.sql;
 source scripts/sql/20260611_incremental_add_deleted_version.sql;
 source scripts/sql/20260611_incremental_operation_log_archive.sql;
 source scripts/sql/20260611_incremental_ai_token_usage.sql;
+source scripts/sql/20260612_incremental_ai_document_index.sql;
 ```
 
 这些脚本会保留现有数据，并补充：
@@ -38,6 +39,7 @@ source scripts/sql/20260611_incremental_ai_token_usage.sql;
 - AI 分层审计字段：区分用户提问、AI 只读工具调用、AI 回答生成
 - AI 长期记忆表和审计字段：`ai_user_profile`、`ai_user_memory`、`ai_memory_event` 以及 `sys_operation_log.ai_memory_*`
 - AI 会话持久化表：`ai_conversation`、`ai_conversation_message`，服务重启后仍可回显历史会话
+- AI RAG 文档索引状态表：`ai_document_index`，用于按内容哈希跳过未变化文档，并记录索引失败原因
 
 权限增量脚本会根据现有 `sys_menu` 和 `sys_role_menu` 推导默认权限数据，不会删除旧角色、旧用户或旧菜单。
 
@@ -104,6 +106,16 @@ source scripts/sql/20260611_incremental_ai_token_usage.sql;
 - Redis 继续作为最近上下文热缓存，不再作为会话历史的唯一来源。
 
 该脚本可重复执行，不清库、不重建现有表。执行后可通过 [Spring AI 接入说明](spring-ai.md) 和 [链路追踪与会话审计标识说明](trace-context-audit.md) 查看会话持久化和审计链路。
+### `20260612_incremental_ai_document_index.sql`
+
+该脚本用于启用 RAG 文档增量索引状态记录：
+
+- 新增 `ai_document_index` 保存文档路径、文件名、内容哈希、分块数量、索引状态、错误摘要和索引时间。
+- 文档未变化时应用启动索引会直接跳过，避免重复写入 Qdrant。
+- 文档变化时会按 `sourcePath` 清理旧向量，再写入新分块。
+- Qdrant 不可用或单文件索引失败时会记录失败状态，不影响应用启动和物流主业务。
+
+该脚本可重复执行，不清库、不重建现有表。RAG 配置和安全边界见 [Spring AI 接入说明](spring-ai.md)。
 
 ## 相关文档
 
