@@ -105,6 +105,7 @@
 
     <select id="selectMessages" resultType="jimmy.ai.model.AiMessageVO">
         select message_id as messageId,
+               conversation_id as conversationId,
                role,
                content,
                status,

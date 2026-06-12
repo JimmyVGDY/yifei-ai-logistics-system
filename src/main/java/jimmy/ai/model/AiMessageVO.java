@@ -5,6 +5,7 @@ package jimmy.ai.model;
  */
 public record AiMessageVO(
         String messageId,
+        String conversationId,
         String role,
         String content,
         String status,
@@ -14,6 +15,6 @@ public record AiMessageVO(
         String loginSessionId) {
 
     public AiMessageVO(String role, String content, String time) {
-        this(null, role, content, "SUCCESS", time, null, null, null);
+        this(null, null, role, content, "SUCCESS", time, null, null, null);
     }
 }

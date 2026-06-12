@@ -218,7 +218,7 @@ public class AiAssistantController {
 
     @OperationLog("AI助手-提交反馈")
     @PostMapping("/feedback")
-    public ApiResponse<Void> submitFeedback(@Valid @RequestBody FeedbackRequest request) {
+    public ApiResponse<Void> submitFeedback(@RequestBody FeedbackRequest request) {
         aiAssistantService.recordFeedback(request);
         return ApiResponse.success(null);
     }

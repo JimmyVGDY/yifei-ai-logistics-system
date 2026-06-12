@@ -555,7 +555,7 @@ async function handleFeedback(item, rating) {
   try {
     await submitFeedback({
       messageId: item.messageId,
-      conversationId: item.conversationId,
+      conversationId: item.conversationId || conversationId.value,
       rating
     })
     item._rating = rating

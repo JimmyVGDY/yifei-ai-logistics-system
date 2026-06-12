@@ -467,6 +467,16 @@ public class AiAssistantService {
      * @param request 反馈请求（messageId / conversationId / rating / 可选 comment）
      */
     public void recordFeedback(FeedbackRequest request) {
+        // 反馈为辅助功能，关键字段缺失时静默跳过，不向前端返回错误。
+        if (request == null || !org.springframework.util.StringUtils.hasText(request.messageId())
+                || !org.springframework.util.StringUtils.hasText(request.conversationId())
+                || !org.springframework.util.StringUtils.hasText(request.rating())) {
+            log.debug("AI 反馈数据不完整，已跳过，messageId={}, conversationId={}, rating={}",
+                    request != null ? request.messageId() : null,
+                    request != null ? request.conversationId() : null,
+                    request != null ? request.rating() : null);
+            return;
+        }
         try {
             AiMessageFeedback feedback = new AiMessageFeedback();
             feedback.setId(idGenerator.nextId());
