@@ -464,18 +464,44 @@ public class AiAssistantService {
         }
     }
 
-    private String latestUserMessage(AiConversationVO conversation) {
+    String latestUserMessage(AiConversationVO conversation) {
         if (conversation == null || conversation.messages() == null) {
             return null;
         }
         List<AiMessageVO> messages = conversation.messages();
         for (int i = messages.size() - 1; i >= 0; i--) {
             AiMessageVO message = messages.get(i);
-            if ("user".equals(message.role()) && StringUtils.hasText(message.content())) {
+            if ("user".equals(message.role())
+                    && StringUtils.hasText(message.content())
+                    && !isContinuationRequest(message.content())) {
                 return message.content();
             }
         }
         return null;
+    }
+
+    /**
+     * 连续追问时跳过“剩余、下一批、继续看”等翻页式表达，回溯到最近一次真实查询。
+     * <p>
+     * 例如：
+     * 用户先问“查看今天订单明细”，再问“查看剩余28条”，再问“下一批”。
+     * 第三轮必须继承第一轮查询，而不是继承第二轮的“剩余28条”。
+     */
+    private boolean isContinuationRequest(String text) {
+        if (!StringUtils.hasText(text)) {
+            return false;
+        }
+        return text.contains("剩余")
+                || text.contains("余下")
+                || text.contains("剩下")
+                || text.contains("后面的")
+                || text.contains("后续")
+                || text.contains("更多")
+                || text.contains("继续看")
+                || text.contains("接着看")
+                || text.contains("下一批")
+                || text.contains("下一页")
+                || text.contains("查看更多");
     }
 
     /**
