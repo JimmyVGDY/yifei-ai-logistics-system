@@ -1149,7 +1149,8 @@ onBeforeUnmount(() => {
 }
 
 .stream-tool-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr);
   align-items: flex-start;
   gap: 6px;
   padding: 6px 8px;
@@ -1158,6 +1159,7 @@ onBeforeUnmount(() => {
   background: #f8fafc;
   font-size: 12px;
   line-height: 1.5;
+  min-width: 0;
   overflow-wrap: break-word;
   word-break: break-word;
 }
@@ -1178,17 +1180,17 @@ onBeforeUnmount(() => {
 }
 
 .stream-tool-name {
-  flex: 0 0 auto;
+  min-width: 0;
   padding: 1px 6px;
   border-radius: 4px;
   background: #dbeafe;
   color: #1d4ed8;
   font-weight: 600;
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .stream-tool-target {
-  flex: 1 1 auto;
   min-width: 0;
   color: #64748b;
   overflow-wrap: break-word;
@@ -1196,10 +1198,13 @@ onBeforeUnmount(() => {
 }
 
 .stream-tool-result {
-  flex: 0 0 auto;
+  grid-column: 3;
+  min-width: 0;
   color: #64748b;
   font-size: 11px;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* 进度条 */
