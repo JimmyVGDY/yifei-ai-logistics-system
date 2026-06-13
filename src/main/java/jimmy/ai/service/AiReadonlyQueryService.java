@@ -107,7 +107,6 @@ public class AiReadonlyQueryService {
     private final AiQueryCursorService cursorService;
     private final AiToolCallContext toolCallContext;
 
-    @org.springframework.beans.factory.annotation.Autowired
     public AiReadonlyQueryService(AiQueryIntentParser intentParser,
                                   AiGeneratedSqlQueryService generatedSqlQueryService,
                                   LogisticsRequirementService logisticsRequirementService,
@@ -117,6 +116,7 @@ public class AiReadonlyQueryService {
                 new AiToolCallContext(8));
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AiReadonlyQueryService(AiQueryIntentParser intentParser,
                                   AiGeneratedSqlQueryService generatedSqlQueryService,
                                   LogisticsRequirementService logisticsRequirementService,
@@ -155,7 +155,7 @@ public class AiReadonlyQueryService {
          * 不在这里兜底的话，模型可能把“剩余28条”当成全新关键词，进而丢失上一轮模块和时间条件。
          */
         if (isContinuationRequest(normalizedMessage) && hasText(previousUserMessage)) {
-            Optional<AiReadonlyQueryResult> cursorResult = queryByCursor(conversationId, userId, userCode);
+            Optional<AiReadonlyQueryResult> cursorResult = queryByCursor(null, conversationId, userId, userCode);
             if (cursorResult.isPresent()) {
                 return cursorResult.get();
             }
@@ -199,6 +199,12 @@ public class AiReadonlyQueryService {
                     conversationId, userId, userCode);
         }
         return result;
+    }
+
+    public AiReadonlyQueryResult queryCursor(String cursorId, String conversationId, String userId, String userCode) {
+        return queryByCursor(cursorId, conversationId, userId, userCode)
+                .orElseGet(() -> simpleResult("业务数据查询", "查询结果",
+                        "该查询结果已过期或不存在，请重新说明要查询的业务范围。"));
     }
 
     /**
@@ -296,11 +302,13 @@ public class AiReadonlyQueryService {
                 conversationId, userId, userCode);
     }
 
-    private Optional<AiReadonlyQueryResult> queryByCursor(String conversationId, String userId, String userCode) {
+    private Optional<AiReadonlyQueryResult> queryByCursor(String cursorId, String conversationId, String userId, String userCode) {
         if (cursorService == null) {
             return Optional.empty();
         }
-        Optional<AiQueryCursor> optionalCursor = cursorService.latest(conversationId, userId, userCode);
+        Optional<AiQueryCursor> optionalCursor = hasText(cursorId)
+                ? cursorService.findActive(cursorId, conversationId, userId, userCode)
+                : cursorService.latest(conversationId, userId, userCode);
         if (optionalCursor.isEmpty()) {
             return Optional.empty();
         }

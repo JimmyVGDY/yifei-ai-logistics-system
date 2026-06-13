@@ -47,6 +47,19 @@ public class AiQueryCursorService {
         }
     }
 
+    public Optional<AiQueryCursor> findActive(String cursorId, String conversationId, String userId, String userCode) {
+        if (!StringUtils.hasText(cursorId) || !StringUtils.hasText(conversationId) || !StringUtils.hasText(userId)) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.ofNullable(cursorMapper.selectActiveByCursorId(cursorId, conversationId, userId, userCode));
+        } catch (RuntimeException exception) {
+            log.debug("按 ID 读取 AI 查询游标失败，cursorId={}, conversationId={}, reason={}",
+                    cursorId, conversationId, exception.getMessage());
+            return Optional.empty();
+        }
+    }
+
     public Optional<AiQueryCursor> create(String conversationId,
                                           String userId,
                                           String userCode,

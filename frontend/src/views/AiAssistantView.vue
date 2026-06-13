@@ -443,6 +443,7 @@ const streamStepIndex = ref(0)
 const streamMaxToolCalls = ref(8)
 const streamElapsed = ref(0)
 const streamToolLog = ref([])
+const pendingCursorId = ref('')
 let streamElapsedTimer = null
 let streamAbort = null
 const markdown = new MarkdownIt({
@@ -488,6 +489,8 @@ async function sendMessage() {
     return
   }
   const content = message.value.trim()
+  const cursorId = pendingCursorId.value
+  pendingCursorId.value = ''
   messages.value.push({ role: 'user', content })
   message.value = ''
   lastResponse.value = null
@@ -506,6 +509,7 @@ async function sendMessage() {
     message: content,
     conversationId: conversationId.value,
     pageContext: window.location.pathname,
+    cursorId,
     onEvent: handleStreamEvent
   })
   streamAbort = stream.abort
@@ -752,7 +756,12 @@ async function continueDataResult(result) {
   if (chatLoading.value) {
     return
   }
-  message.value = result?.nextPageHint ? '继续看' : '查看剩余数据'
+  if (!result?.cursorId) {
+    ElMessage.warning('这条结果缺少分页游标，请重新发起查询')
+    return
+  }
+  pendingCursorId.value = result.cursorId
+  message.value = `继续查看${result?.target || '当前查询'}剩余数据`
   await sendMessage()
 }
 

@@ -51,6 +51,36 @@
         limit 1
     </select>
 
+    <select id="selectActiveByCursorId" resultType="jimmy.ai.model.AiQueryCursor">
+        select id,
+               cursor_id as cursorId,
+               conversation_id as conversationId,
+               user_id as userId,
+               user_code as userCode,
+               tool_type as toolType,
+               tool_name as toolName,
+               module_code as moduleCode,
+               module_name as moduleName,
+               keyword,
+               start_time as startTime,
+               end_time as endTime,
+               status_filter as statusFilter,
+               page,
+               page_size as pageSize,
+               total,
+               returned_count as returnedCount,
+               query_summary as querySummary,
+               expires_at as expiresAt
+        from ai_query_cursor
+        where cursor_id = #{cursorId}
+          and conversation_id = #{conversationId}
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and deleted = 0
+          and expires_at > current_timestamp
+        limit 1
+    </select>
+
     <update id="markDeleted">
         update ai_query_cursor
         set deleted = 1,

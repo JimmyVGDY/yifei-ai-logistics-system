@@ -9,5 +9,6 @@ public record AiChatRequest(
         @NotBlank(message = "问题内容不能为空")
         String message,
         String conversationId,
-        String pageContext) {
+        String pageContext,
+        String cursorId) {
 }

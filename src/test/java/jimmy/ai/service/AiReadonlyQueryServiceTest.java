@@ -12,9 +12,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
@@ -200,6 +203,67 @@ class AiReadonlyQueryServiceTest {
             assertThat(result.executed()).isTrue();
             assertThat(result.answerContext()).contains("运单管理", "共匹配 48 条记录", "LO-TEST-REMAIN");
             verify(requirementService).modulePage(eq("orders"), any(ModuleQueryDTO.class));
+        }
+    }
+
+    @Test
+    void shouldContinueSpecifiedCursorInsteadOfGuessingLatestQuery() {
+        AiGeneratedSqlQueryService sqlQueryService = mock(AiGeneratedSqlQueryService.class);
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiQueryCursorService cursorService = mock(AiQueryCursorService.class);
+        AiReadonlyQueryService service = new AiReadonlyQueryService(
+                new AiQueryIntentParser(),
+                sqlQueryService,
+                requirementService,
+                new AiQuerySummaryService(),
+                new AiSensitiveDataMasker(),
+                cursorService,
+                new AiToolCallContext(8)
+        );
+        when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
+
+        jimmy.ai.model.AiQueryCursor selectedCursor = new jimmy.ai.model.AiQueryCursor();
+        selectedCursor.setCursorId("cursor-orders");
+        selectedCursor.setConversationId("conv-1");
+        selectedCursor.setUserId("user-1");
+        selectedCursor.setUserCode("U-1");
+        selectedCursor.setToolName("业务数据查询");
+        selectedCursor.setModuleCode("orders");
+        selectedCursor.setKeyword("abnormal");
+        selectedCursor.setPage(1);
+        selectedCursor.setPageSize(10);
+        selectedCursor.setTotal(25L);
+        selectedCursor.setReturnedCount(10);
+        when(cursorService.findActive("cursor-orders", "conv-1", "user-1", "U-1"))
+                .thenReturn(Optional.of(selectedCursor));
+
+        jimmy.ai.model.AiQueryCursor nextCursor = new jimmy.ai.model.AiQueryCursor();
+        nextCursor.setCursorId("cursor-next");
+        when(cursorService.create(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                anyInt(), anyInt(), anyLong(), anyInt(), any()))
+                .thenReturn(Optional.of(nextCursor));
+        when(requirementService.modulePage(eq("orders"), any(ModuleQueryDTO.class)))
+                .thenReturn(new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of(
+                        "order_no", "LO-CURSOR-011",
+                        "customer_name", "测试客户"
+                ))), 2, 10, 25));
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("order:query")).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.queryCursor("cursor-orders", "conv-1", "user-1", "U-1");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.rows()).hasSize(1);
+            assertThat(result.cursorId()).isEqualTo("cursor-next");
+            assertThat(result.returnedCount()).isEqualTo(11);
+            assertThat(result.remainingCount()).isEqualTo(14);
+            verify(cursorService).findActive("cursor-orders", "conv-1", "user-1", "U-1");
+            verify(cursorService, org.mockito.Mockito.never()).latest(any(), any(), any());
+            verify(requirementService).modulePage(eq("orders"), org.mockito.ArgumentMatchers.argThat(query ->
+                    query.getPage() == 2
+                            && query.getPageSize() == 10
+                            && "abnormal".equals(query.getKeyword())));
         }
     }
 

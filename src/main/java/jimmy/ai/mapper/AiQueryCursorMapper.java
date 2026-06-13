@@ -16,6 +16,11 @@ public interface AiQueryCursorMapper {
                                      @Param("userId") String userId,
                                      @Param("userCode") String userCode);
 
+    AiQueryCursor selectActiveByCursorId(@Param("cursorId") String cursorId,
+                                         @Param("conversationId") String conversationId,
+                                         @Param("userId") String userId,
+                                         @Param("userCode") String userCode);
+
     int markDeleted(@Param("cursorId") String cursorId,
                     @Param("userId") String userId,
                     @Param("userCode") String userCode);

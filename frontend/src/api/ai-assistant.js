@@ -20,7 +20,7 @@ export function chatWithAi(payload) {
  * - { type: 'done', answer, elapsedMs, citationCount, toolCallCount }
  * - { type: 'error', message, elapsedMs }
  */
-export function chatWithAiStream({ message, conversationId, pageContext, onEvent }) {
+export function chatWithAiStream({ message, conversationId, pageContext, cursorId, onEvent }) {
   const controller = new AbortController()
   const { tokenName, tokenValue } = getAuthToken()
   const baseURL = import.meta.env.VITE_API_BASE || '/api'
@@ -38,7 +38,7 @@ export function chatWithAiStream({ message, conversationId, pageContext, onEvent
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ message, conversationId, pageContext }),
+      body: JSON.stringify({ message, conversationId, pageContext, cursorId }),
       signal: controller.signal
     })
 

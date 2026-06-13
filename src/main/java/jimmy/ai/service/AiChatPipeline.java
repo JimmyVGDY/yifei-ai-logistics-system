@@ -126,6 +126,11 @@ public class AiChatPipeline {
             conversationService.appendUserMessage(currentUserId(), currentUserCode(), conversationId, safeMessage);
             auditLogService.recordUserQuestion(conversationId, safeMessage);
 
+            if (org.springframework.util.StringUtils.hasText(request.cursorId())) {
+                return handleCursorContinuation(request.cursorId(), conversationId, safeMessage, citations, toolCalls,
+                        dataResults, start, streaming);
+            }
+
             AiExecutionPlan executionPlan = intentPlanner.plan(safeMessage);
             log.info("AI 执行计划已生成，conversationId={}, mode={}, modules={}, reason={}",
                     conversationId, executionPlan.mode(), executionPlan.candidateModules(), executionPlan.reason());
@@ -221,6 +226,54 @@ public class AiChatPipeline {
             }
             throw exception;
         }
+    }
+
+    private AiChatResponse handleCursorContinuation(String cursorId,
+                                                    String conversationId,
+                                                    String safeMessage,
+                                                    List<AiCitation> citations,
+                                                    List<AiToolCall> toolCalls,
+                                                    List<AiDataResult> dataResults,
+                                                    long start,
+                                                    boolean streaming) {
+        /*
+         * 前端点击某个结果卡片的“继续查看”时会携带 cursorId。
+         * 这里直接按该游标继续分页，避免一次回答里存在多个业务表格时，后端误取“最新游标”或让模型重新猜上下文。
+         */
+        AiReadonlyQueryResult queryResult = readonlyQueryService.queryCursor(cursorId, conversationId, currentUserId(), currentUserCode());
+        citations.addAll(queryResult.citations());
+        toolCalls.addAll(queryResult.toolCalls());
+        if (queryResult.rows() != null && !queryResult.rows().isEmpty()) {
+            AiToolCall firstToolCall = queryResult.toolCalls().isEmpty()
+                    ? new AiToolCall("业务数据查询", "业务数据", "已返回结构化数据")
+                    : queryResult.toolCalls().getFirst();
+            dataResults.add(new AiDataResult(firstToolCall.toolName(), firstToolCall.target(),
+                    firstToolCall.result(), queryResult.columns(), queryResult.rows(),
+                    queryResult.cursorId(), queryResult.total(), queryResult.returnedCount(),
+                    queryResult.remainingCount(), queryResult.hasMore(), queryResult.nextPageHint()));
+        }
+        if (streaming && queryResult.executed()) {
+            /*
+             * SSE 前端只从 tool_result 事件收集表格数据，done 事件只承载最终文本。
+             * 因此游标续页必须显式推送一次工具结果，否则页面会出现“有回答但没有表格”的情况。
+             */
+            AiToolCall firstToolCall = queryResult.toolCalls().isEmpty()
+                    ? new AiToolCall("业务数据查询", "业务数据", "已返回结构化数据")
+                    : queryResult.toolCalls().getFirst();
+            toolCallContext.notifyToolResult(firstToolCall.toolName(), firstToolCall.target(), queryResult);
+        }
+        for (AiToolCall toolCall : toolCalls) {
+            auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
+        }
+        String answer = fallbackHandler.fallbackAnswer("业务只读查询摘要：" + queryResult.answerContext(), toolCalls);
+        AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, toolCalls, citations);
+        auditLogService.recordResponse(conversation.conversationId(), safeMessage,
+                "按查询游标继续分页，工具调用=" + toolCalls.size(), System.currentTimeMillis() - start);
+        if (streaming) {
+            toolCallContext.notifyDone(conversation.conversationId(), answer, citations, toolCalls);
+        }
+        return new AiChatResponse(conversation.conversationId(), answer, citations, toolCalls, dataResults,
+                traceContextSupport.currentOrNewTraceId(), traceContextSupport.currentOrNewOperationId());
     }
 
     private String buildUserPrompt(AiChatRequest request, String safeMessage, String conversationId, StringBuilder context) {
