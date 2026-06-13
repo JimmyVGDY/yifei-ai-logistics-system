@@ -24,7 +24,7 @@
     </select>
 
     <insert id="insert" parameterType="DemoUser" useGeneratedKeys="true" keyProperty="id">
-        insert into demo_user (username, display_name, created_at)
-        values (#{username}, #{displayName}, #{createdAt})
+        insert into demo_user (username, display_name, created_at, deleted, version)
+        values (#{username}, #{displayName}, #{createdAt}, 0, 0)
     </insert>
 </mapper>

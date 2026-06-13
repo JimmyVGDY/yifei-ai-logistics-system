@@ -8,7 +8,8 @@
         select date(created_at) as statDate,
                count(1) as total
         from logistics_order
-        where created_at >= timestampadd(day, #{daysOffset}, current_timestamp)
+        where deleted = 0
+          and created_at >= timestampadd(day, #{daysOffset}, current_timestamp)
         group by date(created_at)
         order by statDate
     </select>
@@ -17,7 +18,8 @@
         select date_format(update_time, '%Y-%m') as statMonth,
                coalesce(sum(actual_fee), 0) as total
         from logistics_fee
-        where payment_status = 'PAID'
+        where deleted = 0
+          and payment_status = 'PAID'
           and update_time >= timestampadd(month, #{monthsOffset}, current_timestamp)
         group by date_format(update_time, '%Y-%m')
         order by statMonth

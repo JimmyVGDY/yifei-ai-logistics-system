@@ -75,6 +75,7 @@
         from logistics_order
         where customer_name = #{customerName}
           and customer_id is not null
+          and deleted = 0
         order by created_at desc
         limit 1
     </select>
@@ -102,6 +103,7 @@
         set customer_id = #{customerId}
         where customer_name = #{customerName}
           and customer_id is null
+          and deleted = 0
     </update>
 
     <select id="selectRoleIdByCode" resultType="long">

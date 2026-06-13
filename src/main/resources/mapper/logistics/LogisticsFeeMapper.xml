@@ -10,6 +10,7 @@
                coalesce(cargo_weight, 0) as cargoWeight
         from logistics_order
         where order_no = #{orderNo}
+          and deleted = 0
     </select>
 
     <!-- 同一订单只保留一条费用记录，重复生成时走更新逻辑。 -->

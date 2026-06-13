@@ -4,11 +4,13 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="jimmy.logistics.mapper.LogisticsDashboardMapper">
 
-    <!-- 今日新增订单数，用于运营看板顶部指标。 -->
+    <!-- 今日新增订单数，用于运营看板顶部指标。使用范围比较以利用索引。 -->
     <select id="countTodayOrders" resultType="long">
         select count(1)
         from logistics_order
-        where date(created_at) = current_date
+        where deleted = 0
+          and created_at >= current_date
+          and created_at <![CDATA[ < ]]> date_add(current_date, interval 1 day)
         <if test="customerId != null">and customer_id = #{customerId}</if>
     </select>
 
@@ -16,42 +18,60 @@
     <select id="countCompletedOrders" resultType="long">
         select count(1)
         from logistics_order
-        where status in ('COMPLETED', 'SIGNED', 'DELIVERED')
+        where deleted = 0
+          and status in ('COMPLETED', 'SIGNED', 'DELIVERED')
         <if test="customerId != null">and customer_id = #{customerId}</if>
     </select>
 
     <select id="countWaitDispatchOrders" resultType="long">
         select count(1)
         from logistics_order
-        where status = 'WAIT_DISPATCH'
+        where deleted = 0
+          and status = 'WAIT_DISPATCH'
         <if test="customerId != null">and customer_id = #{customerId}</if>
     </select>
 
     <select id="countInTransitOrders" resultType="long">
         select count(1)
         from logistics_order
-        where status in ('PICKED', 'IN_TRANSIT')
+        where deleted = 0
+          and status in ('PICKED', 'IN_TRANSIT')
         <if test="customerId != null">and customer_id = #{customerId}</if>
     </select>
 
     <select id="countOpenExceptionOrders" resultType="long">
         select count(1)
         from logistics_exception
-        where exception_status != 'CLOSED'
-        <if test="customerId != null">and order_id in (select id from logistics_order where customer_id = #{customerId})</if>
+        where deleted = 0
+          and exception_status != 'CLOSED'
+        <if test="customerId != null">and order_id in (select id from logistics_order where customer_id = #{customerId} and deleted = 0)</if>
     </select>
 
     <select id="sumPaidMonthIncome" resultType="java.math.BigDecimal">
         select coalesce(sum(payable_fee), 0)
         from logistics_fee
-        where payment_status = 'PAID'
-          and date_format(update_time, '%Y-%m') = date_format(current_date, '%Y-%m')
-        <if test="customerId != null">and order_id in (select id from logistics_order where customer_id = #{customerId})</if>
+        where deleted = 0
+          and payment_status = 'PAID'
+          and update_time >= date_format(current_date, '%Y-%m-01')
+          and update_time <![CDATA[ < ]]> date_format(date_add(current_date, interval 1 month), '%Y-%m-01')
+        <if test="customerId != null">and order_id in (select id from logistics_order where customer_id = #{customerId} and deleted = 0)</if>
+    </select>
+
+    <!-- 上月实收金额，供 lastMonthIncome 使用。 -->
+    <select id="sumPaidLastMonthIncome" resultType="java.math.BigDecimal">
+        select coalesce(sum(payable_fee), 0)
+        from logistics_fee
+        where deleted = 0
+          and payment_status = 'PAID'
+          and update_time >= date_format(date_sub(current_date, interval 1 month), '%Y-%m-01')
+          and update_time <![CDATA[ < ]]> date_format(current_date, '%Y-%m-01')
+        <if test="customerId != null">and order_id in (select id from logistics_order where customer_id = #{customerId} and deleted = 0)</if>
     </select>
 
     <select id="selectStatusDistribution" resultType="map">
         select status, count(1) as total
         from logistics_order
+        where deleted = 0
         group by status
         order by status
     </select>
@@ -60,8 +80,9 @@
         select e.id, e.order_id as order_no, e.exception_type, e.exception_desc,
                e.exception_status, e.report_user, e.report_time
         from logistics_exception e
-        where e.exception_status != 'CLOSED'
-        <if test="customerId != null">and e.order_id in (select id from logistics_order where customer_id = #{customerId})</if>
+        where e.deleted = 0
+          and e.exception_status != 'CLOSED'
+        <if test="customerId != null">and e.order_id in (select id from logistics_order where customer_id = #{customerId} and deleted = 0)</if>
         order by e.report_time desc
         limit 10
     </select>
@@ -70,26 +91,34 @@
         select c.id, c.employee_id as employeeId, c.contract_no as contractNo,
                date_format(c.end_date, '%Y-%m-%d') as endDate
         from hr_contract c
-        where c.contract_status = 1 and c.end_date is not null
+        where c.deleted = 0
+          and c.contract_status = 1 and c.end_date is not null
           and c.end_date between current_date and date_add(current_date, interval #{days} day)
     </select>
 
+    <!-- 上月订单数，使用范围比较以利用索引。 -->
     <select id="countLastMonthOrders" resultType="long">
         select count(1)
         from logistics_order
-        where date_format(created_at, '%Y-%m') = date_format(date_sub(current_date, interval 1 month), '%Y-%m')
+        where deleted = 0
+          and created_at >= date_format(date_sub(current_date, interval 1 month), '%Y-%m-01')
+          and created_at <![CDATA[ < ]]> date_format(current_date, '%Y-%m-01')
         <if test="customerId != null">and customer_id = #{customerId}</if>
     </select>
 
+    <!-- 上月异常数，使用范围比较以利用索引。 -->
     <select id="countLastMonthExceptions" resultType="int">
         select count(1)
         from logistics_exception
-        where date_format(report_time, '%Y-%m') = date_format(date_sub(current_date, interval 1 month), '%Y-%m')
-        <if test="customerId != null">and order_id in (select id from logistics_order where customer_id = #{customerId})</if>
+        where deleted = 0
+          and report_time >= date_format(date_sub(current_date, interval 1 month), '%Y-%m-01')
+          and report_time <![CDATA[ < ]]> date_format(current_date, '%Y-%m-01')
+        <if test="customerId != null">and order_id in (select id from logistics_order where customer_id = #{customerId} and deleted = 0)</if>
     </select>
 
     <select id="countUploadedFiles" resultType="long">
         select count(1)
         from sys_uploaded_file
+        where deleted = 0
     </select>
 </mapper>

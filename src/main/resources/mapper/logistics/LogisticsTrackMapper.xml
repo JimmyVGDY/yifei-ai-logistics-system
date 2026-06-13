@@ -9,6 +9,7 @@
         from logistics_track
         where order_id = #{orderId}
           and operation_desc = #{operationDesc}
+          and deleted = 0
     </select>
 
     <insert id="insertTrack">

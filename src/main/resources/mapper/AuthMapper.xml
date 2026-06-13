@@ -29,6 +29,7 @@
         from sys_user u
         left join sys_role r on r.id = u.role_id
         where u.username = #{username}
+          and u.deleted = 0
     </select>
 
     <!-- 刷新当前会话时按登录 ID 重新读取用户和角色，保证角色调整后能尽快生效。 -->
@@ -46,6 +47,7 @@
         from sys_user u
         left join sys_role r on r.id = u.role_id
         where u.id = #{userId}
+          and u.deleted = 0
     </select>
 
     <!-- 兼容旧明文密码：首次登录成功后升级为 BCrypt 密文。 -->
