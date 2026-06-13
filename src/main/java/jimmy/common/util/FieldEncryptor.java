@@ -33,7 +33,6 @@ public class FieldEncryptor {
     private static final String GCM_PREFIX = "ENCGCM:";
     private static final int GCM_IV_LENGTH = 12;
     private static final int GCM_TAG_LENGTH = 128;
-    private static final String DEV_KEY = "Logistics@DevKey";
     private static final Set<String> ENCRYPTED_FIELDS = new HashSet<>(Arrays.asList(
             "mobile", "phone", "contact_phone"
     ));
@@ -47,13 +46,14 @@ public class FieldEncryptor {
     @Autowired
     public FieldEncryptor(@Value("${app.encrypt.enabled:true}") boolean enabled,
                           @Value("${app.encrypt.key:}") String key,
-                          @Value("${app.encrypt.require-key:false}") boolean requireKey) {
+                          @Value("${app.encrypt.require-key:true}") boolean requireKey) {
         this.enabled = enabled;
-        if (enabled && requireKey && !StringUtils.hasText(key)) {
-            throw new IllegalStateException("已开启敏感字段加密，但未配置 app.encrypt.key");
+        if (enabled && !StringUtils.hasText(key)) {
+            throw new IllegalStateException("加密已启用但未配置 app.encrypt.key，请通过环境变量 APP_ENCRYPT_KEY 设置（建议至少16字符）");
         }
-        String effectiveKey = StringUtils.hasText(key) ? key : DEV_KEY;
-        this.secretKey = new SecretKeySpec(normalizeKey(effectiveKey), ALGORITHM);
+        this.secretKey = StringUtils.hasText(key)
+                ? new SecretKeySpec(normalizeKey(key), ALGORITHM)
+                : null;
     }
 
     public FieldEncryptor(boolean enabled, String key) {

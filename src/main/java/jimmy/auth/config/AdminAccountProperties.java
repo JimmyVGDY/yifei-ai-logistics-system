@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 public class AdminAccountProperties {
 
     private String username = "admin";
-    private String password = "xlh963311213";
+    private String password = "";
 
     public String getUsername() {
         return username;

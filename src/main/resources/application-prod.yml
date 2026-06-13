@@ -75,3 +75,15 @@ app:
   encrypt:
     key: ${APP_ENCRYPT_KEY:}
     require-key: true
+
+# 生产环境关闭 Sa-Token 调试日志，避免泄露会话信息
+sa-token:
+  is-log: false
+
+# 生产环境 CORS 必须显式配置
+# 生产环境关闭权限表自动建表 DDL（应通过迁移脚本管理）
+app:
+  cors:
+    origins: ${CORS_ORIGINS:}
+  permission:
+    auto-ddl: false

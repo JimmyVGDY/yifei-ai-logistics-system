@@ -72,6 +72,24 @@ spring:
       filter:
         enabled: true
       web-context-unify: false
+      # Sentinel 基础流控/降级规则（可通过 Dashboard 动态调整覆盖）
+      datasource:
+        ds-flow:
+          nacos:
+            server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+            data-id: sentinel-flow-rules.json
+            group-id: DEFAULT_GROUP
+            data-type: json
+            rule-type: flow
+            enabled: false
+        ds-degrade:
+          nacos:
+            server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+            data-id: sentinel-degrade-rules.json
+            group-id: DEFAULT_GROUP
+            data-type: json
+            rule-type: degrade
+            enabled: false
 
 management:
   endpoints:
@@ -154,7 +172,7 @@ app:
       enabled: ${APP_AI_TOKEN_USAGE_ENABLED:true}
     sse:
       timeout-ms: ${APP_AI_SSE_TIMEOUT_MS:180000}
-      legacy-get-enabled: ${APP_AI_SSE_LEGACY_GET_ENABLED:true}
+      legacy-get-enabled: ${APP_AI_SSE_LEGACY_GET_ENABLED:false}
       heartbeat-seconds: ${APP_AI_SSE_HEARTBEAT_SECONDS:10}
     rag:
       enabled: ${APP_AI_RAG_ENABLED:${APP_AI_MEMORY_QDRANT_ENABLED:true}}
@@ -170,7 +188,7 @@ app:
   auth:
     admin:
       username: ${APP_ADMIN_USERNAME:admin}
-      password: ${APP_ADMIN_PASSWORD:xlh963311213}
+      password: ${APP_ADMIN_PASSWORD:}
   operation-log:
     retention-days: ${APP_OPERATION_LOG_RETENTION_DAYS:180}
   upload:

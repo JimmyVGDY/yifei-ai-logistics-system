@@ -35,15 +35,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotPermissionException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ApiResponse<Void> handleNotPermission(NotPermissionException exception) {
-        log.warn("Sa-Token 鉴权异常，reason={}", exception.getMessage());
-        return ApiResponse.failure(403, exception.getMessage());
+        log.warn("Sa-Token 无权限访问，reason={}", exception.getMessage());
+        return ApiResponse.failure(403, "无权访问该资源");
     }
 
     @ExceptionHandler(SaTokenException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ApiResponse<Void> handleSaToken(SaTokenException exception) {
         log.warn("Sa-Token 鉴权异常，reason={}", exception.getMessage());
-        return ApiResponse.failure(401, exception.getMessage());
+        return ApiResponse.failure(401, "请先登录后再访问");
     }
 
     // 业务参数校验失败统一返回 400，便于前端直接展示错误原因。
