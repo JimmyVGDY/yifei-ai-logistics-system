@@ -35,6 +35,7 @@ spring:
         retry:
           enabled: true
           initial-interval: 1s
+          multiplier: 2.0
           max-attempts: 3
           max-interval: 5s
         default-requeue-rejected: false
@@ -72,24 +73,6 @@ spring:
       filter:
         enabled: true
       web-context-unify: false
-      # Sentinel 基础流控/降级规则（可通过 Dashboard 动态调整覆盖）
-      datasource:
-        ds-flow:
-          nacos:
-            server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
-            data-id: sentinel-flow-rules.json
-            group-id: DEFAULT_GROUP
-            data-type: json
-            rule-type: flow
-            enabled: false
-        ds-degrade:
-          nacos:
-            server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
-            data-id: sentinel-degrade-rules.json
-            group-id: DEFAULT_GROUP
-            data-type: json
-            rule-type: degrade
-            enabled: false
 
 management:
   endpoints:
