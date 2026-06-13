@@ -107,6 +107,7 @@ public class AiReadonlyQueryService {
     private final AiQueryCursorService cursorService;
     private final AiToolCallContext toolCallContext;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AiReadonlyQueryService(AiQueryIntentParser intentParser,
                                   AiGeneratedSqlQueryService generatedSqlQueryService,
                                   LogisticsRequirementService logisticsRequirementService,
