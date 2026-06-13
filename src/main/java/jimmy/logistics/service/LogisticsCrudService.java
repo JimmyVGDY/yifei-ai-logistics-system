@@ -10,6 +10,7 @@ import jimmy.logistics.util.CrudBusinessUtils;
 import jimmy.common.util.FieldEncryptor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
 import java.util.LinkedHashMap;
@@ -69,6 +70,7 @@ public class LogisticsCrudService {
      * @param payload 前端提交的字段值
      * @return 含新记录 ID 的结果
      */
+    @Transactional
     public OperationResultVO create(String module, Map<String, Object> payload) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> values = filteredPayload(config, payload, false);
@@ -102,6 +104,7 @@ public class LogisticsCrudService {
      * @return 含记录 ID 的结果
      * @throws IllegalArgumentException 无白名单字段可更新 或 记录不存在
      */
+    @Transactional
     public OperationResultVO update(String module, long id, Map<String, Object> payload) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> values = filteredPayload(config, payload, true);
@@ -132,6 +135,7 @@ public class LogisticsCrudService {
      * 通用删除。优先逻辑删除（deleted 标记），未迁移旧表回退物理删除。
      * 删除前查出完整记录供变更摘要记入审计日志。
      */
+    @Transactional
     public OperationResultVO delete(String module, long id) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> before = logisticsCrudMapper.selectRecordById(config.tableName, id);

@@ -78,7 +78,7 @@ public class LogisticsRequirementService {
         // 合同到期预警：查询 30 天内到期的有效合同
         summary.setExpiringContracts(logisticsDashboardMapper.selectExpiringContracts(30));
         // 上月收入/订单/异常汇总
-        summary.setLastMonthIncome(safeBigDecimal(logisticsDashboardMapper.sumPaidMonthIncome(customerId)));
+        summary.setLastMonthIncome(safeBigDecimal(logisticsDashboardMapper.sumPaidLastMonthIncome(customerId)));
         summary.setLastMonthOrders(safeLong(logisticsDashboardMapper.countLastMonthOrders()));
         summary.setLastMonthExceptions(logisticsDashboardMapper.countLastMonthExceptions());
         log.info("物流运营看板统计完成，todayOrders={}, waitDispatch={}, inTransit={}, exceptionOrders={}",

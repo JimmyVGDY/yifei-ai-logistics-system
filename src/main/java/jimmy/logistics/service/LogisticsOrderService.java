@@ -10,6 +10,7 @@ import jimmy.logistics.model.CreateLogisticsOrderRequest;
 import jimmy.common.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -56,6 +57,7 @@ public class LogisticsOrderService {
      * 落库后同步更新布隆过滤器、Redis 缓存、ES 搜索索引，并发布 MQ 事件。
      * 变更摘要写入 OperationChangeContext 供审计拦截器采集。
      */
+    @Transactional
     @SentinelResource(value = "logisticsOrderCreate", fallback = "createFallback")
     public LogisticsOrder create(CreateLogisticsOrderRequest request) {
         log.info("开始创建物流订单，customerName={}, cargoName={}",

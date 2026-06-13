@@ -24,6 +24,9 @@ public interface LogisticsDashboardMapper {
 
     BigDecimal sumPaidMonthIncome(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
 
+    /** 上月实收金额（用于看板 lastMonthIncome 统计） */
+    BigDecimal sumPaidLastMonthIncome(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
+
     List<Map<String, Object>> selectStatusDistribution(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
 
     List<Map<String, Object>> selectRecentOpenExceptions(@org.apache.ibatis.annotations.Param("customerId") Long customerId);
