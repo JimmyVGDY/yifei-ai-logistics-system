@@ -91,8 +91,7 @@
         select c.id, c.employee_id as employeeId, c.contract_no as contractNo,
                date_format(c.end_date, '%Y-%m-%d') as endDate
         from hr_contract c
-        where c.deleted = 0
-          and c.contract_status = 1 and c.end_date is not null
+        where c.contract_status = 1 and c.end_date is not null
           and c.end_date between current_date and date_add(current_date, interval #{days} day)
     </select>
 
