@@ -97,7 +97,13 @@ export function chatWithAiStream({ message, conversationId, pageContext, onEvent
                   target: data.target || '',
                   summary: data.result || '',
                   columns: Array.isArray(data.columns) ? data.columns : [],
-                  rows: data.rows
+                  rows: data.rows,
+                  cursorId: data.cursorId || '',
+                  total: data.total,
+                  returnedCount: data.returnedCount,
+                  remainingCount: data.remainingCount,
+                  hasMore: data.hasMore === true,
+                  nextPageHint: data.nextPageHint || ''
                 })
               }
             } else if (eventName === 'error') {

@@ -144,8 +144,8 @@
                 </div>
                 <!-- 进度条 -->
                 <div class="stream-progress-bar" v-if="streamStepIndex > 0">
-                  <div class="stream-progress-fill" :style="{ width: (streamStepIndex / 8 * 100) + '%' }"></div>
-                  <span class="stream-progress-text">{{ streamStepIndex }}/8 工具调用</span>
+                  <div class="stream-progress-fill" :style="{ width: (streamStepIndex / streamMaxToolCalls * 100) + '%' }"></div>
+                  <span class="stream-progress-text">{{ streamStepIndex }}/{{ streamMaxToolCalls }} 工具调用</span>
                 </div>
               </div>
             </div>
@@ -170,6 +170,15 @@
               >
                 查看全部 {{ result.rows.length }} 条
               </el-button>
+              <el-button
+                v-if="result.hasMore"
+                size="small"
+                type="success"
+                plain
+                @click="continueDataResult(result)"
+              >
+                继续查看剩余 {{ result.remainingCount }} 条
+              </el-button>
             </div>
             <el-table
               v-if="result.rows?.length"
@@ -190,6 +199,9 @@
             </el-table>
             <p v-if="(result.rows?.length || 0) > DATA_PREVIEW_LIMIT" class="data-preview-tip">
               默认预览前 {{ DATA_PREVIEW_LIMIT }} 条，其余数据可在完整表格中查看。
+            </p>
+            <p v-if="result.hasMore" class="data-preview-tip">
+              {{ result.nextPageHint || `还有 ${result.remainingCount} 条记录，可继续分页查看。` }}
             </p>
           </div>
         </div>
@@ -374,6 +386,7 @@ const dataResults = computed(() => normalizeDataResults(lastResponse.value?.data
 /** SSE 流式进度状态 */
 const streamProgress = ref(null)
 const streamStepIndex = ref(0)
+const streamMaxToolCalls = ref(8)
 const streamElapsed = ref(0)
 const streamToolLog = ref([])
 let streamElapsedTimer = null
@@ -429,6 +442,7 @@ async function sendMessage() {
   chatLoading.value = true
   streamProgress.value = 'thinking'
   streamStepIndex.value = 0
+  streamMaxToolCalls.value = 8
   streamElapsed.value = 0
   streamToolLog.value = []
   startElapsedTimer()
@@ -511,7 +525,8 @@ function handleStreamEvent(event) {
       break
     case 'tool_start':
       streamProgress.value = 'calling'
-      streamStepIndex.value = Math.min((event.toolCallCount || 0) + 1, 8)
+      streamMaxToolCalls.value = event.maxToolCalls || streamMaxToolCalls.value
+      streamStepIndex.value = Math.min((event.toolCallCount || 0) + 1, streamMaxToolCalls.value)
       streamToolLog.value.push({
         name: event.toolName || '查询',
         target: event.target || '',
@@ -520,7 +535,8 @@ function handleStreamEvent(event) {
       })
       break
     case 'tool_result':
-      streamStepIndex.value = Math.min((event.toolCallCount || 0) + 1, 8)
+      streamMaxToolCalls.value = event.maxToolCalls || streamMaxToolCalls.value
+      streamStepIndex.value = Math.min((event.toolCallCount || 0) + 1, streamMaxToolCalls.value)
       // 更新最近一条 running 的工具日志
       for (let i = streamToolLog.value.length - 1; i >= 0; i--) {
         if (streamToolLog.value[i].status === 'running') {
@@ -537,6 +553,9 @@ function handleStreamEvent(event) {
     case 'error':
       streamProgress.value = 'error'
       streamElapsed.value = event.elapsedMs || 0
+      break
+    case 'heartbeat':
+      streamProgress.value = streamProgress.value || 'thinking'
       break
     default:
       break
@@ -659,7 +678,13 @@ function normalizeDataResults(results) {
         target: item.target || '查询结果',
         summary: item.summary || item.result || '',
         columns,
-        rows
+        rows,
+        cursorId: item.cursorId || '',
+        total: Number(item.total ?? rows.length),
+        returnedCount: Number(item.returnedCount ?? rows.length),
+        remainingCount: Number(item.remainingCount ?? 0),
+        hasMore: item.hasMore === true,
+        nextPageHint: item.nextPageHint || ''
       }
     })
     .filter((item) => item.rows.length)
@@ -679,6 +704,14 @@ function displayColumns(result) {
 function openDataDrawer(result) {
   activeDataResult.value = result
   dataDrawerVisible.value = true
+}
+
+async function continueDataResult(result) {
+  if (chatLoading.value) {
+    return
+  }
+  message.value = result?.nextPageHint ? '继续看' : '查看剩余数据'
+  await sendMessage()
 }
 
 function dataResultKey(result, index) {
@@ -1181,6 +1214,7 @@ onBeforeUnmount(() => {
 
 .stream-tool-name {
   min-width: 0;
+  max-width: 140px;
   padding: 1px 6px;
   border-radius: 4px;
   background: #dbeafe;
@@ -1198,7 +1232,7 @@ onBeforeUnmount(() => {
 }
 
 .stream-tool-result {
-  grid-column: 3;
+  grid-column: 2 / -1;
   min-width: 0;
   color: #64748b;
   font-size: 11px;
