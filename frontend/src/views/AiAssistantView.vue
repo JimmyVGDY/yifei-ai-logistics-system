@@ -190,9 +190,9 @@
             >
               <el-table-column
                 v-for="column in displayColumns(result)"
-                :key="column"
-                :prop="column"
-                :label="column"
+                :key="column.prop"
+                :prop="column.prop"
+                :label="column.label"
                 min-width="140"
                 show-overflow-tooltip
               />
@@ -325,9 +325,9 @@
       >
         <el-table-column
           v-for="column in displayColumns(activeDataResult)"
-          :key="column"
-          :prop="column"
-          :label="column"
+          :key="column.prop"
+          :prop="column.prop"
+          :label="column.label"
           min-width="150"
           show-overflow-tooltip
         />
@@ -379,6 +379,60 @@ const memoryLoading = ref(false)
 const chatScrollbarRef = ref(null)
 const canAnalyzeLogs = computed(() => hasPermission('ai:log:analyze'))
 const DATA_PREVIEW_LIMIT = 10
+
+/** 数据库字段名 → 中文展示名的全局映射，用于 AI 结构化数据表格的列标题 */
+const FIELD_LABEL_MAP = {
+  id: 'ID', order_no: '订单号', order_id: '订单ID', task_id: '任务ID', waybill_id: '运单ID',
+  dispatch_id: '调度ID', driver_id: '司机ID', vehicle_id: '车辆ID', route_id: '路线ID',
+  warehouse_id: '仓库ID', customer_id: '客户ID', role_id: '角色ID', parent_id: '父级ID',
+  customer_code: '客户编号', customer_name: '客户名称', contact_name: '联系人',
+  contact_phone: '联系电话', province: '省份', city: '城市', address: '地址',
+  order_no_alias: '订单号', customer_name_alias: '客户名称',
+  sender_address: '发货地址', receiver_address: '收货地址', cargo_name: '货物名称',
+  cargo_weight: '重量', cargo_volume: '体积', status: '状态',
+  planned_pickup_time: '计划揽收时间', planned_delivery_time: '计划送达时间',
+  warehouse_code: '仓库编码', warehouse_name: '仓库名称', manager_name: '负责人',
+  capacity_cubic: '容量', driver_code: '司机编号', driver_name: '司机姓名',
+  phone: '手机号', license_no: '驾驶证号', license_type: '准驾车型',
+  vehicle_no: '车牌号', vehicle_type: '车辆类型', load_capacity_kg: '载重',
+  volume_capacity_cubic: '容积', current_city: '当前城市',
+  route_code: '路线编码', origin_city: '出发城市', destination_city: '目的城市',
+  distance_km: '距离(km)', estimated_hours: '预计耗时(h)',
+  waybill_no: '运单号', start_site: '始发网点', target_site: '目的网点',
+  current_location: '当前位置', transport_status: '运输状态',
+  planned_departure_time: '计划出发时间', planned_arrival_time: '计划到达时间',
+  dispatch_status: '调度状态', task_no: '任务号', task_status: '任务状态',
+  proof_url: '签收凭证', current_status: '当前状态', operator_name: '操作人',
+  operation_desc: '操作说明',
+  exception_type: '异常类型', exception_desc: '异常描述', exception_status: '异常状态',
+  report_user: '上报人', report_time: '上报时间', handle_user: '处理人', handle_time: '处理时间',
+  base_fee: '基础运费', weight_fee: '重量费用', distance_fee: '距离费用',
+  additional_fee: '附加费', discount_fee: '优惠金额', payable_fee: '应付金额',
+  actual_fee: '实付金额', payment_status: '付款状态',
+  sku_code: 'SKU编码', sku_name: 'SKU名称', quantity: '数量', locked_quantity: '锁定数量',
+  bill_no: '账单号', base_amount: '基础金额', fuel_surcharge: '燃油附加费',
+  discount_amount: '优惠金额', payable_amount: '应付金额', pay_status: '支付状态',
+  tracking_status: '跟踪状态', location: '位置', description: '描述', occurred_at: '发生时间',
+  user_code: '用户编号', username: '登录账号', real_name: '姓名', mobile: '手机号',
+  email: '邮箱', role_name: '角色名称', role_code: '角色编码',
+  customer_subject_type: '客户主体类型', customer_account_type: '客户账号类型',
+  menu_name: '菜单名称', menu_path: '菜单路径', permission_code: '权限编码', sort_no: '排序号',
+  created_at: '创建时间', updated_at: '更新时间', create_time: '创建时间', update_time: '更新时间',
+  operation_time: '操作时间', deleted: '已删除', version: '版本号'
+}
+
+/** 将数据库字段名转为中文展示名，未映射的字段使用原字段名并去除下划线首字母大写 */
+function fieldLabel(fieldName) {
+  if (FIELD_LABEL_MAP[fieldName]) {
+    return FIELD_LABEL_MAP[fieldName]
+  }
+  // 处理 statusLabel 后缀：payment_statusLabel → 付款状态
+  if (fieldName.endsWith('Label') && FIELD_LABEL_MAP[fieldName.replace(/Label$/, '')]) {
+    return FIELD_LABEL_MAP[fieldName.replace(/Label$/, '')]
+  }
+  // 通用回退：下划线分隔转首字母大写
+  return fieldName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}
 const dataDrawerVisible = ref(false)
 const activeDataResult = ref(null)
 const dataResults = computed(() => normalizeDataResults(lastResponse.value?.dataResults || []))
@@ -683,10 +737,10 @@ function previewRows(result) {
 }
 
 function displayColumns(result) {
-  if (Array.isArray(result?.columns) && result.columns.length) {
-    return result.columns
-  }
-  return Object.keys(result?.rows?.[0] || {})
+  const rawColumns = (Array.isArray(result?.columns) && result.columns.length)
+    ? result.columns
+    : Object.keys(result?.rows?.[0] || {})
+  return rawColumns.map(col => ({ prop: col, label: fieldLabel(col) }))
 }
 
 function openDataDrawer(result) {
