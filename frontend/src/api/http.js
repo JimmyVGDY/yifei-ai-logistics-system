@@ -22,6 +22,10 @@ http.interceptors.response.use(
       return response.data
     }
     if (response.data && typeof response.data === 'object' && 'code' in response.data && 'data' in response.data) {
+      if (response.data.code !== 200) {
+        ElMessage.error(response.data.message || '请求失败')
+        return Promise.reject(new Error(response.data.message || '业务异常'))
+      }
       return response.data.data
     }
     return response.data

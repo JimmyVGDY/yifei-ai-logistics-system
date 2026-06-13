@@ -579,6 +579,9 @@ async function analyzeLogs() {
   logLoading.value = true
   try {
     logResult.value = await analyzeAiLogs({ ...logForm })
+  } catch (error) {
+    ElMessage.error('日志分析失败：' + ((error.response?.data?.message || error.message) || '未知错误'))
+    logResult.value = null
   } finally {
     logLoading.value = false
   }
@@ -621,21 +624,6 @@ async function clearMemory() {
   await clearAiMemories()
   ElMessage.success('已清空长期记忆')
   await loadMemory()
-}
-
-function startThinking() {
-  chatLoading.value = true
-  thinkingStepIndex.value = 0
-  window.clearInterval(thinkingTimer)
-  thinkingTimer = window.setInterval(() => {
-    thinkingStepIndex.value = Math.min(thinkingStepIndex.value + 1, thinkingSteps.length - 1)
-  }, 900)
-}
-
-function stopThinking() {
-  chatLoading.value = false
-  window.clearInterval(thinkingTimer)
-  thinkingTimer = null
 }
 
 /** 提交 AI 回答的点赞/点踩反馈 */

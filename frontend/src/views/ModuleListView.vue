@@ -463,7 +463,7 @@ async function loadData() {
   } catch (error) {
     records.value = []
     total.value = 0
-    throw error
+    ElMessage.error('加载数据失败：' + ((error.response?.data?.message || error.message) || '未知错误'))
   } finally {
     loading.value = false
   }
@@ -604,6 +604,8 @@ async function handleCustomerImport(uploadFile) {
     const result = await importCustomers(uploadFile.raw)
     ElMessage.success(`导入完成，${result.imported || 0} 条`)
     await loadData()
+  } catch (error) {
+    ElMessage.error('导入失败：' + ((error.response?.data?.message || error.message) || '未知错误'))
   } finally {
     saving.value = false
   }
@@ -617,6 +619,8 @@ async function submitException() {
     exceptionDialogVisible.value = false
     Object.assign(exceptionForm, { orderNo: '', exceptionType: '', exceptionDesc: '' })
     await loadData()
+  } catch (error) {
+    ElMessage.error('提交异常失败：' + ((error.response?.data?.message || error.message) || '未知错误'))
   } finally {
     saving.value = false
   }
@@ -643,6 +647,8 @@ async function submitFee() {
     feeDialogVisible.value = false
     feeForm.orderNo = ''
     await loadData()
+  } catch (error) {
+    ElMessage.error('生成费用失败：' + ((error.response?.data?.message || error.message) || '未知错误'))
   } finally {
     saving.value = false
   }
@@ -725,6 +731,8 @@ async function submitCrud() {
     }
     crudDialogVisible.value = false
     await loadData()
+  } catch (error) {
+    ElMessage.error(((crudMode.value === 'create' ? '新增' : '修改')) + '失败：' + ((error.response?.data?.message || error.message) || '未知错误'))
   } finally {
     saving.value = false
   }
@@ -745,6 +753,8 @@ async function submitCustomerAccount() {
     ElMessage.success('客户账号创建成功')
     customerAccountDialogVisible.value = false
     await loadData()
+  } catch (error) {
+    ElMessage.error('创建客户账号失败：' + ((error.response?.data?.message || error.message) || '未知错误'))
   } finally {
     saving.value = false
   }

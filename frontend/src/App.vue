@@ -124,6 +124,8 @@ function iconName(path) {
 async function handleLogout() {
   try {
     await logout()
+  } catch {
+    // 网络错误时也正常退出登录
   } finally {
     clearAuthToken()
     ElMessage.success('已退出登录')
