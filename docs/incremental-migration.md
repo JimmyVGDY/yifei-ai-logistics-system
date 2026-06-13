@@ -20,6 +20,7 @@ source scripts/sql/20260611_incremental_add_deleted_version.sql;
 source scripts/sql/20260611_incremental_operation_log_archive.sql;
 source scripts/sql/20260611_incremental_ai_token_usage.sql;
 source scripts/sql/20260612_incremental_ai_document_index.sql;
+source scripts/sql/20260613_incremental_ai_query_cursor.sql;
 ```
 
 这些脚本会保留现有数据，并补充：
@@ -40,6 +41,7 @@ source scripts/sql/20260612_incremental_ai_document_index.sql;
 - AI 长期记忆表和审计字段：`ai_user_profile`、`ai_user_memory`、`ai_memory_event` 以及 `sys_operation_log.ai_memory_*`
 - AI 会话持久化表：`ai_conversation`、`ai_conversation_message`，服务重启后仍可回显历史会话
 - AI RAG 文档索引状态表：`ai_document_index`，用于按内容哈希跳过未变化文档，并记录索引失败原因
+- AI 查询结果游标表：`ai_query_cursor`，用于“继续看”“查看剩余数据”“下一页”等多轮追问分页
 
 权限增量脚本会根据现有 `sys_menu` 和 `sys_role_menu` 推导默认权限数据，不会删除旧角色、旧用户或旧菜单。
 
@@ -117,13 +119,16 @@ source scripts/sql/20260612_incremental_ai_document_index.sql;
 
 该脚本可重复执行，不清库、不重建现有表。RAG 配置和安全边界见 [Spring AI 接入说明](spring-ai.md)。
 
-## 相关文档
+### `20260613_incremental_ai_query_cursor.sql`
 
-- [项目文档索引](README.md)
-- [物流数据库说明](logistics-database.md)
-- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
-- [配置说明](configuration.md)
-- [Spring AI 接入说明](spring-ai.md)
+该脚本用于启用 AI 查询结果游标：
+
+- 新增 `ai_query_cursor` 保存当前用户当前会话的最近只读查询状态，包括模块、关键词、时间范围、状态、页码、总数和已返回条数。
+- 补充 `ai_conversation` 的会话状态和最近消息时间索引，方便 AI 页面加载会话列表。
+- 游标默认只保存脱敏查询状态，不保存敏感原文；过期时间由 `APP_AI_QUERY_CURSOR_TTL_MINUTES` 控制。
+- 用户追问“继续看”“查看剩余28条”“下一页”时优先复用游标，不再依赖模型猜测上一轮上下文。
+
+该脚本可重复执行，不清库、不重建现有表。AI 查询链路和前端展示策略见 [Spring AI 接入说明](spring-ai.md)。
 
 ### `20260611_incremental_add_deleted_version.sql`
 
@@ -155,3 +160,11 @@ source scripts/sql/20260612_incremental_ai_document_index.sql;
 - 模型网关 `AiModelGateway` 自动记录每次调用，写入失败不影响主业务。
 
 该脚本可重复执行。
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [物流数据库说明](logistics-database.md)
+- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
+- [配置说明](configuration.md)
+- [Spring AI 接入说明](spring-ai.md)

@@ -46,6 +46,7 @@ password: 空（按实际配置）
 - `ai_user_memory`: 账号级长期记忆主表，保存记忆分类、置信度、脱敏标题、脱敏摘要、Qdrant 向量点 ID、创建来源会话和逻辑删除字段。
 - `ai_memory_event`: 长期记忆审计事件表，记录创建、召回、跳过写入、删除、清空和设置变更，并保留 `traceId`、`operationId`、`loginSessionId`、`aiConversationId`。
 - `ai_document_index`: RAG 文档索引状态表，记录系统文档路径、文件名、内容哈希、分块数量、索引状态、错误摘要和索引时间；不保存文档正文，Qdrant payload 也只保存脱敏摘要。
+- `ai_query_cursor`: AI 查询结果游标表，保存当前用户当前会话最近一次只读查询的脱敏条件、分页位置、总数和已返回条数，用于“继续看”“查看剩余数据”“下一页”等多轮追问。
 
 ### 增量字段说明
 
@@ -150,6 +151,14 @@ mysql -uroot logistics_management < scripts/sql/20260611_incremental_ai_conversa
 ```
 
 该脚本只新增 `ai_conversation`、`ai_conversation_message` 表，并补齐 `ai:conversation:archive`、`ai:conversation:delete` 权限；不会清空或重建现有业务表。执行后，AI 会话历史不再依赖 Redis 存活。
+
+如果需要启用 AI 查询结果游标和多轮追问分页能力，可执行：
+
+```bash
+mysql -uroot logistics_management < scripts/sql/20260613_incremental_ai_query_cursor.sql
+```
+
+该脚本只新增 `ai_query_cursor` 表并补充 `ai_conversation` 查询索引；不会清空或重建现有业务表。执行后，AI 默认仍只展示前 10 条数据，用户继续追问“继续看”“查看剩余数据”时会复用游标分页，而不是重新猜测上一轮查询条件。当前本地库已执行该脚本。
 
 如果需要补齐客户数据隔离、手机号查重摘要和逻辑删除安全字段，可执行：
 

@@ -46,7 +46,10 @@
 | `SPRING_AI_OPENAI_BASE_URL` | `https://api.openai.com` | OpenAI 兼容接口地址，可替换为内网模型网关 |
 | `SPRING_AI_OPENAI_CHAT_MODEL` | `gpt-4o-mini` | 聊天模型名称 |
 | `APP_AI_CONVERSATION_TTL_SECONDS` | `3600` | Redis 会话保留时间，单位秒 |
+| `APP_AI_TOOL_MAX_CALLS` | `8` | 单次问答最多允许调用的只读工具次数，系统提示词和后端限制共用 |
+| `APP_AI_QUERY_CURSOR_TTL_MINUTES` | `60` | 查询结果游标有效期，用于“继续看”“查看剩余数据”等多轮追问 |
 | `APP_AI_SSE_TIMEOUT_MS` | `180000` | AI 流式问答的 Spring MVC 异步超时时间，单位毫秒 |
+| `APP_AI_SSE_HEARTBEAT_SECONDS` | `10` | SSE 心跳事件间隔，避免长工具调用期间前端误判断开 |
 | `APP_AI_MEMORY_QDRANT_ENABLED` | `true` | 是否启用 Qdrant 长期记忆向量召回；不可用时自动降级 |
 | `APP_AI_MEMORY_QDRANT_BASE_URL` | `http://127.0.0.1:6333` | Qdrant HTTP 地址 |
 | `APP_AI_MEMORY_QDRANT_COLLECTION` | `logistics_ai_user_memory` | 长期记忆向量集合；集合维度必须与当前 embedding 模型一致 |
@@ -123,6 +126,8 @@ mvn spring-boot:run
 | --- | --- |
 | `AiAssistantController` | 暴露 `/ai/**` 接口，统一返回 `ApiResponse<T>` |
 | `AiAssistantService` | 编排文档检索、日志分析、模型调用和会话写入 |
+| `AiChatPipeline` | 普通问答和 SSE 流式问答的统一编排链路，集中处理脱敏、会话、RAG、长期记忆、工具调用、兜底、审计和保存 |
+| `AiIntentPlanner` / `AiExecutionPlan` | 生成只读执行计划，描述单模块、全局搜索、联合查询、日志排障、临时 SQL、RAG 或普通问答等模式 |
 | `AiModelGateway` | 封装 Spring AI `ChatClient`，缺少密钥或模型异常时降级 |
 | `AiKnowledgeService` | 优先从 Qdrant RAG 文档集合召回片段，Qdrant 不可用时降级为本地轻量检索 |
 | `AiDocumentIndexer` | 扫描 `README.md` 和 `docs/*.md`，按内容哈希做增量索引，失败时记录状态但不阻断启动 |
@@ -132,6 +137,7 @@ mvn spring-boot:run
 | `AiReadonlyQueryService` | 复用现有业务查询能力，执行单模块、全场景模糊、自动联合查询并生成 AI 可读摘要 |
 | `AiGeneratedSqlQueryService` | 对统计、关联、连表类问题生成候选只读 SQL 并执行安全查询 |
 | `AiSqlSafetyValidator` | 校验 AI SQL 的单语句、只读、表白名单、字段和权限边界 |
+| `AiReadableSchemaRegistry` | 统一维护 AI 临时 SQL 可读表、字段、中文含义和权限要求，模型提示词和安全校验共用 |
 | `AiLogAnalysisService` | 复用操作日志能力生成排障时间线 |
 | `AiConversationService` | 使用 MySQL 持久化当前用户会话和消息，Redis 只缓存最近上下文 |
 | `AiMemoryService` | 管理账号级长期记忆画像、召回、自动写入、删除和审计事件 |
@@ -375,7 +381,7 @@ ai:chat
 - 中间：问答消息区、结构化数据结果预览、引用来源、工具调用摘要。
 - 右侧：日志排障查询和时间线结果。
 
-AI 回答区只承载结论和摘要。业务查询返回多条结构化数据时，前端默认预览前 10 条；超过 10 条的数据会显示“查看全部”按钮，并在右侧抽屉中用 Element Plus 表格展示本次已加载的完整结果。后端默认给结构化表格最多加载 50 条，避免大数据量把聊天气泡撑爆，也避免一次性拉取过多数据影响模型和页面响应。
+AI 回答区只承载结论和摘要。业务查询返回多条结构化数据时，前端默认预览前 10 条；超过 10 条的数据会显示“继续查看剩余数据”和“查看全部”入口。后端会把本次查询的模块、关键词、时间范围、页码、总数、已返回条数和工具类型写入 `ai_query_cursor`，用户继续追问“继续看、查看剩余28条、下一页”时优先复用游标分页，不再靠模型猜上一句话。游标默认 60 分钟过期，只保存脱敏查询状态，不保存敏感原文。
 
 日志排障面板只有当前账号拥有 `ai:log:analyze` 时才展示；普通 AI 问答用户不会看到该入口。
 

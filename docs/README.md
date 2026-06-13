@@ -58,7 +58,7 @@
 - 新开发者先看“新人接入”和“系统设计”，搭环境前先确认 [environment-versions.md](environment-versions.md)，前端开发者还应重点阅读 [frontend.md](frontend.md)，再按负责模块阅读接口和数据库文档。
 - 做后端业务开发前必须阅读 [development-guide.md](development-guide.md) 和 [mybatis.md](mybatis.md)。
 - 做权限、日志、审计相关功能前必须阅读 [logistics-rbac-structured-log.md](logistics-rbac-structured-log.md) 和 [trace-context-audit.md](trace-context-audit.md)。
-- 使用或继续开发 AI 助手前先阅读 [spring-ai.md](spring-ai.md)，再阅读 [ai-assistant-design.md](ai-assistant-design.md)；涉及 AI 生成临时查询时还必须阅读 [mybatis.md](mybatis.md) 中的例外边界，涉及历史会话时确认 `ai_conversation` / `ai_conversation_message` 增量脚本，涉及长期记忆时还要确认 Qdrant 版本和 `ai_user_memory` 相关增量脚本；涉及系统文档 RAG 时还要确认 `ai_document_index`、`APP_AI_RAG_*` 配置和 `logistics_docs` 集合。
+- 使用或继续开发 AI 助手前先阅读 [spring-ai.md](spring-ai.md)，再阅读 [ai-assistant-design.md](ai-assistant-design.md)；涉及 AI 生成临时查询时还必须阅读 [mybatis.md](mybatis.md) 中的例外边界，涉及历史会话时确认 `ai_conversation` / `ai_conversation_message` 增量脚本，涉及多轮追问分页时确认 `ai_query_cursor` 增量脚本，涉及长期记忆时还要确认 Qdrant 版本和 `ai_user_memory` 相关增量脚本；涉及系统文档 RAG 时还要确认 `ai_document_index`、`APP_AI_RAG_*` 配置和 `logistics_docs` 集合。
 
 ## 文档维护约定
 

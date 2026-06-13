@@ -45,7 +45,10 @@
 | `SPRING_AI_OPENAI_CHAT_MODEL` | `gpt-4o-mini` | AI 问答使用的聊天模型名称 |
 | `APP_AI_CONVERSATION_TTL_SECONDS` | `3600` | Redis 中 AI 最近上下文热缓存保留时间，单位秒；会话历史以 MySQL 为准 |
 | `APP_AI_TOKEN_USAGE_ENABLED` | `true` | AI Token 用量追踪开关，关闭后不记录每次模型调用的 Token 消耗 |
+| `APP_AI_TOOL_MAX_CALLS` | `8` | 单次 AI 问答最多允许调用的后端只读工具次数；系统提示词和后端硬限制共用该值 |
+| `APP_AI_QUERY_CURSOR_TTL_MINUTES` | `60` | AI 查询结果游标保留时间，支持“继续看、查看剩余数据、下一页”等追问 |
 | `APP_AI_SSE_TIMEOUT_MS` | `180000` | AI 流式问答的 Spring MVC 异步超时时间，单位毫秒 |
+| `APP_AI_SSE_HEARTBEAT_SECONDS` | `10` | AI 流式问答心跳间隔，防止长时间工具调用时前端误判连接卡死 |
 | `APP_AI_SSE_LEGACY_GET_ENABLED` | `true` | 是否保留旧版 `GET /ai/chat/stream` 流式入口；用户问题放在 URL 中有安全风险，生产环境建议关闭并提示前端刷新使用 POST SSE |
 | `APP_AI_RAG_ENABLED` | 兼容 `APP_AI_MEMORY_QDRANT_ENABLED`，默认 `true` | 是否启用 RAG 文档向量检索；关闭后系统文档问答退回本地轻量检索 |
 | `APP_AI_RAG_INDEX_ON_STARTUP` | `true` | 应用启动时是否扫描 `README.md` 和 `docs/*.md` 并增量索引变更文档 |
@@ -220,6 +223,9 @@ AI 长期记忆配置：
 | --- | --- | --- |
 | `APP_AI_SSE_TIMEOUT_MS` | `180000` | AI 流式问答异步超时，单位毫秒；模型和工具调用较慢时可适当调大 |
 | `APP_AI_SSE_LEGACY_GET_ENABLED` | `true` | 是否保留旧版 GET 流式入口；生产环境可关闭以收紧 URL 参数风险 |
+| `APP_AI_TOOL_MAX_CALLS` | `8` | 后端只读工具调用上限，超过后 AI 必须基于已查询结果回答 |
+| `APP_AI_QUERY_CURSOR_TTL_MINUTES` | `60` | 结果游标过期时间，过期后“继续看”会要求重新说明查询条件 |
+| `APP_AI_SSE_HEARTBEAT_SECONDS` | `10` | SSE 心跳事件间隔 |
 | `APP_AI_MEMORY_QDRANT_ENABLED` | `true` | 是否启用 Qdrant 向量召回；不可用时自动降级 |
 | `APP_AI_MEMORY_QDRANT_BASE_URL` | `http://127.0.0.1:6333` | Qdrant HTTP 地址 |
 | `APP_AI_MEMORY_QDRANT_COLLECTION` | `logistics_ai_user_memory` | 长期记忆向量集合；集合维度必须匹配当前 embedding 模型 |
