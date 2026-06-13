@@ -18,11 +18,23 @@ public record AiReadonlyQueryResult(
         List<AiCitation> citations,
         List<AiToolCall> toolCalls,
         List<Map<String, Object>> rows,
-        List<String> columns) {
+        List<String> columns,
+        String cursorId,
+        Long total,
+        Integer returnedCount,
+        Long remainingCount,
+        Boolean hasMore,
+        String nextPageHint) {
 
     public AiReadonlyQueryResult(boolean executed, String answerContext,
                                   List<AiCitation> citations, List<AiToolCall> toolCalls) {
         this(executed, answerContext, citations, toolCalls, List.of(), List.of());
+    }
+
+    public AiReadonlyQueryResult(boolean executed, String answerContext,
+                                 List<AiCitation> citations, List<AiToolCall> toolCalls,
+                                 List<Map<String, Object>> rows, List<String> columns) {
+        this(executed, answerContext, citations, toolCalls, rows, columns, null, null, null, null, false, null);
     }
 
     public static AiReadonlyQueryResult empty() {

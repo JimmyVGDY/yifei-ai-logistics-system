@@ -51,7 +51,7 @@ public class AiBusinessQueryTools {
         String[] safeRange = normalizeRelativeTimeRange(startTime, endTime);
         AiReadonlyQueryResult result = readonlyQueryService.queryModule(module, keyword, safeRange[0], safeRange[1]);
         toolCallContext.record(result);
-        toolCallContext.notifyToolResult("业务数据查询", target, toolResultSummary(result), result.rows(), result.columns());
+        toolCallContext.notifyToolResult("业务数据查询", target, result);
         return result.answerContext();
     }
 
@@ -65,7 +65,7 @@ public class AiBusinessQueryTools {
         String[] safeRange = normalizeRelativeTimeRange(startTime, endTime);
         AiReadonlyQueryResult result = readonlyQueryService.globalSearch(keyword, safeRange[0], safeRange[1]);
         toolCallContext.record(result);
-        toolCallContext.notifyToolResult("全场景模糊搜索", "业务模块", toolResultSummary(result), result.rows(), result.columns());
+        toolCallContext.notifyToolResult("全场景模糊搜索", "业务模块", result);
         return result.answerContext();
     }
 
@@ -81,7 +81,7 @@ public class AiBusinessQueryTools {
         String[] safeRange = normalizeRelativeTimeRange(startTime, endTime);
         AiReadonlyQueryResult result = readonlyQueryService.joinedSearch(scene, keyword, safeRange[0], safeRange[1]);
         toolCallContext.record(result);
-        toolCallContext.notifyToolResult("业务联合查询", target, toolResultSummary(result), result.rows(), result.columns());
+        toolCallContext.notifyToolResult("业务联合查询", target, result);
         return result.answerContext();
     }
 
@@ -91,7 +91,7 @@ public class AiBusinessQueryTools {
         toolCallContext.notifyToolStart("运营看板查询", "运营看板");
         AiReadonlyQueryResult result = readonlyQueryService.queryDashboard();
         toolCallContext.record(result);
-        toolCallContext.notifyToolResult("运营看板查询", "运营看板", toolResultSummary(result), result.rows(), result.columns());
+        toolCallContext.notifyToolResult("运营看板查询", "运营看板", result);
         return result.answerContext();
     }
 

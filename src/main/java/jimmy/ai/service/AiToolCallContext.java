@@ -6,6 +6,7 @@ import jimmy.ai.model.AiDataResult;
 import jimmy.ai.model.AiReadonlyQueryResult;
 import jimmy.ai.model.AiToolCall;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -34,9 +35,15 @@ public class AiToolCallContext {
 
     private final ThreadLocal<Holder> holder = new ThreadLocal<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final int maxToolCalls;
 
-    /** 当前会话工具调用上限 */
-    static final int MAX_TOOL_CALLS = 8;
+    public AiToolCallContext(@Value("${app.ai.tool.max-calls:8}") int maxToolCalls) {
+        this.maxToolCalls = Math.max(1, maxToolCalls);
+    }
+
+    public int maxToolCalls() {
+        return maxToolCalls;
+    }
 
     public void begin() {
         Holder existing = holder.get();
@@ -45,6 +52,9 @@ public class AiToolCallContext {
         if (existing != null) {
             h.outputStream = existing.outputStream;
             h.originalQuestion = existing.originalQuestion;
+            h.conversationId = existing.conversationId;
+            h.userId = existing.userId;
+            h.userCode = existing.userCode;
         }
         holder.set(h);
     }
@@ -78,6 +88,30 @@ public class AiToolCallContext {
         return current == null ? null : current.originalQuestion;
     }
 
+    public void setConversation(String conversationId, String userId, String userCode) {
+        Holder current = holder.get();
+        if (current != null) {
+            current.conversationId = conversationId;
+            current.userId = userId;
+            current.userCode = userCode;
+        }
+    }
+
+    public String conversationId() {
+        Holder current = holder.get();
+        return current == null ? null : current.conversationId;
+    }
+
+    public String userId() {
+        Holder current = holder.get();
+        return current == null ? null : current.userId;
+    }
+
+    public String userCode() {
+        Holder current = holder.get();
+        return current == null ? null : current.userCode;
+    }
+
     /**
      * 记录本次工具调用，返回当前累计调用次数。超过上限时抛出异常让 LLM 用已有信息回答。
      */
@@ -87,8 +121,8 @@ public class AiToolCallContext {
             return 0;
         }
         int count = ++current.callCount;
-        if (count > MAX_TOOL_CALLS) {
-            throw new ToolCallLimitExceededException("已达到单次对话工具调用上限（" + MAX_TOOL_CALLS + "次），请基于已查询到的数据直接回答。");
+        if (count > maxToolCalls) {
+            throw new ToolCallLimitExceededException("已达到单次对话工具调用上限（" + maxToolCalls + "次），请基于已查询到的数据直接回答。");
         }
         return count;
     }
@@ -105,6 +139,21 @@ public class AiToolCallContext {
     }
 
     /**
+     * 推送一次心跳事件，避免模型或工具调用耗时较长时前端误判为连接卡死。
+     */
+    public void notifyHeartbeat(String message, long heartbeatSeconds) {
+        Holder current = holder.get();
+        if (current == null || current.outputStream == null) {
+            return;
+        }
+        sendEvent(current, "heartbeat", Map.of(
+                "message", nullToEmpty(message),
+                "heartbeatSeconds", heartbeatSeconds,
+                "elapsedMs", System.currentTimeMillis() - current.startTime
+        ));
+    }
+
+    /**
      * 推送"工具调用开始"事件。
      */
     public void notifyToolStart(String toolName, String target) {
@@ -116,7 +165,7 @@ public class AiToolCallContext {
                 "toolName", nullToEmpty(toolName),
                 "target", nullToEmpty(target),
                 "toolCallCount", current.callCount,
-                "maxToolCalls", MAX_TOOL_CALLS,
+                "maxToolCalls", maxToolCalls,
                 "elapsedMs", System.currentTimeMillis() - current.startTime
         ));
     }
@@ -136,6 +185,19 @@ public class AiToolCallContext {
      */
     public void notifyToolResult(String toolName, String target, String result,
                                   List<Map<String, Object>> rows, List<String> columns) {
+        notifyToolResult(toolName, target, result, rows, columns, null);
+    }
+
+    public void notifyToolResult(String toolName, String target, AiReadonlyQueryResult result) {
+        notifyToolResult(toolName, target, result == null ? "" : firstToolResult(result),
+                result == null ? null : result.rows(),
+                result == null ? null : result.columns(),
+                result);
+    }
+
+    private void notifyToolResult(String toolName, String target, String result,
+                                  List<Map<String, Object>> rows, List<String> columns,
+                                  AiReadonlyQueryResult queryResult) {
         Holder current = holder.get();
         if (current == null || current.outputStream == null) {
             return;
@@ -145,13 +207,28 @@ public class AiToolCallContext {
         data.put("target", nullToEmpty(target));
         data.put("result", nullToEmpty(result));
         data.put("toolCallCount", current.callCount);
-        data.put("maxToolCalls", MAX_TOOL_CALLS);
+        data.put("maxToolCalls", maxToolCalls);
         data.put("elapsedMs", System.currentTimeMillis() - current.startTime);
         if (rows != null && !rows.isEmpty()) {
             data.put("rows", rows);
             data.put("columns", columns == null ? List.of() : columns);
         }
+        if (queryResult != null) {
+            data.put("cursorId", queryResult.cursorId());
+            data.put("total", queryResult.total());
+            data.put("returnedCount", queryResult.returnedCount());
+            data.put("remainingCount", queryResult.remainingCount());
+            data.put("hasMore", queryResult.hasMore());
+            data.put("nextPageHint", queryResult.nextPageHint());
+        }
         sendEvent(current, "tool_result", data);
+    }
+
+    private String firstToolResult(AiReadonlyQueryResult result) {
+        if (result.toolCalls() == null || result.toolCalls().isEmpty()) {
+            return result.answerContext();
+        }
+        return result.toolCalls().getFirst().result();
     }
 
     /**
@@ -251,7 +328,13 @@ public class AiToolCallContext {
                     firstToolCall.target(),
                     firstToolCall.result(),
                     result.columns(),
-                    result.rows()
+                    result.rows(),
+                    result.cursorId(),
+                    result.total(),
+                    result.returnedCount(),
+                    result.remainingCount(),
+                    result.hasMore(),
+                    result.nextPageHint()
             ));
         }
         if (result.answerContext() != null && !result.answerContext().isBlank()) {
@@ -273,6 +356,9 @@ public class AiToolCallContext {
         /** 直接 HTTP 响应输出流，不用 SseEmitter 避免异步 dispatch 竞态 */
         private OutputStream outputStream;
         private String originalQuestion;
+        private String conversationId;
+        private String userId;
+        private String userCode;
         private int callCount = 0;
         private final long startTime = System.currentTimeMillis();
         private final List<AiCitation> citations = new ArrayList<>();

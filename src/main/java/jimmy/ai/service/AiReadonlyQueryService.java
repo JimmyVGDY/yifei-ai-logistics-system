@@ -6,6 +6,7 @@ import jimmy.ai.model.AiToolCall;
 import jimmy.ai.util.SseChatContext;
 import jimmy.ai.model.AiGeneratedSqlQueryResult;
 import jimmy.ai.model.AiQueryIntent;
+import jimmy.ai.model.AiQueryCursor;
 import jimmy.ai.model.AiReadonlyQueryResult;
 import jimmy.logistics.model.LogisticsDashboardSummary;
 import jimmy.logistics.model.ModuleQueryDTO;
@@ -24,6 +25,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -40,8 +42,8 @@ public class AiReadonlyQueryService {
     private static final String CUSTOMER_NOT_BOUND_MESSAGE = "当前账号未绑定客户档案，无法查询相关业务数据，请联系系统管理员。";
     private static final String QUERY_FAILED_MESSAGE = "查询暂时失败，请稍后重试或联系系统管理员。";
     private static final String WRITE_REFUSED_MESSAGE = "当前 AI 助手仅支持只读查询和信息整理，不能执行新增、修改、删除、导入、导出或上传操作。";
-    /** AI 回答仍只展示摘要，结构化表格最多加载 50 条，供前端“查看全部”使用。 */
-    private static final int STRUCTURED_RESULT_LIMIT = 50;
+    /** AI 默认只返回前 10 条结构化数据；更多数据通过查询游标继续分页查看。 */
+    private static final int STRUCTURED_RESULT_LIMIT = 10;
 
     private static final List<SearchModule> SEARCH_MODULES = List.of(
             new SearchModule("customers", "客户管理", "customer:query", 10),
@@ -102,17 +104,32 @@ public class AiReadonlyQueryService {
     private final LogisticsRequirementService logisticsRequirementService;
     private final AiQuerySummaryService summaryService;
     private final AiSensitiveDataMasker masker;
+    private final AiQueryCursorService cursorService;
+    private final AiToolCallContext toolCallContext;
 
     public AiReadonlyQueryService(AiQueryIntentParser intentParser,
                                   AiGeneratedSqlQueryService generatedSqlQueryService,
                                   LogisticsRequirementService logisticsRequirementService,
                                   AiQuerySummaryService summaryService,
                                   AiSensitiveDataMasker masker) {
+        this(intentParser, generatedSqlQueryService, logisticsRequirementService, summaryService, masker, null,
+                new AiToolCallContext(8));
+    }
+
+    public AiReadonlyQueryService(AiQueryIntentParser intentParser,
+                                  AiGeneratedSqlQueryService generatedSqlQueryService,
+                                  LogisticsRequirementService logisticsRequirementService,
+                                  AiQuerySummaryService summaryService,
+                                  AiSensitiveDataMasker masker,
+                                  AiQueryCursorService cursorService,
+                                  AiToolCallContext toolCallContext) {
         this.intentParser = intentParser;
         this.generatedSqlQueryService = generatedSqlQueryService;
         this.logisticsRequirementService = logisticsRequirementService;
         this.summaryService = summaryService;
         this.masker = masker;
+        this.cursorService = cursorService;
+        this.toolCallContext = toolCallContext;
     }
 
     public AiReadonlyQueryResult query(String message) {
@@ -120,6 +137,10 @@ public class AiReadonlyQueryService {
     }
 
     public AiReadonlyQueryResult query(String message, String previousUserMessage) {
+        return query(message, previousUserMessage, toolCallContext.conversationId(), toolCallContext.userId(), toolCallContext.userCode());
+    }
+
+    public AiReadonlyQueryResult query(String message, String previousUserMessage, String conversationId, String userId, String userCode) {
         String normalizedMessage = normalizeForSearch(message);
         AiQueryIntent quickIntent = nullToUnmatched(hasText(previousUserMessage)
                 ? intentParser.parse(normalizedMessage, previousUserMessage)
@@ -133,7 +154,11 @@ public class AiReadonlyQueryService {
          * 不在这里兜底的话，模型可能把“剩余28条”当成全新关键词，进而丢失上一轮模块和时间条件。
          */
         if (isContinuationRequest(normalizedMessage) && hasText(previousUserMessage)) {
-            return query(previousUserMessage, null);
+            Optional<AiReadonlyQueryResult> cursorResult = queryByCursor(conversationId, userId, userCode);
+            if (cursorResult.isPresent()) {
+                return cursorResult.get();
+            }
+            return query(previousUserMessage, null, conversationId, userId, userCode);
         }
 
         AiGeneratedSqlQueryResult sqlQueryResult = generatedSqlQueryService.query(normalizedMessage);
@@ -150,13 +175,13 @@ public class AiReadonlyQueryService {
         if (isGlobalSearchRequest(normalizedMessage) && hasText(previousUserMessage)) {
             String previousKeyword = resolveKeyword(previousUserMessage, null);
             if (hasText(previousKeyword)) {
-                return globalSearch(previousKeyword, null, null, null);
+                return globalSearch(previousKeyword, null, null, null, conversationId, userId, userCode);
             }
         }
 
         if (shouldUseJoinedQuery(normalizedMessage)) {
             AiReadonlyQueryResult result = joinedSearch(resolveJoinedScene(normalizedMessage), resolveKeyword(normalizedMessage, previousUserMessage),
-                    quickIntent.startTime(), quickIntent.endTime());
+                    quickIntent.startTime(), quickIntent.endTime(), conversationId, userId, userCode);
             if (result.executed()) {
                 return result;
             }
@@ -164,12 +189,13 @@ public class AiReadonlyQueryService {
 
         if (shouldUseGlobalSearch(normalizedMessage, quickIntent)) {
             String keyword = resolveKeyword(normalizedMessage, previousUserMessage);
-            return globalSearch(keyword, quickIntent.startTime(), quickIntent.endTime(), null);
+            return globalSearch(keyword, quickIntent.startTime(), quickIntent.endTime(), null, conversationId, userId, userCode);
         }
 
-        AiReadonlyQueryResult result = queryByIntent(quickIntent);
+        AiReadonlyQueryResult result = queryByIntent(quickIntent, conversationId, userId, userCode);
         if (shouldFallbackToGlobalSearch(quickIntent, result)) {
-            return globalSearch(quickIntent.keyword(), quickIntent.startTime(), quickIntent.endTime(), quickIntent.module());
+            return globalSearch(quickIntent.keyword(), quickIntent.startTime(), quickIntent.endTime(), quickIntent.module(),
+                    conversationId, userId, userCode);
         }
         return result;
     }
@@ -183,14 +209,22 @@ public class AiReadonlyQueryService {
         if (module == null) {
             return simpleResult("业务数据查询", "业务模块", "未识别要查询的业务模块，请补充订单、客户、车辆、司机、异常、费用等查询范围。");
         }
-        return queryModule(module, cleanupKeyword(keyword), startTime, endTime, STRUCTURED_RESULT_LIMIT, "业务数据查询");
+        return queryModule(module, cleanupKeyword(keyword), startTime, endTime, 1, STRUCTURED_RESULT_LIMIT, "业务数据查询",
+                toolCallContext.conversationId(), toolCallContext.userId(), toolCallContext.userCode());
     }
 
     public AiReadonlyQueryResult globalSearch(String keyword, String startTime, String endTime) {
-        return globalSearch(cleanupKeyword(keyword), startTime, endTime, null);
+        return globalSearch(cleanupKeyword(keyword), startTime, endTime, null,
+                toolCallContext.conversationId(), toolCallContext.userId(), toolCallContext.userCode());
     }
 
     public AiReadonlyQueryResult joinedSearch(String sceneText, String keyword, String startTime, String endTime) {
+        return joinedSearch(sceneText, keyword, startTime, endTime,
+                toolCallContext.conversationId(), toolCallContext.userId(), toolCallContext.userCode());
+    }
+
+    private AiReadonlyQueryResult joinedSearch(String sceneText, String keyword, String startTime, String endTime,
+                                               String conversationId, String userId, String userCode) {
         String keywordToUse = cleanupKeyword(keyword);
         List<SearchModule> modules = resolveJoinedModules(sceneText);
         if (modules.isEmpty()) {
@@ -208,7 +242,8 @@ public class AiReadonlyQueryService {
         List<String> allColumns = null;
 
         for (SearchModule module : modules) {
-            AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 20, "业务联合查询");
+            AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 1, 20, "业务联合查询",
+                    conversationId, userId, userCode);
             if (!result.executed()) {
                 continue;
             }
@@ -242,7 +277,7 @@ public class AiReadonlyQueryService {
         return queryDashboard(intent);
     }
 
-    private AiReadonlyQueryResult queryByIntent(AiQueryIntent intent) {
+    private AiReadonlyQueryResult queryByIntent(AiQueryIntent intent, String conversationId, String userId, String userCode) {
         if (!intent.matched()) {
             return AiReadonlyQueryResult.empty();
         }
@@ -256,7 +291,28 @@ public class AiReadonlyQueryService {
         if (module == null) {
             return AiReadonlyQueryResult.empty();
         }
-        return queryModule(module, intent.keyword(), intent.startTime(), intent.endTime(), STRUCTURED_RESULT_LIMIT, "业务数据查询");
+        return queryModule(module, intent.keyword(), intent.startTime(), intent.endTime(), 1, STRUCTURED_RESULT_LIMIT, "业务数据查询",
+                conversationId, userId, userCode);
+    }
+
+    private Optional<AiReadonlyQueryResult> queryByCursor(String conversationId, String userId, String userCode) {
+        if (cursorService == null) {
+            return Optional.empty();
+        }
+        Optional<AiQueryCursor> optionalCursor = cursorService.latest(conversationId, userId, userCode);
+        if (optionalCursor.isEmpty()) {
+            return Optional.empty();
+        }
+        AiQueryCursor cursor = optionalCursor.get();
+        SearchModule module = findModule(cursor.getModuleCode());
+        if (module == null) {
+            return Optional.empty();
+        }
+        int nextPage = cursor.getPage() == null ? 2 : cursor.getPage() + 1;
+        int pageSize = cursor.getPageSize() == null ? STRUCTURED_RESULT_LIMIT : cursor.getPageSize();
+        return Optional.of(queryModule(module, cursor.getKeyword(), cursor.getStartTime(), cursor.getEndTime(),
+                nextPage, pageSize, cursor.getToolName() == null ? "业务数据查询" : cursor.getToolName(),
+                conversationId, userId, userCode));
     }
 
     private AiReadonlyQueryResult queryDashboard(AiQueryIntent intent) {
@@ -271,6 +327,13 @@ public class AiReadonlyQueryService {
     }
 
     private AiReadonlyQueryResult queryModule(SearchModule module, String keyword, String startTime, String endTime, int pageSize, String toolName) {
+        return queryModule(module, keyword, startTime, endTime, 1, pageSize, toolName,
+                toolCallContext.conversationId(), toolCallContext.userId(), toolCallContext.userCode());
+    }
+
+    private AiReadonlyQueryResult queryModule(SearchModule module, String keyword, String startTime, String endTime,
+                                             int pageNo, int pageSize, String toolName,
+                                             String conversationId, String userId, String userCode) {
         if (!hasPermission(module.permission())) {
             log.info("AI 只读查询被权限拦截，module={}, permission={}", module.module(), module.permission());
             return simpleResult(toolName, module.moduleName(), PERMISSION_DENIED_MESSAGE);
@@ -284,7 +347,7 @@ public class AiReadonlyQueryService {
 
             for (String candidate : keywordCandidates) {
                 ModuleQueryDTO query = new ModuleQueryDTO();
-                query.setPage(1);
+                query.setPage(pageNo);
                 query.setPageSize(pageSize);
                 query.setKeyword(candidate);
                 query.setStartTime(startTime);
@@ -313,10 +376,32 @@ public class AiReadonlyQueryService {
             // 提取结构化数据行，过滤内部字段并映射为中文列名
             List<Map<String, Object>> rows = buildDisplayRows(mergedRecords);
             List<String> columns = rows.isEmpty() ? List.of() : new ArrayList<>(rows.get(0).keySet());
+            int returnedCount = Math.max(0, (pageNo - 1) * pageSize + rows.size());
+            long remainingCount = Math.max(0, page.total() - returnedCount);
+            Optional<AiQueryCursor> cursor = cursorService == null ? Optional.empty() : cursorService.create(
+                    conversationId,
+                    userId,
+                    userCode,
+                    "MODULE",
+                    toolName,
+                    module.module(),
+                    module.moduleName(),
+                    keyword,
+                    startTime,
+                    endTime,
+                    null,
+                    pageNo,
+                    pageSize,
+                    page.total(),
+                    returnedCount,
+                    result
+            );
+            String cursorId = cursor.map(AiQueryCursor::getCursorId).orElse(null);
+            String nextPageHint = remainingCount > 0 ? "还有 " + remainingCount + " 条记录，可输入“继续看”或“查看剩余数据”。" : null;
             return new AiReadonlyQueryResult(true, summary,
                     List.of(citation(module.moduleName(), summary)),
                     List.of(new AiToolCall(toolName, module.moduleName(), result)),
-                    rows, columns);
+                    rows, columns, cursorId, page.total(), returnedCount, remainingCount, remainingCount > 0, nextPageHint);
         } catch (IllegalStateException exception) {
             log.info("AI 只读查询被数据范围拦截，module={}, reason={}", module.module(), exception.getMessage());
             return simpleResult(toolName, module.moduleName(), CUSTOMER_NOT_BOUND_MESSAGE);
@@ -329,7 +414,8 @@ public class AiReadonlyQueryService {
     /**
      * 全场景模糊查找：只查当前账号有权限的模块，并按业务相关度排序输出。
      */
-    private AiReadonlyQueryResult globalSearch(String keyword, String startTime, String endTime, String excludedModule) {
+    private AiReadonlyQueryResult globalSearch(String keyword, String startTime, String endTime, String excludedModule,
+                                               String conversationId, String userId, String userCode) {
         String keywordToUse = cleanupKeyword(keyword);
         if (!hasText(keywordToUse)) {
             return simpleResult("全场景模糊搜索", "业务模块", "请补充客户名、订单号、运单号、司机名、车牌号、地址、状态或时间范围等查询条件。");
@@ -350,7 +436,8 @@ public class AiReadonlyQueryService {
             if (!hasPermission(module.permission())) {
                 continue;
             }
-            AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 20, "全场景模糊搜索");
+            AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 1, 20, "全场景模糊搜索",
+                    conversationId, userId, userCode);
             if (!result.executed()) {
                 continue;
             }

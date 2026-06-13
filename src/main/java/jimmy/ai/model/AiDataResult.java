@@ -13,10 +13,28 @@ public record AiDataResult(
         String target,
         String summary,
         List<String> columns,
-        List<Map<String, Object>> rows) {
+        List<Map<String, Object>> rows,
+        String cursorId,
+        Long total,
+        Integer returnedCount,
+        Long remainingCount,
+        Boolean hasMore,
+        String nextPageHint) {
+
+    public AiDataResult(String toolName,
+                        String target,
+                        String summary,
+                        List<String> columns,
+                        List<Map<String, Object>> rows) {
+        this(toolName, target, summary, columns, rows, null, null, null, null, false, null);
+    }
 
     public AiDataResult {
         columns = columns == null ? List.of() : List.copyOf(columns);
         rows = rows == null ? List.of() : List.copyOf(rows);
+        returnedCount = returnedCount == null ? rows.size() : returnedCount;
+        total = total == null ? (long) rows.size() : total;
+        remainingCount = remainingCount == null ? Math.max(0, total - returnedCount) : remainingCount;
+        hasMore = hasMore != null && hasMore;
     }
 }

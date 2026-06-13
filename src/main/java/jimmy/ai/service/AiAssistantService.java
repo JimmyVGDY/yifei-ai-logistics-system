@@ -50,6 +50,7 @@ public class AiAssistantService {
     private final AiFallbackHandler fallbackHandler;
     private final AiMessageFeedbackMapper feedbackMapper;
     private final CompactSnowflakeIdGenerator idGenerator;
+    private final AiChatPipeline chatPipeline;
 
     public AiAssistantService(AiKnowledgeService knowledgeService,
                               AiReadonlyQueryService readonlyQueryService,
@@ -64,7 +65,8 @@ public class AiAssistantService {
                               AiMemoryService memoryService,
                               AiFallbackHandler fallbackHandler,
                               AiMessageFeedbackMapper feedbackMapper,
-                              CompactSnowflakeIdGenerator idGenerator) {
+                              CompactSnowflakeIdGenerator idGenerator,
+                              AiChatPipeline chatPipeline) {
         this.knowledgeService = knowledgeService;
         this.readonlyQueryService = readonlyQueryService;
         this.logAnalysisService = logAnalysisService;
@@ -79,9 +81,13 @@ public class AiAssistantService {
         this.fallbackHandler = fallbackHandler;
         this.feedbackMapper = feedbackMapper;
         this.idGenerator = idGenerator;
+        this.chatPipeline = chatPipeline;
     }
 
     public AiChatResponse chat(AiChatRequest request) {
+        if (usePipeline()) {
+            return chatPipeline.chat(request);
+        }
         long start = System.currentTimeMillis();
         String safeMessage = masker.mask(request.message());
         String conversationId = resolveConversationId(request.conversationId());
@@ -190,6 +196,10 @@ public class AiAssistantService {
      */
     public void chatStream(AiChatRequest request, OutputStream outputStream, String loginId, List<String> permissions,
                            String roleCode, String customerId, String username, String userCode, String loginSessionId) {
+        if (usePipeline()) {
+            chatPipeline.chatStream(request, outputStream, loginId, permissions, roleCode, customerId, username, userCode, loginSessionId);
+            return;
+        }
         long start = System.currentTimeMillis();
         // 将 Controller 捕获的登录标识、权限列表和 Session 属性注入当前异步线程
         SseChatContext.setLoginIdAndPermissions(loginId, permissions);
@@ -328,8 +338,8 @@ public class AiAssistantService {
                 涉及统计、排名、汇总、关联或连表分析时，才使用临时只读 SQL 工具。
                 如果上下文或工具结果提示权限不足，只能回复友好的中文权限提示，不要暴露权限码、内部模块名、字段名、SQL 或异常堆栈。
                 回答必须基于给定上下文或工具结果；不知道就说明需要进一步查询。
-                每次回答最多调用 5 次工具。能用一次查询回答的问题，不要拆分多次调用。
-                """;
+                每次回答最多调用 %d 次工具。能用一次查询回答的问题，不要拆分多次调用。
+                """.formatted(toolCallContext.maxToolCalls());
     }
 
     private Optional<String> callModelWithTools(String systemPrompt, String userPrompt, String originalQuestion) {
@@ -341,6 +351,10 @@ public class AiAssistantService {
             toolCallContext.snapshotAndClear();
             throw exception;
         }
+    }
+
+    private boolean usePipeline() {
+        return true;
     }
 
     private String currentBusinessDate() {

@@ -146,11 +146,16 @@ app:
     working-directory: ${LOCAL_FRONTEND_WORKING_DIRECTORY:frontend}
   ai:
     conversation-ttl-seconds: ${APP_AI_CONVERSATION_TTL_SECONDS:3600}
+    tool:
+      max-calls: ${APP_AI_TOOL_MAX_CALLS:8}
+    query-cursor:
+      ttl-minutes: ${APP_AI_QUERY_CURSOR_TTL_MINUTES:60}
     token-usage:
       enabled: ${APP_AI_TOKEN_USAGE_ENABLED:true}
     sse:
       timeout-ms: ${APP_AI_SSE_TIMEOUT_MS:180000}
       legacy-get-enabled: ${APP_AI_SSE_LEGACY_GET_ENABLED:true}
+      heartbeat-seconds: ${APP_AI_SSE_HEARTBEAT_SECONDS:10}
     rag:
       enabled: ${APP_AI_RAG_ENABLED:${APP_AI_MEMORY_QDRANT_ENABLED:true}}
       index-on-startup: ${APP_AI_RAG_INDEX_ON_STARTUP:true}

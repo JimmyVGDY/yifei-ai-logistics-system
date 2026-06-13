@@ -30,7 +30,8 @@ class AiAssistantServiceTest {
                 mock(AiMemoryService.class),
                 mock(AiFallbackHandler.class),
                 mock(AiMessageFeedbackMapper.class),
-                mock(CompactSnowflakeIdGenerator.class)
+                mock(CompactSnowflakeIdGenerator.class),
+                mock(AiChatPipeline.class)
         );
         AiConversationVO conversation = new AiConversationVO(
                 "c1",

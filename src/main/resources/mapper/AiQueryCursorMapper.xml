@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jimmy.ai.mapper.AiQueryCursorMapper">
+
+    <insert id="insertCursor" parameterType="jimmy.ai.model.AiQueryCursor">
+        insert into ai_query_cursor (
+            id, cursor_id, conversation_id, user_id, user_code,
+            tool_type, tool_name, module_code, module_name,
+            keyword, start_time, end_time, status_filter,
+            page, page_size, total, returned_count, query_summary,
+            expires_at, created_at, updated_at, deleted
+        )
+        values (
+            #{id}, #{cursorId}, #{conversationId}, #{userId}, #{userCode},
+            #{toolType}, #{toolName}, #{moduleCode}, #{moduleName},
+            #{keyword}, #{startTime}, #{endTime}, #{statusFilter},
+            #{page}, #{pageSize}, #{total}, #{returnedCount}, #{querySummary},
+            #{expiresAt}, current_timestamp, current_timestamp, 0
+        )
+    </insert>
+
+    <select id="selectLatestActive" resultType="jimmy.ai.model.AiQueryCursor">
+        select id,
+               cursor_id as cursorId,
+               conversation_id as conversationId,
+               user_id as userId,
+               user_code as userCode,
+               tool_type as toolType,
+               tool_name as toolName,
+               module_code as moduleCode,
+               module_name as moduleName,
+               keyword,
+               start_time as startTime,
+               end_time as endTime,
+               status_filter as statusFilter,
+               page,
+               page_size as pageSize,
+               total,
+               returned_count as returnedCount,
+               query_summary as querySummary,
+               expires_at as expiresAt
+        from ai_query_cursor
+        where conversation_id = #{conversationId}
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and deleted = 0
+          and expires_at > current_timestamp
+        order by created_at desc, id desc
+        limit 1
+    </select>
+
+    <update id="markDeleted">
+        update ai_query_cursor
+        set deleted = 1,
+            updated_at = current_timestamp
+        where cursor_id = #{cursorId}
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+    </update>
+</mapper>

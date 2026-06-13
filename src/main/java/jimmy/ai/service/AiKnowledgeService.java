@@ -64,16 +64,19 @@ public class AiKnowledgeService {
             return List.of();
         }
 
-        // 1. 优先 Qdrant 语义搜索
+        // 1. 先做向量语义搜索，再叠加关键词精确命中，减少泛文档误引用。
         List<AiCitation> vectorResults = vectorSearch(normalized);
-        if (!vectorResults.isEmpty()) {
-            log.debug("AI 知识检索命中语义搜索结果，count={}", vectorResults.size());
-            return vectorResults;
+        List<AiCitation> keywordResults = keywordFallback(normalized, false);
+        List<AiCitation> merged = mergeCitations(vectorResults, keywordResults);
+        if (!merged.isEmpty()) {
+            log.debug("AI 知识检索命中混合检索结果，vectorCount={}, keywordCount={}, mergedCount={}",
+                    vectorResults.size(), keywordResults.size(), merged.size());
+            return merged;
         }
 
-        // 2. 降级为关键词匹配
-        log.debug("AI 知识检索降级为关键词匹配，keyword={}", normalized);
-        return keywordFallback(normalized);
+        // 2. 仍无结果时保留原 README 兜底，避免用户询问系统概览时完全无参考资料。
+        log.debug("AI 知识检索未命中精确结果，使用 README 兜底，keyword={}", normalized);
+        return keywordFallback(normalized, true);
     }
 
     /**
@@ -139,7 +142,7 @@ public class AiKnowledgeService {
     /**
      * 关键词降级匹配：原有关键词 indexOf 逻辑。
      */
-    private List<AiCitation> keywordFallback(String keyword) {
+    private List<AiCitation> keywordFallback(String keyword, boolean includeDefaultReadme) {
         String normalized = keyword.toLowerCase(Locale.ROOT);
         List<AiCitation> citations = new ArrayList<>();
         for (Path path : candidateDocuments()) {
@@ -153,7 +156,7 @@ public class AiKnowledgeService {
                 String content = Files.readString(path, StandardCharsets.UTF_8);
                 String lowerContent = content.toLowerCase(Locale.ROOT);
                 int index = StringUtils.hasText(normalized) ? lowerContent.indexOf(normalized) : -1;
-                if (index < 0 && !path.getFileName().toString().equalsIgnoreCase("README.md")) {
+                if (index < 0 && (!includeDefaultReadme || !path.getFileName().toString().equalsIgnoreCase("README.md"))) {
                     continue;
                 }
                 citations.add(new AiCitation("DOC", path.getFileName().toString(), path.toString(), snippet(content, Math.max(index, 0))));
@@ -162,6 +165,25 @@ public class AiKnowledgeService {
             }
         }
         return citations;
+    }
+
+    private List<AiCitation> mergeCitations(List<AiCitation> first, List<AiCitation> second) {
+        List<AiCitation> merged = new ArrayList<>();
+        for (AiCitation citation : first) {
+            addCitation(merged, citation);
+        }
+        for (AiCitation citation : second) {
+            addCitation(merged, citation);
+        }
+        return merged.size() > 5 ? merged.subList(0, 5) : merged;
+    }
+
+    private void addCitation(List<AiCitation> merged, AiCitation citation) {
+        boolean exists = merged.stream()
+                .anyMatch(item -> item.reference().equals(citation.reference()) && item.title().equals(citation.title()));
+        if (!exists) {
+            merged.add(citation);
+        }
     }
 
     private boolean qdrantReady() {
