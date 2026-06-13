@@ -83,8 +83,8 @@
                        <choose><when test="deletedExists">e.deleted</when><otherwise>0</otherwise></choose> as deleted_marker
                 from logistics_exception e
                 left join logistics_order o on o.id = e.order_id
-                left join sys_user ru on concat('', ru.id) = e.report_user
-                left join sys_user hu on concat('', hu.id) = e.handle_user
+                left join sys_user ru on cast(ru.id as char) = e.report_user
+                left join sys_user hu on cast(hu.id as char) = e.handle_user
             </when>
             <when test="module == 'fees'">
                 select f.id, f.order_id, o.order_no, f.base_fee, f.weight_fee, f.distance_fee,
