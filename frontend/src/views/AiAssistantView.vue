@@ -185,7 +185,7 @@
               :data="previewRows(result)"
               size="small"
               border
-              max-height="260"
+              max-height="180"
               class="data-preview-table"
             >
               <el-table-column
@@ -999,7 +999,7 @@ onBeforeUnmount(() => {
 }
 
 .chat-shell {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   padding: 16px;
   background: #f4f7fb;
@@ -1317,11 +1317,18 @@ onBeforeUnmount(() => {
 }
 
 .ai-meta {
+  flex: 0 0 auto;
+  max-height: min(360px, 36vh);
+  overflow: hidden;
   padding: 0 16px;
+  border-top: 1px solid #e8eef7;
   background: #fff;
 }
 
 .data-result-panel {
+  max-height: min(300px, 30vh);
+  overflow-y: auto;
+  padding-right: 6px;
   padding: 12px 0;
   border-bottom: 1px solid #eef2f7;
 }
@@ -1331,6 +1338,7 @@ onBeforeUnmount(() => {
   border: 1px solid #dbe7f6;
   border-radius: 8px;
   background: #f8fbff;
+  min-width: 0;
 }
 
 .data-result-card + .data-result-card {
@@ -1343,6 +1351,11 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 10px;
+  min-width: 0;
+}
+
+.data-result-head > div {
+  min-width: 0;
 }
 
 .data-result-head strong {
@@ -1356,11 +1369,17 @@ onBeforeUnmount(() => {
   color: #64748b;
   font-size: 13px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .data-preview-table,
 .data-full-table {
   width: 100%;
+}
+
+.data-preview-table :deep(.cell),
+.data-full-table :deep(.cell) {
+  white-space: nowrap;
 }
 
 .data-drawer-header {
