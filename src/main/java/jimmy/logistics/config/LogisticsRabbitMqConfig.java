@@ -10,6 +10,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * 物流订单 RabbitMQ 配置 —— 声明 Exchange/Queue/Binding，消息持久化。
  */
@@ -25,7 +28,29 @@ public class LogisticsRabbitMqConfig {
 
     @Bean
     public Queue logisticsOrderCreatedQueue(LogisticsProperties properties) {
-        return new Queue(properties.getMq().getOrderCreatedQueue(), true);
+        Map<String, Object> args = new HashMap<>();
+        args.put("x-dead-letter-exchange", properties.getMq().getOrderExchange() + ".dlx");
+        args.put("x-dead-letter-routing-key", properties.getMq().getOrderCreatedRoutingKey() + ".dlq");
+        return new Queue(properties.getMq().getOrderCreatedQueue(), true, false, false, args);
+    }
+
+    @Bean
+    public DirectExchange logisticsOrderDeadLetterExchange(LogisticsProperties properties) {
+        return new DirectExchange(properties.getMq().getOrderExchange() + ".dlx", true, false);
+    }
+
+    @Bean
+    public Queue logisticsOrderDeadLetterQueue(LogisticsProperties properties) {
+        return new Queue(properties.getMq().getOrderCreatedQueue() + ".dlq", true);
+    }
+
+    @Bean
+    public Binding logisticsOrderDeadLetterBinding(@Qualifier("logisticsOrderDeadLetterQueue") Queue dlq,
+                                                    @Qualifier("logisticsOrderDeadLetterExchange") DirectExchange dlx,
+                                                    LogisticsProperties properties) {
+        return BindingBuilder.bind(dlq)
+                .to(dlx)
+                .with(properties.getMq().getOrderCreatedRoutingKey() + ".dlq");
     }
 
     @Bean

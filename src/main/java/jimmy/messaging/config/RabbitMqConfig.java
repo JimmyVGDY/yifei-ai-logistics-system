@@ -12,6 +12,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * RabbitMQ 演示消息配置 —— 声明演示 Exchange/Queue/Binding + JSON 消息转换器。
  */
@@ -33,7 +36,29 @@ public class RabbitMqConfig {
 
     @Bean
     public Queue demoQueue(RabbitMqProperties properties) {
-        return new Queue(properties.getDemoQueue(), true);
+        Map<String, Object> args = new HashMap<>();
+        args.put("x-dead-letter-exchange", properties.getDemoExchange() + ".dlx");
+        args.put("x-dead-letter-routing-key", properties.getDemoRoutingKey() + ".dlq");
+        return new Queue(properties.getDemoQueue(), true, false, false, args);
+    }
+
+    @Bean
+    public DirectExchange demoDeadLetterExchange(RabbitMqProperties properties) {
+        return new DirectExchange(properties.getDemoExchange() + ".dlx", true, false);
+    }
+
+    @Bean
+    public Queue demoDeadLetterQueue(RabbitMqProperties properties) {
+        return new Queue(properties.getDemoQueue() + ".dlq", true);
+    }
+
+    @Bean
+    public Binding demoDeadLetterBinding(@Qualifier("demoDeadLetterQueue") Queue dlq,
+                                         @Qualifier("demoDeadLetterExchange") DirectExchange dlx,
+                                         RabbitMqProperties properties) {
+        return BindingBuilder.bind(dlq)
+                .to(dlx)
+                .with(properties.getDemoRoutingKey() + ".dlq");
     }
 
     @Bean
