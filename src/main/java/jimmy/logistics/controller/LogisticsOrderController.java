@@ -58,7 +58,7 @@ public class LogisticsOrderController {
 
     @OperationLog("运单管理-搜索订单")
     @GetMapping("/search")
-    public ApiResponse<PageResult<LogisticsOrderVO>> search(OrderSearchQueryDTO query) {
+    public ApiResponse<PageResult<LogisticsOrderVO>> search(@Valid OrderSearchQueryDTO query) {
         return ApiResponse.success(logisticsOrderSearchService.search(query));
     }
 }

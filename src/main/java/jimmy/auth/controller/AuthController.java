@@ -89,7 +89,7 @@ public class AuthController {
     /** 修改个人资料 */
     @OperationLog("修改个人资料")
     @PutMapping("/profile")
-    public ApiResponse<Boolean> updateProfile(@RequestBody ProfileUpdateRequest request) {
+    public ApiResponse<Boolean> updateProfile(@Valid @RequestBody ProfileUpdateRequest request) {
         authService.updateProfile(request);
         return ApiResponse.success(Boolean.TRUE);
     }

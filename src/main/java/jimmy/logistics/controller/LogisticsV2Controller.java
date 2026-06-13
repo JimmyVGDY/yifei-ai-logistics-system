@@ -74,7 +74,7 @@ public class LogisticsV2Controller {
     @OperationLog("新增管理模块记录")
     @PostMapping("/modules/{module}")
     public ApiResponse<OperationResultVO> createModuleRecord(@PathVariable String module,
-                                                             @RequestBody ModuleMutationDTO payload) {
+                                                             @Valid @RequestBody ModuleMutationDTO payload) {
         return ApiResponse.success(logisticsCrudService.create(module, payload.getValues()));
     }
 
@@ -82,7 +82,7 @@ public class LogisticsV2Controller {
     @PostMapping("/modules/{module}/{id}")
     public ApiResponse<OperationResultVO> updateModuleRecord(@PathVariable String module,
                                                              @PathVariable long id,
-                                                             @RequestBody ModuleMutationDTO payload) {
+                                                             @Valid @RequestBody ModuleMutationDTO payload) {
         return ApiResponse.success(logisticsCrudService.update(module, id, payload.getValues()));
     }
 

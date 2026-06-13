@@ -10,7 +10,9 @@ import jimmy.system.model.PermissionTreeNodeVO;
 import jimmy.system.model.PermissionVO;
 import jimmy.system.model.RoleMenuUpdateRequest;
 import jimmy.system.model.UserPermissionVO;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -61,13 +63,20 @@ public class SystemPermissionService {
     /**
      * 权限基础设施自检 —— 应用启动时执行一次，创建表/菜单/权限并同步初始授权。
      * <p>
-     * DDL 和权限同步仅首次执行（权限表无数据时），后续人工调整不被覆盖。
+     * DDL（CREATE TABLE IF NOT EXISTS）仅用于开发/H2 环境的快速搭建，生产环境建议使用迁移脚本。
+     * 通过 {@code app.permission.auto-ddl} 控制是否自动建表，默认开启。
      */
+    @Value("${app.permission.auto-ddl:true}")
+    private boolean autoDdl;
+
     @PostConstruct
     public void ensurePermissionInfrastructure() {
-        systemPermissionMapper.createPermissionTable();
-        systemPermissionMapper.createRolePermissionTable();
-        systemPermissionMapper.createUserPermissionTable();
+        if (autoDdl) {
+            log.info("自动建表已启用（app.permission.auto-ddl=true），生产环境建议关闭并使用迁移脚本");
+            systemPermissionMapper.createPermissionTable();
+            systemPermissionMapper.createRolePermissionTable();
+            systemPermissionMapper.createUserPermissionTable();
+        }
         ensureStandardMenus();
         ensurePermissionMenu();
         ensurePermissionCatalog();
