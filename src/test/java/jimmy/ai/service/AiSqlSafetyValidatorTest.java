@@ -7,10 +7,13 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 class AiSqlSafetyValidatorTest {
 
@@ -59,9 +62,16 @@ class AiSqlSafetyValidatorTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("敏感");
 
-        assertThatThrownBy(() -> validator.validate("select request_params from sys_operation_log"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("敏感");
+        ColumnPermissionResolver resolver = mock(ColumnPermissionResolver.class);
+        when(resolver.allowedColumns("system:log")).thenReturn(Set.of());
+        AiSqlSafetyValidator validatorWithColumnPermission =
+                new AiSqlSafetyValidator(schemaRegistry, columnRegistry, resolver);
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("system:log:query")).thenReturn(true);
+            assertThatThrownBy(() -> validatorWithColumnPermission.validate("select request_params from sys_operation_log"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("敏感");
+        }
     }
 
     @Test
@@ -103,16 +113,34 @@ class AiSqlSafetyValidatorTest {
                 .contains("logistics_inventory")
                 .contains("logistics_freight_bill")
                 .contains("sys_permission")
-                .contains("ai_conversation")
                 .contains("load_capacity_kg")
                 .contains("payable_fee");
         assertThat(schema)
+                .contains("logistics_waybill(id, waybill_no, order_id")
+                .contains("logistics_fee(id, order_id, base_fee")
+                .contains("logistics_exception(id, order_id, task_id");
+        assertThat(schema)
+                .doesNotContain("- ai_conversation(")
                 .doesNotContain("transport_fee")
-                .doesNotContain("total_fee");
+                .doesNotContain("total_fee")
+                .doesNotContain("logistics_waybill(id, waybill_no, order_id, order_no")
+                .doesNotContain("logistics_fee(id, order_id, order_no")
+                .doesNotContain("logistics_exception(id, order_id, order_no");
     }
 
     @Test
-    void shouldAllowResourceAndAiAuditTablesWithExpectedPermissions() {
+    void shouldExposeBusinessColumnsWhenRegistryUsesDefaultConstructor() {
+        String schema = new AiReadableSchemaRegistry().schemaPrompt();
+
+        assertThat(schema)
+                .contains("logistics_order")
+                .contains("order_no")
+                .contains("customer_name")
+                .contains("created_at");
+    }
+
+    @Test
+    void shouldAllowResourceTablesAndRejectAiInternalTables() {
         try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
             stp.when(() -> StpUtil.hasPermission("resource:query")).thenReturn(true);
             stp.when(() -> StpUtil.hasPermission("ai:log:analyze")).thenReturn(true);
@@ -120,8 +148,79 @@ class AiSqlSafetyValidatorTest {
 
             assertThat(validator.validate("select warehouse_name from logistics_warehouse").tables())
                     .containsExactly("logistics_warehouse");
-            assertThat(validator.validate("select conversation_id, message_count from ai_conversation").tables())
-                    .containsExactly("ai_conversation");
+            assertThatThrownBy(() -> validator.validate("select conversation_id, message_count from ai_conversation"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("内部数据");
+        }
+    }
+
+    @Test
+    void shouldRejectCommaJoinBecauseItCanHideUncheckedTables() {
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("order:query")).thenReturn(true);
+            stp.when(() -> StpUtil.hasPermission("system:user:query")).thenReturn(false);
+
+            assertThatThrownBy(() -> validator.validate("""
+                    select o.order_no, u.username
+                    from logistics_order o, sys_user u
+                    where o.customer_id = u.customer_id
+                    """))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("逗号连表");
+        }
+    }
+
+    @Test
+    void shouldAllowSensitiveBusinessColumnOnlyWhenColumnPermissionGranted() {
+        ColumnPermissionResolver resolver = mock(ColumnPermissionResolver.class);
+        when(resolver.allowedColumns("fee")).thenReturn(Set.of("payable_fee"));
+        AiSqlSafetyValidator validatorWithColumnPermission =
+                new AiSqlSafetyValidator(schemaRegistry, columnRegistry, resolver);
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("fee:query")).thenReturn(true);
+
+            AiSqlSafetyValidator.ValidatedSql sql = validatorWithColumnPermission.validate("""
+                    select sum(payable_fee) as payable_total
+                    from logistics_fee
+                    """);
+
+            assertThat(sql.tables()).containsExactly("logistics_fee");
+        }
+    }
+
+    @Test
+    void shouldRejectSensitiveBusinessColumnWhenColumnPermissionMissing() {
+        ColumnPermissionResolver resolver = mock(ColumnPermissionResolver.class);
+        when(resolver.allowedColumns("fee")).thenReturn(Set.of());
+        AiSqlSafetyValidator validatorWithColumnPermission =
+                new AiSqlSafetyValidator(schemaRegistry, columnRegistry, resolver);
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("fee:query")).thenReturn(true);
+
+            assertThatThrownBy(() -> validatorWithColumnPermission.validate("""
+                    select sum(payable_fee) as payable_total
+                    from logistics_fee
+                    """))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("敏感列");
+        }
+    }
+
+    @Test
+    void shouldTrackColumnAliasBackToSourceColumn() {
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("order:query")).thenReturn(true);
+
+            AiSqlSafetyValidator.ValidatedSql sql = validator.validate("""
+                    select o.order_no as 订单号, count(*) as order_count
+                    from logistics_order o
+                    group by o.order_no
+                    """);
+
+            assertThat(sql.resultColumnSources()).containsEntry("订单号", "order_no");
+            assertThat(sql.resultColumnSources()).doesNotContainKey("order_count");
         }
     }
 }

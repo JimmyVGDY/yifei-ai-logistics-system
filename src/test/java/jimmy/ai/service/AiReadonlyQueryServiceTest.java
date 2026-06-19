@@ -216,7 +216,11 @@ class AiReadonlyQueryServiceTest {
             AiReadonlyQueryResult result = service.query("查看剩余的28条", "我要看今天的订单的详细数据");
 
             assertThat(result.executed()).isTrue();
-            assertThat(result.answerContext()).contains("运单管理", "共匹配 48 条记录", "LO-TEST-REMAIN");
+            assertThat(result.answerContext())
+                    .contains("运单管理", "共匹配 48 条记录", "结构化记录")
+                    .doesNotContain("LO-TEST-REMAIN");
+            assertThat(result.rows()).hasSize(1);
+            assertThat(result.rows().getFirst()).containsEntry("订单号", "LO-TEST-REMAIN");
             verify(requirementService).modulePage(eq("orders"), any(ModuleQueryDTO.class));
         }
     }
