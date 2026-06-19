@@ -747,27 +747,36 @@ function renderMarkdown(content) {
  * 这里只做展示层兜底，不改变后端只读查询、权限和脱敏逻辑。
  */
 function normalizeDataResults(results) {
-  return (results || [])
-    .map((item) => {
-      const rows = Array.isArray(item.rows) ? item.rows : []
-      const columns = Array.isArray(item.columns) && item.columns.length
-        ? item.columns
-        : Object.keys(rows[0] || {})
-      return {
-        toolName: item.toolName || '业务数据查询',
-        target: item.target || '查询结果',
-        summary: item.summary || item.result || '',
-        columns,
-        rows,
-        cursorId: item.cursorId || '',
-        total: Number(item.total ?? rows.length),
-        returnedCount: Number(item.returnedCount ?? rows.length),
-        remainingCount: Number(item.remainingCount ?? 0),
-        hasMore: item.hasMore === true,
-        nextPageHint: item.nextPageHint || ''
-      }
-    })
-    .filter((item) => item.rows.length)
+  const merged = new Map()
+  for (const item of (results || [])) {
+    const rows = Array.isArray(item.rows) ? item.rows : []
+    if (!rows.length) {
+      continue
+    }
+    const columns = Array.isArray(item.columns) && item.columns.length
+      ? item.columns
+      : Object.keys(rows[0] || {})
+    const normalized = {
+      toolName: item.toolName || '业务数据查询',
+      target: item.target || '查询结果',
+      summary: item.summary || item.result || '',
+      columns,
+      rows,
+      cursorId: item.cursorId || '',
+      total: Number(item.total ?? rows.length),
+      returnedCount: Number(item.returnedCount ?? rows.length),
+      remainingCount: Number(item.remainingCount ?? 0),
+      hasMore: item.hasMore === true,
+      nextPageHint: item.nextPageHint || ''
+    }
+    /*
+     * SSE 过程中可能多次收到同一查询的 tool_result，继续分页时也可能再次返回同一游标。
+     * 这里按 cursorId 优先、工具名+目标兜底做替换，避免页面堆出多张重复大表格。
+     */
+    const key = normalized.cursorId || `${normalized.toolName}-${normalized.target}`
+    merged.set(key, normalized)
+  }
+  return Array.from(merged.values())
 }
 
 function previewRows(result) {

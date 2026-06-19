@@ -14,12 +14,16 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.StringJoiner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * AI 生成 SQL 查询服务：模型只生成候选 SELECT，后端校验后执行只读查询。
@@ -33,6 +37,7 @@ public class AiGeneratedSqlQueryService {
     private static final int MAX_SQL_REPAIR_ATTEMPTS = 3;
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String CUSTOMER_SCOPE_MESSAGE = "当前账号存在客户数据范围限制，AI 暂不支持自定义关联 SQL 查询。请使用客户、订单或轨迹等普通只读查询。";
+    private static final Pattern SIMPLE_LIMIT_PATTERN = Pattern.compile("(?is)\\s+limit\\s+(\\d+)\\s*$");
 
     private final AiModelGateway modelGateway;
     private final AiSqlSafetyValidator sqlSafetyValidator;
@@ -102,8 +107,12 @@ public class AiGeneratedSqlQueryService {
                 AiSqlSafetyValidator.ValidatedSql validatedSql = sqlSafetyValidator.validate(currentSql);
                 recordSqlStage("安全校验", message, "校验通过，tables=" + validatedSql.tables(), true);
                 preflight(validatedSql.sql());
-                List<Map<String, Object>> rows = jdbcTemplate.queryForList(wrapLimit(validatedSql.sql()));
-                List<Map<String, Object>> filteredRows = filterByColumnPermission(rows);
+                List<Map<String, Object>> rows = jdbcTemplate.queryForList(applyResultLimit(validatedSql.sql()));
+                List<Map<String, Object>> filteredRows = filterByColumnPermission(rows, validatedSql);
+                if (!rows.isEmpty() && filteredRows.stream().allMatch(Map::isEmpty)) {
+                    recordSqlStage("列权限过滤", message, "查询命中数据，但当前账号无权查看返回列", false);
+                    return AiGeneratedSqlQueryResult.message("临时只读 SQL 查询完成，但当前账号无权查看返回字段。如有需要，请联系系统管理员。");
+                }
                 List<Map<String, Object>> formatted = formatRows(filteredRows);
                 String summary = summary(formatted);
                 log.info("AI 生成 SQL 查询完成，tables={}, rows={}, repairAttempt={}, sql={}",
@@ -113,8 +122,8 @@ public class AiGeneratedSqlQueryService {
                 return new AiGeneratedSqlQueryResult(true, summary, formatted);
             } catch (BadSqlGrammarException exception) {
                 if (repairAttempt >= MAX_SQL_REPAIR_ATTEMPTS) {
-                    log.warn("AI 生成 SQL 语法预检或执行失败，errorCode=SQL_SYNTAX_ERROR, repairAttempts={}, exceptionType={}",
-                            repairAttempt, exception.getClass().getSimpleName());
+                    log.warn("AI 生成 SQL 语法预检或执行失败，errorCode=SQL_SYNTAX_ERROR, repairAttempts={}, exceptionType={}, reason={}, sqlShape={}",
+                            repairAttempt, exception.getClass().getSimpleName(), syntaxErrorSummary(exception), sqlAuditDigest(currentSql));
                     recordSqlStage("执行", message, "SQL_SYNTAX_ERROR：临时查询语法错误，已纠错" + repairAttempt + "次", false);
                     return AiGeneratedSqlQueryResult.message("临时只读查询存在语法问题，已自动纠错多次仍未成功，请换一种描述后重试。");
                 }
@@ -174,9 +183,18 @@ public class AiGeneratedSqlQueryService {
         return """
                 你是物流管理系统的只读 SQL 生成器。
                 只返回一条 MySQL 兼容 SELECT 查询，不要解释，不要 Markdown，不要分号。
-                可以使用 JOIN、GROUP BY、ORDER BY、聚合函数和 WHERE 条件。
-                SELECT 输出列尽量使用中文别名，例如 customer_name as 客户名称。
+                可以使用显式 JOIN、GROUP BY、ORDER BY、聚合函数和 WHERE 条件。
+                禁止子查询、UNION 和逗号连表；多表查询必须使用显式 JOIN。
+                普通字段不要使用中文别名，保持数据库字段名作为返回列名；聚合字段可使用英文别名，例如 order_count。
                 禁止 INSERT、UPDATE、DELETE、DROP、ALTER、CREATE、TRUNCATE、REPLACE、CALL、EXECUTE。
+                常用关联关系：
+                - logistics_waybill.order_id = logistics_order.id
+                - logistics_dispatch.order_id = logistics_order.id，logistics_dispatch.waybill_id = logistics_waybill.id
+                - logistics_task.order_id = logistics_order.id，logistics_task.waybill_id = logistics_waybill.id
+                - logistics_track.order_id = logistics_order.id，logistics_track.waybill_id = logistics_waybill.id
+                - logistics_exception.order_id = logistics_order.id，logistics_exception.task_id = logistics_task.id
+                - logistics_fee.order_id = logistics_order.id
+                如果需要订单号，只能使用 logistics_order.order_no，或通过 order_id JOIN logistics_order 后读取。
                 查询必须使用下面的白名单表和字段：
                 """ + sqlSafetyValidator.schemaPrompt();
     }
@@ -191,7 +209,17 @@ public class AiGeneratedSqlQueryService {
                 你会收到用户问题和一条候选 SQL。请检查表名、字段名、JOIN 条件、聚合、别名和 MySQL 语法。
                 只允许返回一条修正后的 MySQL SELECT 查询，不要解释，不要 Markdown，不要分号。
                 如果候选 SQL 已经正确，也原样返回规范化后的 SELECT。
+                禁止子查询、UNION 和逗号连表；多表查询必须使用显式 JOIN。
+                普通字段不要使用中文别名，保持数据库字段名作为返回列名；聚合字段可使用英文别名。
                 禁止 INSERT、UPDATE、DELETE、DROP、ALTER、CREATE、TRUNCATE、REPLACE、CALL、EXECUTE。
+                常用关联关系：
+                - logistics_waybill.order_id = logistics_order.id
+                - logistics_dispatch.order_id = logistics_order.id，logistics_dispatch.waybill_id = logistics_waybill.id
+                - logistics_task.order_id = logistics_order.id，logistics_task.waybill_id = logistics_waybill.id
+                - logistics_track.order_id = logistics_order.id，logistics_track.waybill_id = logistics_waybill.id
+                - logistics_exception.order_id = logistics_order.id，logistics_exception.task_id = logistics_task.id
+                - logistics_fee.order_id = logistics_order.id
+                如果需要订单号，只能使用 logistics_order.order_no，或通过 order_id JOIN logistics_order 后读取。
                 查询必须使用下面的白名单表和字段：
                 """ + sqlSafetyValidator.schemaPrompt();
     }
@@ -205,7 +233,10 @@ public class AiGeneratedSqlQueryService {
                 你是物流管理系统的 MySQL SELECT 语法纠错器。
                 你会收到用户问题、上一轮 SQL 和数据库语法错误摘要。请修复语法、字段、别名、聚合和 JOIN 问题。
                 只允许返回一条修正后的 MySQL SELECT 查询，不要解释，不要 Markdown，不要分号。
-                不要扩大查询范围，不要新增写操作，不要返回敏感字段，不要使用 select *。
+                不要扩大查询范围，不要新增写操作，不要使用 select *。
+                禁止子查询、UNION 和逗号连表；多表查询必须使用显式 JOIN。
+                普通字段不要使用中文别名，保持数据库字段名作为返回列名；聚合字段可使用英文别名。
+                如果错误原因是 Unknown column，请只使用白名单里的真实字段；需要订单号时通过 order_id JOIN logistics_order。
                 查询必须使用下面的白名单表和字段：
                 """ + sqlSafetyValidator.schemaPrompt();
     }
@@ -225,14 +256,39 @@ public class AiGeneratedSqlQueryService {
         return LogMaskUtils.maskText(cause.getMessage());
     }
 
-    private String wrapLimit(String sql) {
-        // 外层统一加 limit，避免模型遗漏限制条件导致一次性返回过多数据。
-        return "select * from (" + sql + ") ai_readonly_result limit " + MAX_ROWS;
+    private String applyResultLimit(String sql) {
+        // 不再把 SQL 包成子查询，避免 ORDER/GROUP/JOIN 场景被外层包装破坏；只在顶层追加或收紧 LIMIT。
+        String normalized = sql.strip().replaceAll(";+$", "").strip();
+        Matcher matcher = SIMPLE_LIMIT_PATTERN.matcher(normalized);
+        if (!matcher.find()) {
+            return normalized + " limit " + MAX_ROWS;
+        }
+        int limit = Integer.parseInt(matcher.group(1));
+        if (limit <= MAX_ROWS) {
+            return normalized;
+        }
+        return matcher.replaceFirst(" limit " + MAX_ROWS).strip();
     }
 
     private void preflight(String sql) {
-        // 先用 limit 0 做语法预检，避免真实查询阶段才暴露 SQL 语法问题。
-        jdbcTemplate.queryForList("select * from (" + sql + ") ai_readonly_check limit 0");
+        // 使用 EXPLAIN 做语法和字段预检，不执行真实数据读取，也不改变原 SQL 结构。
+        jdbcTemplate.queryForList("explain " + sql);
+    }
+
+    private String sqlAuditDigest(String sql) {
+        if (!StringUtils.hasText(sql)) {
+            return "-";
+        }
+        String digest = sql
+                .replaceAll("'([^'\\\\]|\\\\.)*'", "'?'")
+                .replaceAll("\"([^\"\\\\]|\\\\.)*\"", "\"?\"")
+                .replaceAll("\\b\\d+(?:\\.\\d+)?\\b", "?")
+                .replaceAll("\\s+", " ")
+                .strip();
+        if (digest.length() > 300) {
+            return digest.substring(0, 300) + "...";
+        }
+        return digest;
     }
 
     private void recordSqlStage(String stage, String promptSummary, String resultSummary, boolean success) {
@@ -262,25 +318,72 @@ public class AiGeneratedSqlQueryService {
     }
 
     /**
-     * 按 RBAC 列权限过滤查询结果：用户无权查看的列（snake_case 字段名）会被移除。
+     * 按 RBAC 列权限过滤查询结果：用户无权查看的业务列会被移除。
      * <p>
-     * 使用全局并集（所有模块列权限的汇总），因为自定义 SQL 无法确定结果属于哪个模块。
+     * 普通业务列按 SQL 校验阶段识别出的“结果列 -> 原始字段”映射过滤；
+     * 聚合统计列（如 order_count）没有对应原始字段，在安全校验已通过的前提下允许展示。
      */
-    private List<Map<String, Object>> filterByColumnPermission(List<Map<String, Object>> rows) {
-        java.util.Set<String> allowed = columnPermissionResolver.allGlobalColumns();
-        if (allowed.isEmpty()) return rows; // 无列权限定义时放行
+    private List<Map<String, Object>> filterByColumnPermission(List<Map<String, Object>> rows,
+                                                               AiSqlSafetyValidator.ValidatedSql validatedSql) {
+        Set<String> allowed = new LinkedHashSet<>();
+        Set<String> registeredColumns = new LinkedHashSet<>();
+        for (AiReadableSchemaRegistry.TableRule rule : validatedSql.tableRules()) {
+            registeredColumns.addAll(rule.columnSet());
+            allowed.addAll(columnPermissionResolver.allowedColumns(rule.moduleCode()));
+        }
+        Map<String, String> resultColumnSources = validatedSql.resultColumnSources();
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Map<String, Object> row : rows) {
             Map<String, Object> filtered = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : row.entrySet()) {
-                if (allowed.contains(entry.getKey())) {
+                String resultColumn = normalizeResultColumn(entry.getKey());
+                String sourceColumn = resultColumnSources.get(resultColumn);
+                if (sourceColumn != null) {
+                    if (allowed.contains(sourceColumn)) {
+                        filtered.put(entry.getKey(), entry.getValue());
+                    }
+                    continue;
+                }
+                if (registeredColumns.contains(resultColumn)) {
+                    if (allowed.contains(resultColumn)) {
+                        filtered.put(entry.getKey(), entry.getValue());
+                    }
+                    continue;
+                }
+                if (isSafeDerivedColumn(resultColumn)) {
                     filtered.put(entry.getKey(), entry.getValue());
                 }
             }
             result.add(filtered);
         }
         return result;
+    }
+
+    private String normalizeResultColumn(String columnName) {
+        return columnName == null ? "" : columnName.replace("`", "").trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * 聚合/统计结果列不在业务列注册表中，例如 order_count、total_amount。
+     * 这里只允许简单别名，避免模型把复杂表达式或明显敏感名称作为“派生列”绕过过滤。
+     */
+    private boolean isSafeDerivedColumn(String columnName) {
+        if (!StringUtils.hasText(columnName)) {
+            return false;
+        }
+        if (!columnName.matches("[a-z0-9_\\u4e00-\\u9fa5]+")) {
+            return false;
+        }
+        String lower = columnName.toLowerCase(Locale.ROOT);
+        return !(lower.contains("password")
+                || lower.contains("token")
+                || lower.contains("secret")
+                || lower.contains("mobile")
+                || lower.contains("phone")
+                || lower.contains("email")
+                || lower.contains("address")
+                || lower.contains("license"));
     }
 
     private String summary(List<Map<String, Object>> rows) {
