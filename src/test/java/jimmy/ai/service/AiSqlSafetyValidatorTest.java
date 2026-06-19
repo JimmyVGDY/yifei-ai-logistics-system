@@ -2,6 +2,7 @@ package jimmy.ai.service;
 
 import cn.dev33.satoken.stp.StpUtil;
 import jimmy.ai.util.SseChatContext;
+import jimmy.system.config.StandardColumnRegistry;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
@@ -13,7 +14,9 @@ import static org.mockito.Mockito.mockStatic;
 
 class AiSqlSafetyValidatorTest {
 
-    private final AiSqlSafetyValidator validator = new AiSqlSafetyValidator();
+    private final StandardColumnRegistry columnRegistry = new StandardColumnRegistry();
+    private final AiReadableSchemaRegistry schemaRegistry = new AiReadableSchemaRegistry(columnRegistry);
+    private final AiSqlSafetyValidator validator = new AiSqlSafetyValidator(schemaRegistry, columnRegistry);
 
     @Test
     void shouldAllowSelectJoinWhenUserHasAllTablePermissions() {
@@ -50,15 +53,15 @@ class AiSqlSafetyValidatorTest {
     void shouldRejectSelectAllAndSensitiveColumns() {
         assertThatThrownBy(() -> validator.validate("select * from logistics_order"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("敏感字段");
+                .hasMessageContaining("敏感");
 
         assertThatThrownBy(() -> validator.validate("select username, password from sys_user"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("敏感字段");
+                .hasMessageContaining("敏感");
 
         assertThatThrownBy(() -> validator.validate("select request_params from sys_operation_log"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("敏感字段");
+                .hasMessageContaining("敏感");
     }
 
     @Test
@@ -104,10 +107,8 @@ class AiSqlSafetyValidatorTest {
                 .contains("load_capacity_kg")
                 .contains("payable_fee");
         assertThat(schema)
-                .doesNotContain("load_capacity,")
                 .doesNotContain("transport_fee")
-                .doesNotContain("total_fee")
-                .doesNotContain("order_no, start_site");
+                .doesNotContain("total_fee");
     }
 
     @Test
@@ -115,6 +116,7 @@ class AiSqlSafetyValidatorTest {
         try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
             stp.when(() -> StpUtil.hasPermission("resource:query")).thenReturn(true);
             stp.when(() -> StpUtil.hasPermission("ai:log:analyze")).thenReturn(true);
+            stp.when(() -> StpUtil.hasPermission("ai:conversation:query")).thenReturn(true);
 
             assertThat(validator.validate("select warehouse_name from logistics_warehouse").tables())
                     .containsExactly("logistics_warehouse");

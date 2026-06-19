@@ -38,7 +38,10 @@ class AiReadonlyQueryServiceTest {
                 sqlQueryService,
                 requirementService,
                 new AiQuerySummaryService(),
-                new AiSensitiveDataMasker()
+                new AiSensitiveDataMasker(),
+                null,
+                new AiToolCallContext(8),
+                null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
         when(parser.parse("查未收款费用")).thenReturn(new AiQueryIntent(
@@ -69,7 +72,10 @@ class AiReadonlyQueryServiceTest {
                 sqlQueryService,
                 requirementService,
                 new AiQuerySummaryService(),
-                new AiSensitiveDataMasker()
+                new AiSensitiveDataMasker(),
+                null,
+                new AiToolCallContext(8),
+                null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
         when(parser.parse("删除订单")).thenReturn(AiQueryIntent.forbiddenWriteIntent());
@@ -91,7 +97,10 @@ class AiReadonlyQueryServiceTest {
                 sqlQueryService,
                 requirementService,
                 new AiQuerySummaryService(),
-                new AiSensitiveDataMasker()
+                new AiSensitiveDataMasker(),
+                null,
+                new AiToolCallContext(8),
+                null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
         when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class)))
@@ -119,7 +128,10 @@ class AiReadonlyQueryServiceTest {
                 sqlQueryService,
                 requirementService,
                 new AiQuerySummaryService(),
-                new AiSensitiveDataMasker()
+                new AiSensitiveDataMasker(),
+                null,
+                new AiToolCallContext(8),
+                null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
         when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenAnswer(invocation -> {
@@ -159,7 +171,10 @@ class AiReadonlyQueryServiceTest {
                 sqlQueryService,
                 requirementService,
                 new AiQuerySummaryService(),
-                new AiSensitiveDataMasker()
+                new AiSensitiveDataMasker(),
+                null,
+                new AiToolCallContext(8),
+                null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
         when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenAnswer(invocation -> {
@@ -218,7 +233,8 @@ class AiReadonlyQueryServiceTest {
                 new AiQuerySummaryService(),
                 new AiSensitiveDataMasker(),
                 cursorService,
-                new AiToolCallContext(8)
+                new AiToolCallContext(8),
+                null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
 
@@ -421,7 +437,10 @@ class AiReadonlyQueryServiceTest {
                 sqlQueryService,
                 requirementService,
                 new AiQuerySummaryService(),
-                new AiSensitiveDataMasker()
+                new AiSensitiveDataMasker(),
+                null,
+                new AiToolCallContext(8),
+                null
         );
     }
 
