@@ -421,7 +421,7 @@ public class AiChatPipeline {
         }
     }
 
-    String latestUserMessage(AiConversationVO conversation) {
+    static String latestUserMessage(AiConversationVO conversation) {
         if (conversation == null || conversation.messages() == null) {
             return null;
         }
@@ -437,7 +437,7 @@ public class AiChatPipeline {
         return null;
     }
 
-    private boolean isContinuationRequest(String text) {
+    private static boolean isContinuationRequest(String text) {
         if (!StringUtils.hasText(text)) {
             return false;
         }
