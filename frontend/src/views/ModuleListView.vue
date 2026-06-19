@@ -82,121 +82,49 @@
       @page-size-change="handlePageSizeChange"
     />
 
-    <el-dialog v-model="crudDialogVisible" :title="crudMode === 'create' ? `新增${meta.title}` : `编辑${meta.title}`" width="720px">
-      <el-form label-position="top" :model="crudForm">
-        <el-row :gutter="16">
-          <el-col v-for="field in activeEditFields" :key="field.prop" :xs="24" :md="12">
-            <el-form-item :label="field.label">
-              <el-select v-if="field.options" v-model="crudForm[field.prop]" clearable filterable :allow-create="field.allowCreate" default-first-option style="width: 100%">
-                <el-option v-for="option in field.options" :key="option.value" :label="option.label" :value="option.value" />
-              </el-select>
-              <el-input-number v-else-if="field.type === 'number'" v-model="crudForm[field.prop]" :precision="field.precision || 0" style="width: 100%" />
-              <el-date-picker v-else-if="field.type === 'datetime'" v-model="crudForm[field.prop]" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="选择时间" style="width: 100%" />
-              <el-input v-else v-model="crudForm[field.prop]" clearable />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-      <template #footer>
-        <el-button @click="crudDialogVisible = false">取消</el-button>
-        <el-button v-if="canSubmitCrud" type="primary" :loading="saving" @click="submitCrud">保存</el-button>
-      </template>
-    </el-dialog>
+    <CrudDialog
+      v-model:visible="crudDialogVisible"
+      :title="crudMode === 'create' ? `新增${meta.title}` : `编辑${meta.title}`"
+      :form="crudForm"
+      :fields="activeEditFields"
+      :saving="saving"
+      :can-submit="canSubmitCrud"
+      @submit="submitCrud"
+    />
 
-    <el-dialog v-model="customerAccountDialogVisible" title="新增客户账号" width="760px">
-      <el-form label-position="top" :model="customerAccountForm">
-        <el-row :gutter="16">
-          <el-col :xs="24" :md="12">
-            <el-form-item label="账号类型">
-              <el-radio-group v-model="customerAccountForm.customerSubjectType">
-                <el-radio-button label="PERSONAL">个人账号</el-radio-button>
-                <el-radio-button label="ENTERPRISE">企业账号</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
-          </el-col>
-          <el-col :xs="24" :md="12">
-            <el-form-item :label="customerAccountForm.customerSubjectType === 'ENTERPRISE' ? '公司名称' : '客户名称'">
-              <el-select v-model="customerAccountForm.customerName" clearable filterable allow-create default-first-option style="width: 100%">
-                <el-option v-for="option in relationOptions.orderCustomers" :key="option.value" :label="option.label" :value="option.rawName || option.value" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :xs="24" :md="12">
-            <el-form-item label="登录账号"><el-input v-model="customerAccountForm.username" clearable /></el-form-item>
-          </el-col>
-          <el-col :xs="24" :md="12">
-            <el-form-item label="姓名"><el-input v-model="customerAccountForm.realName" clearable /></el-form-item>
-          </el-col>
-          <el-col :xs="24" :md="12">
-            <el-form-item label="手机号"><el-input v-model="customerAccountForm.mobile" maxlength="11" clearable /></el-form-item>
-          </el-col>
-          <el-col :xs="24" :md="12">
-            <el-form-item label="邮箱"><el-input v-model="customerAccountForm.email" clearable /></el-form-item>
-          </el-col>
-          <el-col :xs="24" :md="12">
-            <el-form-item label="密码"><el-input v-model="customerAccountForm.password" type="password" show-password clearable /></el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-      <template #footer>
-        <el-button @click="customerAccountDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitCustomerAccount">保存</el-button>
-      </template>
-    </el-dialog>
+    <CustomerAccountDialog
+      v-model:visible="customerAccountDialogVisible"
+      :form="customerAccountForm"
+      :customer-options="relationOptions.orderCustomers"
+      :saving="saving"
+      @submit="submitCustomerAccount"
+    />
 
-    <el-dialog v-model="exceptionDialogVisible" title="上报运输异常" width="520px">
-      <el-form label-position="top" :model="exceptionForm">
-        <el-form-item label="订单号">
-          <el-select v-model="exceptionForm.orderNo" clearable filterable style="width: 100%">
-            <el-option v-for="option in exceptionOrderOptions" :key="option.value" :label="option.label" :value="option.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="异常类型">
-          <el-select v-model="exceptionForm.exceptionType" clearable filterable style="width: 100%">
-            <el-option v-for="option in fieldOptionGroups.exceptionType" :key="option.value" :label="option.label" :value="option.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="异常描述"><el-input v-model="exceptionForm.exceptionDesc" type="textarea" :rows="3" /></el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="exceptionDialogVisible = false">取消</el-button>
-        <el-button v-if="canReportException" type="primary" :loading="saving" @click="submitException">提交</el-button>
-      </template>
-    </el-dialog>
+    <ExceptionDialog
+      v-model:visible="exceptionDialogVisible"
+      :form="exceptionForm"
+      :order-options="exceptionOrderOptions"
+      :exception-type-options="fieldOptionGroups.exceptionType"
+      :saving="saving"
+      :can-submit="canReportException"
+      @submit="submitException"
+    />
 
-    <el-dialog v-model="feeDialogVisible" title="生成订单费用" width="420px">
-      <el-form label-position="top" :model="feeForm">
-        <el-form-item label="订单号">
-          <el-select v-model="feeForm.orderNo" clearable filterable style="width: 100%">
-            <el-option v-for="option in exceptionOrderOptions" :key="option.value" :label="option.label" :value="option.value" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="feeDialogVisible = false">取消</el-button>
-        <el-button v-if="canGenerateFee" type="primary" :loading="saving" @click="submitFee">生成</el-button>
-      </template>
-    </el-dialog>
+    <FeeDialog
+      v-model:visible="feeDialogVisible"
+      :form="feeForm"
+      :order-options="exceptionOrderOptions"
+      :saving="saving"
+      :can-submit="canGenerateFee"
+      @submit="submitFee"
+    />
 
-    <el-drawer v-model="operationLogDetailVisible" title="操作日志详情" size="620px">
-      <div v-if="selectedOperationLog" class="log-detail">
-        <section v-for="section in visibleOperationLogDetailSections" :key="section.title" class="log-detail-section">
-          <h4>{{ section.title }}</h4>
-          <div v-for="item in section.items" :key="item.prop" class="log-detail-row">
-            <span class="log-detail-label">{{ item.label }}</span>
-            <span class="log-detail-value">{{ fullCellText(item.prop, selectedOperationLog[item.prop]) || '-' }}</span>
-            <el-button
-              v-if="selectedOperationLog[item.prop] !== undefined && selectedOperationLog[item.prop] !== null && selectedOperationLog[item.prop] !== ''"
-              link
-              type="primary"
-              @click="copyValue(fullCellText(item.prop, selectedOperationLog[item.prop]))"
-            >
-              复制
-            </el-button>
-          </div>
-        </section>
-      </div>
-    </el-drawer>
+    <OperationLogDetail
+      v-model:visible="operationLogDetailVisible"
+      :log="selectedOperationLog"
+      :sections="operationLogDetailSections"
+      :format-cell="formatCell"
+    />
   </section>
 </template>
 
@@ -220,6 +148,11 @@ import {
 } from '../api/logistics'
 import { formatDateTime, statusLabel } from '../utils/status-labels'
 import { hasPermission, canModuleAction, canShowColumn } from '../stores/auth-store'
+import CrudDialog from '../components/CrudDialog.vue'
+import CustomerAccountDialog from '../components/CustomerAccountDialog.vue'
+import ExceptionDialog from '../components/ExceptionDialog.vue'
+import FeeDialog from '../components/FeeDialog.vue'
+import OperationLogDetail from '../components/OperationLogDetail.vue'
 import ModulePagination from '../components/ModulePagination.vue'
 import ModuleToolbar from '../components/ModuleToolbar.vue'
 import {
@@ -438,20 +371,6 @@ function isCompactLogColumn(prop) {
 function openOperationLogDetail(row) {
   selectedOperationLog.value = row
   operationLogDetailVisible.value = true
-}
-
-async function copyValue(value) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(value)
-  } else {
-    const input = document.createElement('textarea')
-    input.value = value
-    document.body.appendChild(input)
-    input.select()
-    document.execCommand('copy')
-    document.body.removeChild(input)
-  }
-  ElMessage.success('已复制')
 }
 
 async function loadData() {
