@@ -19,6 +19,9 @@ public class PermissionVO {
     private String actionCode;
     /** 关联菜单ID */
     private Long menuId;
+    /** 敏感列标记（仅 COLUMN 类型使用，:view 不自动授权） */
+    private Boolean sensitiveFlag;
+
     /** 排序序号 */
     private Integer sortNo;
 
@@ -49,6 +52,10 @@ public class PermissionVO {
     public Long getMenuId() { return menuId; }
 
     public void setMenuId(Long menuId) { this.menuId = menuId; }
+
+    public Boolean getSensitiveFlag() { return sensitiveFlag; }
+
+    public void setSensitiveFlag(Boolean sensitiveFlag) { this.sensitiveFlag = sensitiveFlag; }
 
     public Integer getSortNo() { return sortNo; }
 
