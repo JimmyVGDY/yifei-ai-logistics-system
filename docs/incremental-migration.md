@@ -21,6 +21,7 @@ source scripts/sql/20260611_incremental_operation_log_archive.sql;
 source scripts/sql/20260611_incremental_ai_token_usage.sql;
 source scripts/sql/20260612_incremental_ai_document_index.sql;
 source scripts/sql/20260613_incremental_ai_query_cursor.sql;
+source scripts/sql/20260619_incremental_permission_sensitive_flag.sql;
 ```
 
 这些脚本会保留现有数据，并补充：
@@ -42,6 +43,7 @@ source scripts/sql/20260613_incremental_ai_query_cursor.sql;
 - AI 会话持久化表：`ai_conversation`、`ai_conversation_message`，服务重启后仍可回显历史会话
 - AI RAG 文档索引状态表：`ai_document_index`，用于按内容哈希跳过未变化文档，并记录索引失败原因
 - AI 查询结果游标表：`ai_query_cursor`，用于“继续看”“查看剩余数据”“下一页”等多轮追问分页
+- 权限目录敏感列标记：`sys_permission.sensitive_flag`，用于区分普通列和敏感列，避免只读角色自动获得手机号、金额、异常详情等敏感字段
 
 权限增量脚本会根据现有 `sys_menu` 和 `sys_role_menu` 推导默认权限数据，不会删除旧角色、旧用户或旧菜单。
 
