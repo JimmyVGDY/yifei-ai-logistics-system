@@ -72,6 +72,7 @@ public class StandardColumnRegistry {
         roles();
         operationLogs();
         files();
+        resources();
         dashboard();
     }
 
@@ -244,9 +245,10 @@ public class StandardColumnRegistry {
         ));
     }
 
-    // --- 费用结算 ---
+    // --- 费用结算（含 logistics_fee + logistics_freight_bill 两张表） ---
     private void fees() {
         register("fee", List.of(
+                // logistics_fee 表
                 col("id", "ID", false),
                 col("order_id", "订单ID", false),
                 col("order_no", "订单号", false),
@@ -259,7 +261,14 @@ public class StandardColumnRegistry {
                 col("actual_fee", "实收金额", true),         // 金额
                 col("payment_status", "付款状态", false),
                 col("create_time", "创建时间", false),
-                col("update_time", "更新时间", false)
+                col("update_time", "更新时间", false),
+                // logistics_freight_bill 表
+                col("bill_no", "账单号", false),
+                col("base_amount", "基础金额", true),        // 金额
+                col("fuel_surcharge", "燃油附加费", true),   // 金额
+                col("discount_amount", "优惠金额", true),    // 金额
+                col("payable_amount", "应付金额", true),     // 金额
+                col("pay_status", "支付状态", false)
         ));
     }
 
@@ -346,6 +355,36 @@ public class StandardColumnRegistry {
                 col("content_type", "类型", false),
                 col("upload_user", "上传人", false),
                 col("upload_time", "上传时间", false)
+        ));
+    }
+
+    // --- 资源中心（仓库/路线/库存，无前端 CRUD 页面，AI 可查询） ---
+    private void resources() {
+        register("resource", List.of(
+                // logistics_warehouse 表
+                col("warehouse_code", "仓库编号", false),
+                col("warehouse_name", "仓库名称", false),
+                col("province", "省份", false),
+                col("city", "城市", false),
+                col("address", "地址", false),
+                col("manager_name", "负责人", true),         // PII
+                col("contact_phone", "联系电话", true),      // PII
+                col("capacity_cubic", "库容(立方米)", false),
+                col("status", "状态", false),
+                col("created_at", "创建时间", false),
+                col("updated_at", "更新时间", false),
+                // logistics_route 表
+                col("route_code", "路线编号", false),
+                col("origin_city", "起点城市", false),
+                col("destination_city", "终点城市", false),
+                col("distance_km", "距离(km)", false),
+                col("estimated_hours", "预计耗时(h)", false),
+                // logistics_inventory 表
+                col("warehouse_id", "仓库ID", false),
+                col("sku_code", "SKU编号", false),
+                col("sku_name", "SKU名称", false),
+                col("quantity", "库存数量", false),
+                col("locked_quantity", "锁定数量", false)
         ));
     }
 
