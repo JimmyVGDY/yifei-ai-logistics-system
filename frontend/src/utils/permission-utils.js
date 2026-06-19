@@ -1,3 +1,7 @@
+/**
+ * @deprecated 请使用 auth-store 的 canModuleAction(module, action)。
+ *             保留此函数仅用于向后兼容，新代码不应再依赖它。
+ */
 export function actionPermissionFromRoutePermission(routePermission, action) {
   if (!routePermission) {
     return ''
@@ -9,6 +13,9 @@ export function actionPermissionFromRoutePermission(routePermission, action) {
   return routePermission
 }
 
+/**
+ * @deprecated 请使用 auth-store 的 canModuleAction(module, action)。
+ */
 export function canActionWithPermissions(permissions, routePermission, action) {
   const permission = actionPermissionFromRoutePermission(routePermission, action)
   return !permission || permissions.includes(permission)

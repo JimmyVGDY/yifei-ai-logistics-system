@@ -27,8 +27,17 @@
       />
     </div>
 
-    <el-table :data="records" v-loading="loading" height="640">
-      <el-table-column v-for="column in tableColumns" :key="column.prop" :prop="column.prop" :label="column.label" :min-width="column.minWidth || 120">
+    <el-alert
+      v-if="!hasVisibleColumns && !loading"
+      title="暂无权限查看此页面数据"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="column-permission-alert"
+    />
+
+    <el-table v-if="hasVisibleColumns" :data="records" v-loading="loading" height="640">
+      <el-table-column v-for="column in visibleColumns" :key="column.prop" :prop="column.prop" :label="column.label" :min-width="column.minWidth || 120">
         <template #default="{ row }">
           <span
             class="table-cell-text"
@@ -65,6 +74,7 @@
     </el-table>
 
     <ModulePagination
+      v-if="hasVisibleColumns"
       :page="page"
       :page-size="limit"
       :total="total"
@@ -170,7 +180,7 @@
 
     <el-drawer v-model="operationLogDetailVisible" title="操作日志详情" size="620px">
       <div v-if="selectedOperationLog" class="log-detail">
-        <section v-for="section in operationLogDetailSections" :key="section.title" class="log-detail-section">
+        <section v-for="section in visibleOperationLogDetailSections" :key="section.title" class="log-detail-section">
           <h4>{{ section.title }}</h4>
           <div v-for="item in section.items" :key="item.prop" class="log-detail-row">
             <span class="log-detail-label">{{ item.label }}</span>
@@ -209,8 +219,7 @@ import {
   updateModuleRecord
 } from '../api/logistics'
 import { formatDateTime, statusLabel } from '../utils/status-labels'
-import { actionPermissionFromRoutePermission } from '../utils/permission-utils'
-import { hasPermission } from '../stores/auth-store'
+import { hasPermission, canModuleAction, canShowColumn } from '../stores/auth-store'
 import ModulePagination from '../components/ModulePagination.vue'
 import ModuleToolbar from '../components/ModuleToolbar.vue'
 import {
@@ -265,7 +274,14 @@ const relationRows = reactive({
 
 const meta = computed(() => moduleMetas[route.meta.module] || moduleMetas.customers)
 const isOperationLogs = computed(() => route.meta.module === 'operationLogs')
-const tableColumns = computed(() => isOperationLogs.value ? operationLogTableColumns : meta.value.columns)
+const fullTableColumns = computed(() => isOperationLogs.value ? operationLogTableColumns : meta.value.columns)
+/** 按列权限过滤后的可见列 */
+const visibleColumns = computed(() => {
+  const mod = route.meta.module
+  if (!mod) return fullTableColumns.value
+  return fullTableColumns.value.filter((col) => canShowColumn(mod, col.prop))
+})
+const hasVisibleColumns = computed(() => visibleColumns.value.length > 0)
 const operationLogDetailSections = computed(() => [
   {
     title: '链路标识',
@@ -320,6 +336,12 @@ const operationLogDetailSections = computed(() => [
     ]
   }
 ])
+const visibleOperationLogDetailSections = computed(() => operationLogDetailSections.value
+  .map((section) => ({
+    ...section,
+    items: section.items.filter((item) => canShowColumn(route.meta.module, item.prop))
+  }))
+  .filter((section) => section.items.length > 0))
 const exceptionOrderOptions = computed(() => relationRows.orders.map((row) => ({
   value: row.order_no,
   label: relationLabel('orders', row)
@@ -331,33 +353,24 @@ const activeEditFields = computed(() => (meta.value.editFields || []).map((field
   }
   return field
 }))
-const modulePermission = computed(() => route.meta.permission || meta.value.permission)
-const canCreate = computed(() => meta.value.editable && canAction('create'))
-const canCreateCustomerAccount = computed(() => route.meta.module === 'users' && canAction('create'))
-const canUpdate = computed(() => meta.value.editable && canAction('update'))
-const canDelete = computed(() => meta.value.editable && canAction('delete'))
-const canQuery = computed(() => canAction('query'))
-const canExport = computed(() => canAction('export'))
-const canImportCustomer = computed(() => route.meta.module === 'customers' && canAction('import'))
-const canReportException = computed(() => route.meta.module === 'exceptions' && canAction('create'))
-const canHandleException = computed(() => route.meta.module === 'exceptions' && canAction('update'))
-const canGenerateFee = computed(() => route.meta.module === 'fees' && canAction('create'))
-const canPayFee = computed(() => route.meta.module === 'fees' && canAction('update'))
+const moduleCode = computed(() => route.meta.module || '')
+const canCreate = computed(() => meta.value.editable && canModuleAction(moduleCode.value, 'create'))
+const canCreateCustomerAccount = computed(() => route.meta.module === 'users' && canModuleAction(moduleCode.value, 'create'))
+const canUpdate = computed(() => meta.value.editable && canModuleAction(moduleCode.value, 'update'))
+const canDelete = computed(() => meta.value.editable && canModuleAction(moduleCode.value, 'delete'))
+const canQuery = computed(() => canModuleAction(moduleCode.value, 'query'))
+const canExport = computed(() => canModuleAction(moduleCode.value, 'export'))
+const canImportCustomer = computed(() => route.meta.module === 'customers' && canModuleAction(moduleCode.value, 'import'))
+const canReportException = computed(() => route.meta.module === 'exceptions' && canModuleAction(moduleCode.value, 'create'))
+const canHandleException = computed(() => route.meta.module === 'exceptions' && canModuleAction(moduleCode.value, 'update'))
+const canGenerateFee = computed(() => route.meta.module === 'fees' && canModuleAction(moduleCode.value, 'create'))
+const canPayFee = computed(() => route.meta.module === 'fees' && canModuleAction(moduleCode.value, 'update'))
 const showCrudColumn = computed(() => canUpdate.value || canDelete.value)
 const canSubmitCrud = computed(() => crudMode.value === 'create' ? canCreate.value : canUpdate.value)
 
 function dynamicFieldOptions(prop, module) {
   const source = relationFieldSources[module]?.[prop]
   return source ? relationOptions[source] : undefined
-}
-
-function canAction(action) {
-  const permission = actionPermission(action)
-  return hasPermission(permission)
-}
-
-function actionPermission(action) {
-  return actionPermissionFromRoutePermission(modulePermission.value, action)
 }
 
 function formatCell(prop, value) {
@@ -783,6 +796,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.column-permission-alert {
+  margin: 16px 0;
+}
+
 .table-cell-text {
   display: inline-block;
   max-width: 100%;

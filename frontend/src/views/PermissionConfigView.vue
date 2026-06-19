@@ -54,8 +54,9 @@
           >
             <template #default="{ data }">
               <div class="permission-node">
+                <span class="node-icon">{{ nodeIcon(data) }}</span>
                 <span>{{ data.label }}</span>
-                <small>{{ data.permissionCode }}</small>
+                <el-tag v-if="data.nodeType === 'COLUMN' && data.sensitiveFlag" size="small" type="warning" effect="plain">敏感</el-tag>
               </div>
             </template>
           </el-tree>
@@ -79,8 +80,9 @@
             >
               <template #default="{ data }">
                 <div class="permission-node">
+                  <span class="node-icon">{{ nodeIcon(data) }}</span>
                   <span>{{ data.label }}</span>
-                  <small>{{ data.permissionCode }}</small>
+                  <el-tag v-if="data.nodeType === 'COLUMN' && data.sensitiveFlag" size="small" type="warning" effect="plain">敏感</el-tag>
                 </div>
               </template>
             </el-tree>
@@ -103,8 +105,9 @@
             >
               <template #default="{ data }">
                 <div class="permission-node">
+                  <span class="node-icon">{{ nodeIcon(data) }}</span>
                   <span>{{ data.label }}</span>
-                  <small>{{ data.permissionCode }}</small>
+                  <el-tag v-if="data.nodeType === 'COLUMN' && data.sensitiveFlag" size="small" type="warning" effect="plain">敏感</el-tag>
                 </div>
               </template>
             </el-tree>
@@ -225,7 +228,20 @@ function selectSubject(subject) {
 
 function checkedPermissionIds(treeRef) {
   const checked = treeRef?.getCheckedKeys(false) || []
-  return checked.map((id) => Number(id)).filter(Boolean)
+  // 过滤 COLUMN_GROUP 节点（负值 ID），只保留真实权限节点（正数 ID）
+  return checked
+    .map((id) => Number(id))
+    .filter((id) => !isNaN(id) && id > 0)
+}
+
+/** 节点图标映射 */
+function nodeIcon(data) {
+  if (data.nodeType === 'COLUMN_GROUP') return '\u{1F4CA}' // 📊
+  if (data.nodeType === 'COLUMN') return '\u{1F4CB}'       // 📋
+  if (data.nodeType === 'BUTTON') return '\u{1F518}'        // 🔘
+  if (data.nodeType === 'PAGE') return '\u{1F4C4}'          // 📄
+  if (data.nodeType === 'MENU') return '\u{1F4C1}'          // 📁
+  return ''
 }
 
 function syncUserTrees(source) {

@@ -11,7 +11,7 @@ import { canVisit, clearAuthToken, firstMenuPath, hasMenus, hasPermission, isAut
 const routes = [
   { path: '/', redirect: '/dashboard' },
   { path: '/login', component: LoginView, meta: { title: '用户登录', public: true } },
-  { path: '/dashboard', component: DashboardView, meta: { title: '运营看板', permission: 'dashboard:view' } },
+  { path: '/dashboard', component: DashboardView, meta: { title: '运营看板', module: 'dashboard', permission: 'dashboard:view' } },
   { path: '/orders', component: ModuleListView, meta: { title: '运单管理', module: 'orders', permission: 'order:query', businessCreate: true } },
   { path: '/customers', component: ModuleListView, meta: { title: '客户管理', module: 'customers', permission: 'customer:query' } },
   { path: '/waybills', component: ModuleListView, meta: { title: '运单中心', module: 'waybills', permission: 'waybill:query' } },
@@ -24,11 +24,11 @@ const routes = [
   { path: '/fees', component: ModuleListView, meta: { title: '费用结算', module: 'fees', permission: 'fee:query' } },
   { path: '/system/users', component: ModuleListView, meta: { title: '用户管理', module: 'users', permission: 'system:user:query' } },
   { path: '/system/roles', component: ModuleListView, meta: { title: '角色管理', module: 'roles', permission: 'system:role:query' } },
-  { path: '/system/permissions', component: PermissionConfigView, meta: { title: '权限配置', permission: 'system:permission:query' } },
+  { path: '/system/permissions', component: PermissionConfigView, meta: { title: '权限配置', module: 'system', permission: 'system:permission:query' } },
   { path: '/system/operation-logs', component: ModuleListView, meta: { title: '操作日志', module: 'operationLogs', permission: 'system:log:view' } },
   { path: '/files', component: ModuleListView, meta: { title: '上传文件', module: 'files', permission: 'file:query' } },
-  { path: '/resources', component: ResourcesView, meta: { title: '资源中心', permission: 'resource:view' } },
-  { path: '/ai-assistant', component: AiAssistantView, meta: { title: 'AI助手', permission: 'ai:chat' } }
+  { path: '/resources', component: ResourcesView, meta: { title: '资源中心', module: 'resource', permission: 'resource:view' } },
+  { path: '/ai-assistant', component: AiAssistantView, meta: { title: 'AI助手', module: 'ai', permission: 'ai:chat' } }
 ]
 
 const router = createRouter({
