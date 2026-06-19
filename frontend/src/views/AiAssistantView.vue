@@ -358,7 +358,7 @@ import {
   restoreAiConversation,
   updateAiMemorySettings
 } from '../api/ai-assistant'
-import { hasPermission } from '../stores/auth-store'
+import { hasPermission, getAuthToken } from '../stores/auth-store'
 
 const conversations = ref([])
 const conversationStatus = ref('ACTIVE')
@@ -419,6 +419,40 @@ const FIELD_LABEL_MAP = {
   menu_name: '菜单名称', menu_path: '菜单路径', permission_code: '权限编码', sort_no: '排序号',
   created_at: '创建时间', updated_at: '更新时间', create_time: '创建时间', update_time: '更新时间',
   operation_time: '操作时间', deleted: '已删除', version: '版本号'
+}
+
+/** 中文标签 → snake_case 字段名的反向映射 */
+const LABEL_TO_FIELD = Object.fromEntries(
+  Object.entries(FIELD_LABEL_MAP).map(([field, label]) => [label, field])
+)
+
+/** 从用户的结构化权限中收集所有模块的可见列名（snake_case）全局并集 */
+function allAllowedColumns() {
+  const perms = getAuthToken().permissions
+  if (Array.isArray(perms)) return new Set()
+  const all = new Set()
+  for (const [module, scope] of Object.entries(perms)) {
+    if (module === '_standalone') continue
+    for (const col of (scope.columns || [])) {
+      all.add(col)
+    }
+  }
+  return all
+}
+
+/**
+ * 检查 displayColumns 中的列是否用户有权查看。
+ * prop 可能是 snake_case（自定义 SQL 路径）或中文标签（模块查询路径）。
+ */
+function filterVisibleColumns(columns) {
+  const allowed = allAllowedColumns()
+  if (allowed.size === 0) return columns // 无列权限数据时放行
+  return columns.filter(col => {
+    if (allowed.has(col.prop)) return true
+    // 中文标签 → snake_case 反向匹配
+    const fieldName = LABEL_TO_FIELD[col.prop]
+    return fieldName && allowed.has(fieldName)
+  })
 }
 
 /** 将数据库字段名转为中文展示名，未映射的字段使用原字段名并去除下划线首字母大写 */
@@ -744,7 +778,9 @@ function displayColumns(result) {
   const rawColumns = (Array.isArray(result?.columns) && result.columns.length)
     ? result.columns
     : Object.keys(result?.rows?.[0] || {})
-  return rawColumns.map(col => ({ prop: col, label: fieldLabel(col) }))
+  const allColumns = rawColumns.map(col => ({ prop: col, label: fieldLabel(col) }))
+  // 前端兜底过滤：按 RBAC 列权限隐藏无权列
+  return filterVisibleColumns(allColumns)
 }
 
 function openDataDrawer(result) {
