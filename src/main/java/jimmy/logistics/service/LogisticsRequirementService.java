@@ -1,6 +1,7 @@
 package jimmy.logistics.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.logistics.config.DataScopeResolver;
 import jimmy.logistics.mapper.LogisticsDashboardMapper;
 import jimmy.logistics.mapper.LogisticsModuleQueryMapper;
 import jimmy.logistics.model.LogisticsDashboardSummary;
@@ -44,16 +45,19 @@ public class LogisticsRequirementService {
     private final LogisticsModuleQueryMapper logisticsModuleQueryMapper;
     private final ColumnExistenceChecker columnChecker;
     private final FieldEncryptor fieldEncryptor;
+    private final DataScopeResolver dataScopeResolver;
     private final Map<String, ModuleQueryConfig> moduleQueryConfigs;
 
     public LogisticsRequirementService(LogisticsDashboardMapper logisticsDashboardMapper,
                                        LogisticsModuleQueryMapper logisticsModuleQueryMapper,
                                        ColumnExistenceChecker columnChecker,
-                                       FieldEncryptor fieldEncryptor) {
+                                       FieldEncryptor fieldEncryptor,
+                                       DataScopeResolver dataScopeResolver) {
         this.logisticsDashboardMapper = logisticsDashboardMapper;
         this.logisticsModuleQueryMapper = logisticsModuleQueryMapper;
         this.columnChecker = columnChecker;
         this.fieldEncryptor = fieldEncryptor;
+        this.dataScopeResolver = dataScopeResolver;
         this.moduleQueryConfigs = buildModuleQueryConfigs();
     }
 
@@ -132,18 +136,23 @@ public class LogisticsRequirementService {
                 && columnChecker.hasColumn("sys_operation_log", "operation_source")
                 && columnChecker.hasColumn("sys_operation_log", "ai_memory_id");
 
+        // 数据行级隔离：CUSTOMER 角色只看自己的数据
+        DataScopeResolver.DataScope dataScope = dataScopeResolver.resolve(module);
+        String scopeColumn = dataScope != null ? dataScope.column() : null;
+        Object scopeValue = dataScope != null ? dataScope.value() : null;
+
         // 模块、表名和可查询字段都来自后端白名单；关键词和时间范围仍通过 MyBatis 参数绑定。
         Long total = logisticsModuleQueryMapper.countModule(module, deletedExists, userCodeExists, operationLogExtendedExists,
                 operationLogErrorMessageExists, operationLogClientContextExists, operationLogChangeSummaryExists,
                 operationLogLoginSessionExists, operationLogAiAuditExists, keyword,
                 queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime,
-                getCurrentCustomerId());
+                scopeColumn, scopeValue, getCurrentCustomerId());
         List<Map<String, Object>> records = logisticsModuleQueryMapper.selectModulePage(module, deletedExists,
                 userCodeExists, operationLogExtendedExists, operationLogErrorMessageExists, operationLogClientContextExists,
                 operationLogChangeSummaryExists, operationLogLoginSessionExists, operationLogAiAuditExists, keyword,
                 queryConfig.keywordColumns, queryConfig.timeColumn, startTime, endTime,
                 queryConfig.orderColumn, pageSize, (page - 1) * pageSize,
-                getCurrentCustomerId());
+                scopeColumn, scopeValue, getCurrentCustomerId());
         // 敏感字段解密：手机号等字段从数据库读取后解密为原文
         decryptRecords(records);
         records = formatDateTimeValues(records);

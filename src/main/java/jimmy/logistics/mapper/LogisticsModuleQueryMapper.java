@@ -11,6 +11,9 @@ import java.util.Map;
  * <p>
  * 通过判断字段是否存在（如 deleted/user_code/client_ip 等）动态选择 SQL 版本，
  * 兼容增量迁移期间不同表结构。
+ * <p>
+ * 数据行级隔离通过 {@code scopeColumn} / {@code scopeValue} 参数注入，
+ * 由 {@link jimmy.logistics.config.DataScopeResolver} 统一解析。
  */
 @Mapper
 public interface LogisticsModuleQueryMapper {
@@ -29,6 +32,8 @@ public interface LogisticsModuleQueryMapper {
                      @Param("timeColumn") String timeColumn,
                      @Param("startTime") String startTime,
                      @Param("endTime") String endTime,
+                     @Param("scopeColumn") String scopeColumn,
+                     @Param("scopeValue") Object scopeValue,
                      @Param("customerId") Long customerId);
 
     List<Map<String, Object>> selectModulePage(@Param("module") String module,
@@ -48,5 +53,7 @@ public interface LogisticsModuleQueryMapper {
                                                @Param("orderColumn") String orderColumn,
                                                @Param("pageSize") int pageSize,
                                                @Param("offset") int offset,
+                                               @Param("scopeColumn") String scopeColumn,
+                                               @Param("scopeValue") Object scopeValue,
                                                @Param("customerId") Long customerId);
 }

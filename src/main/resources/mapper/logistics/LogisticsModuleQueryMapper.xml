@@ -172,19 +172,43 @@
         <if test="timeColumn != null and timeColumn != '' and endTime != null and endTime != ''">
             and ${timeColumn} &lt;= #{endTime}
         </if>
-        <!-- 客户角色数据权限隔离：只允许查看自己关联的订单数据。非客户角色(customerId=null)不应用此过滤。 -->
-        <if test="customerId != null">
+        <!--
+            数据行级隔离由 DataScopeResolver 注入 scopeColumn/scopeValue。
+            客户账号只能查看自己绑定客户的数据：直接客户表按 id 过滤，订单链路表按 order_id 反查订单归属。
+            未声明映射的模块默认返回空结果，避免字段不存在时报错或意外放开数据。
+        -->
+        <if test="scopeColumn != null and scopeValue != null">
+            <choose>
+                <when test="module == 'orders' and scopeColumn == 'customer_id'">and customer_id = #{scopeValue}</when>
+                <when test="module == 'customers' and scopeColumn == 'customer_id'">and id = #{scopeValue}</when>
+                <when test="module == 'users' and scopeColumn == 'customer_id'">and customer_id = #{scopeValue}</when>
+                <when test="module == 'operationLogs' and operationLogExtendedExists and scopeColumn == 'customer_id'">and user_id in (select u.id from sys_user u where u.customer_id = #{scopeValue})</when>
+                <when test="module == 'operationLogs'">and 1 = 0</when>
+                <!-- 以下模块通过 order_id 关联订单归属进行隔离 -->
+                <when test="module == 'waybills' and scopeColumn == 'customer_id'">and order_id in (select id from logistics_order where customer_id = #{scopeValue})</when>
+                <when test="module == 'dispatches' and scopeColumn == 'customer_id'">and order_id in (select id from logistics_order where customer_id = #{scopeValue})</when>
+                <when test="module == 'tasks' and scopeColumn == 'customer_id'">and order_id in (select id from logistics_order where customer_id = #{scopeValue})</when>
+                <when test="module == 'tracks' and scopeColumn == 'customer_id'">and order_id in (select id from logistics_order where customer_id = #{scopeValue})</when>
+                <when test="module == 'exceptions' and scopeColumn == 'customer_id'">and order_id in (select id from logistics_order where customer_id = #{scopeValue})</when>
+                <when test="module == 'fees' and scopeColumn == 'customer_id'">and order_id in (select id from logistics_order where customer_id = #{scopeValue})</when>
+                <otherwise>and 1 = 0</otherwise>
+            </choose>
+        </if>
+        <!-- 兼容旧版 customerId 参数：scopeColumn 未设置但 customerId 有值时兜底 -->
+        <if test="scopeColumn == null and customerId != null">
             <choose>
                 <when test="module == 'orders'">and customer_id = #{customerId}</when>
+                <when test="module == 'customers'">and id = #{customerId}</when>
+                <when test="module == 'users'">and customer_id = #{customerId}</when>
+                <when test="module == 'operationLogs' and operationLogExtendedExists">and user_id in (select u.id from sys_user u where u.customer_id = #{customerId})</when>
+                <when test="module == 'operationLogs'">and 1 = 0</when>
                 <when test="module == 'waybills'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
                 <when test="module == 'dispatches'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
                 <when test="module == 'tasks'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
                 <when test="module == 'tracks'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
                 <when test="module == 'exceptions'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
                 <when test="module == 'fees'">and order_id in (select id from logistics_order where customer_id = #{customerId})</when>
-                <!-- 操作日志数据隔离：客户角色只能看到同客户下用户的操作日志 -->
-                <when test="module == 'operationLogs' and operationLogExtendedExists">and user_id in (select u.id from sys_user u where u.customer_id = #{customerId})</when>
-                <when test="module == 'operationLogs'"><!-- user_id字段不存在时不应用隔离，避免全部过滤掉 --></when>
+                <otherwise>and 1 = 0</otherwise>
             </choose>
         </if>
     </sql>
