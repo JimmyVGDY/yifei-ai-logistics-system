@@ -7,6 +7,7 @@ import jimmy.logistics.annotation.OperationLog;
 import jimmy.logistics.service.LogisticsRequirementService;
 import jimmy.common.model.ApiResponse;
 import jimmy.common.model.PageResult;
+import jimmy.common.web.ColumnScope;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,11 +28,13 @@ public class LogisticsRequirementController {
     }
 
     @OperationLog("运营看板-查询统计")
+    @ColumnScope(module = "dashboard")
     @GetMapping("/dashboard")
     public ApiResponse<LogisticsDashboardSummary> dashboard() {
         return ApiResponse.success(logisticsRequirementService.dashboardSummary());
     }
 
+    @ColumnScope(module = "__from_uri__", paths = {"records"})
     @GetMapping("/modules/{module}")
     public ApiResponse<PageResult<ModuleRecordVO>> moduleRecords(@PathVariable String module,
                                                                  @RequestParam(defaultValue = "1") int page,
