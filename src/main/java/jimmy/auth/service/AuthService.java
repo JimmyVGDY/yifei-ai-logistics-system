@@ -163,19 +163,19 @@ public class AuthService {
      * 使用 getSessionByLoginId 确保与 SaPermissionConfig 读取端一致，兼容 H2 内存模式。
      */
     private LoginResponse completeLogin(LoginUser loginUser) {
-        List<String> permissions = systemPermissionService.effectivePermissionCodes(loginUser.id, loginUser.roleId);
-        List<MenuVO> menus = menuTreeBuilder.queryMenus(loginUser.roleId, permissions);
+        // 结构化权限：后端展开全部列权限，前端直接使用
+        Map<String, Map<String, Object>> structuredPermissions = systemPermissionService.structuredPermissions(loginUser.id, loginUser.roleId);
+        List<String> flatPermissions = systemPermissionService.effectivePermissionCodes(loginUser.id, loginUser.roleId);
+        List<MenuVO> menus = menuTreeBuilder.queryMenus(loginUser.roleId, flatPermissions);
         if (!menus.isEmpty()) {
-            menuTreeBuilder.addRelationQueryPermissions(loginUser.roleCode, permissions);
-            permissions = menuTreeBuilder.distinctList(permissions);
+            menuTreeBuilder.addRelationQueryPermissions(loginUser.roleCode, flatPermissions);
+            flatPermissions = menuTreeBuilder.distinctList(flatPermissions);
         } else {
-            permissions = menuTreeBuilder.distinctList(permissions);
+            flatPermissions = menuTreeBuilder.distinctList(flatPermissions);
         }
 
         // Sa-Token 会话中保存前端渲染菜单、接口鉴权和操作日志需要的最小身份信息。
         // 使用 getSessionByLoginId 可确保与 SaPermissionConfig 读取端一致，同时兼容 H2 内存模式。
-        // 登录时强制单账号单会话：新 token 生效后，旧 token 会被 Sa-Token 自动踢下线。
-        // 这里显式声明策略，避免环境变量误改全局配置后出现同一账号多处同时在线。
         StpUtil.login(loginUser.id, SaLoginModel.create().setIsConcurrent(false).setIsShare(false));
         StpUtil.getSessionByLoginId(loginUser.id).set("userCode", loginUser.userCode);
         StpUtil.getSessionByLoginId(loginUser.id).set("username", loginUser.username);
@@ -187,13 +187,14 @@ public class AuthService {
         if (loginUser.customerId != null && loginUser.customerId > 0) {
             StpUtil.getSessionByLoginId(loginUser.id).set("customerId", loginUser.customerId);
         }
-        StpUtil.getSessionByLoginId(loginUser.id).set("permissions", permissions);
+        // Sa-Token StpUtil.checkPermission 仍使用扁平 permissionCodes 字符串
+        StpUtil.getSessionByLoginId(loginUser.id).set("permissions", flatPermissions);
         StpUtil.getSessionByLoginId(loginUser.id).set("menus", menus);
 
         String tokenValue = StpUtil.getTokenValueByLoginId(loginUser.id);
         log.info("账号登录成功，userId={}, username={}, roleCode={}",
                 loginUser.id, LogMaskUtils.maskAccount(loginUser.username), loginUser.roleCode);
-        return buildResponse(loginUser, StpUtil.getTokenName(), tokenValue, permissions, menus);
+        return buildResponse(loginUser, StpUtil.getTokenName(), tokenValue, structuredPermissions, menus);
     }
 
     /**
@@ -209,24 +210,23 @@ public class AuthService {
         StpUtil.checkLogin();
         Long userId = Long.valueOf(String.valueOf(StpUtil.getLoginId()));
         LoginUser loginUser = findLoginUserById(userId);
-        // 用户被删除后 Token 可能依然有效，提前抛业务异常避免后续 NPE。
         if (loginUser == null) {
             throw new IllegalArgumentException("登录用户不存在，请重新登录");
         }
-        List<String> permissions = systemPermissionService.effectivePermissionCodes(userId, loginUser.roleId);
-        List<MenuVO> menus = menuTreeBuilder.queryMenus(loginUser.roleId, permissions);
+        Map<String, Map<String, Object>> structuredPermissions = systemPermissionService.structuredPermissions(userId, loginUser.roleId);
+        List<String> flatPermissions = systemPermissionService.effectivePermissionCodes(userId, loginUser.roleId);
+        List<MenuVO> menus = menuTreeBuilder.queryMenus(loginUser.roleId, flatPermissions);
         if (!menus.isEmpty()) {
-            menuTreeBuilder.addRelationQueryPermissions(loginUser.roleCode, permissions);
-            permissions = menuTreeBuilder.distinctList(permissions);
+            menuTreeBuilder.addRelationQueryPermissions(loginUser.roleCode, flatPermissions);
+            flatPermissions = menuTreeBuilder.distinctList(flatPermissions);
         } else {
-            permissions = menuTreeBuilder.distinctList(permissions);
+            flatPermissions = menuTreeBuilder.distinctList(flatPermissions);
         }
-        // 与会话初始化保持一致的写入策略，确保 H2 等环境下读写同一会话域。
-        StpUtil.getSessionByLoginId(userId).set("permissions", permissions);
+        StpUtil.getSessionByLoginId(userId).set("permissions", flatPermissions);
         StpUtil.getSessionByLoginId(userId).set("menus", menus);
         ensureLoginSessionId(userId);
         SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
-        return buildResponse(loginUser, tokenInfo.getTokenName(), tokenInfo.getTokenValue(), permissions, menus);
+        return buildResponse(loginUser, tokenInfo.getTokenName(), tokenInfo.getTokenValue(), structuredPermissions, menus);
     }
 
     /**
@@ -331,7 +331,7 @@ public class AuthService {
     }
 
     private LoginResponse buildResponse(LoginUser loginUser, String tokenName, String tokenValue,
-                                        List<String> permissions, List<MenuVO> menus) {
+                                        Map<String, Map<String, Object>> permissions, List<MenuVO> menus) {
         if (loginUser == null) {
             throw new IllegalArgumentException("登录用户不存在");
         }

@@ -3,7 +3,9 @@ package jimmy.auth.model;
 import jimmy.system.model.MenuVO;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 登录成功响应 —— 包含 Sa-Token 令牌、用户基本信息、权限码列表、菜单树。
@@ -32,8 +34,8 @@ public class LoginResponse {
     private String roleCode;
     /** 角色名称 */
     private String roleName;
-    /** 权限码列表 */
-    private List<String> permissions = new ArrayList<>();
+    /** 结构化权限 —— module → {actions:[], columns:[]}，含 "_standalone" 键 */
+    private Map<String, Map<String, Object>> permissions = new LinkedHashMap<>();
     /** 菜单树 */
     private List<MenuVO> menus = new ArrayList<>();
 
@@ -46,7 +48,7 @@ public class LoginResponse {
 
     public LoginResponse(String username, Object loginId, String tokenName, String tokenValue,
                          String loginSessionId, Long userId, String userCode, String usernameMasked, String realNameMasked,
-                         String roleCode, String roleName, List<String> permissions, List<MenuVO> menus) {
+                         String roleCode, String roleName, Map<String, Map<String, Object>> permissions, List<MenuVO> menus) {
         this(username, loginId, tokenName, tokenValue);
         this.loginSessionId = loginSessionId;
         this.userId = userId;
@@ -103,7 +105,7 @@ public class LoginResponse {
         return roleName;
     }
 
-    public List<String> getPermissions() {
+    public Map<String, Map<String, Object>> getPermissions() {
         return permissions;
     }
 
