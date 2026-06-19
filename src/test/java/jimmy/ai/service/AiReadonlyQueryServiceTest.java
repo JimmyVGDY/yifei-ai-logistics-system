@@ -41,6 +41,8 @@ class AiReadonlyQueryServiceTest {
                 new AiSensitiveDataMasker(),
                 null,
                 new AiToolCallContext(8),
+                null,
+                new jimmy.ai.service.PermissionEvaluator(),
                 null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
@@ -75,6 +77,8 @@ class AiReadonlyQueryServiceTest {
                 new AiSensitiveDataMasker(),
                 null,
                 new AiToolCallContext(8),
+                null,
+                new jimmy.ai.service.PermissionEvaluator(),
                 null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
@@ -100,6 +104,8 @@ class AiReadonlyQueryServiceTest {
                 new AiSensitiveDataMasker(),
                 null,
                 new AiToolCallContext(8),
+                null,
+                new jimmy.ai.service.PermissionEvaluator(),
                 null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
@@ -131,6 +137,8 @@ class AiReadonlyQueryServiceTest {
                 new AiSensitiveDataMasker(),
                 null,
                 new AiToolCallContext(8),
+                null,
+                new jimmy.ai.service.PermissionEvaluator(),
                 null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
@@ -174,6 +182,8 @@ class AiReadonlyQueryServiceTest {
                 new AiSensitiveDataMasker(),
                 null,
                 new AiToolCallContext(8),
+                null,
+                new jimmy.ai.service.PermissionEvaluator(),
                 null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
@@ -238,6 +248,8 @@ class AiReadonlyQueryServiceTest {
                 new AiSensitiveDataMasker(),
                 cursorService,
                 new AiToolCallContext(8),
+                null,
+                new jimmy.ai.service.PermissionEvaluator(),
                 null
         );
         when(sqlQueryService.query(anyString())).thenReturn(AiGeneratedSqlQueryResult.skipped());
@@ -444,6 +456,8 @@ class AiReadonlyQueryServiceTest {
                 new AiSensitiveDataMasker(),
                 null,
                 new AiToolCallContext(8),
+                null,
+                new jimmy.ai.service.PermissionEvaluator(),
                 null
         );
     }

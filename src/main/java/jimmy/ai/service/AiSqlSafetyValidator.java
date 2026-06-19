@@ -43,23 +43,26 @@ public class AiSqlSafetyValidator {
     private final AiReadableSchemaRegistry schemaRegistry;
     private final Map<String, Set<String>> dynamicSensitiveFieldsByModule;
     private final ColumnPermissionResolver columnPermissionResolver;
+    private final PermissionEvaluator permissionEvaluator;
 
     public AiSqlSafetyValidator() {
-        this(new AiReadableSchemaRegistry(), null, null);
+        this(new AiReadableSchemaRegistry(), null, null, new PermissionEvaluator());
     }
 
     public AiSqlSafetyValidator(AiReadableSchemaRegistry schemaRegistry,
                                 StandardColumnRegistry columnRegistry) {
-        this(schemaRegistry, columnRegistry, null);
+        this(schemaRegistry, columnRegistry, null, new PermissionEvaluator());
     }
 
     @Autowired
     public AiSqlSafetyValidator(AiReadableSchemaRegistry schemaRegistry,
                                 StandardColumnRegistry columnRegistry,
-                                ColumnPermissionResolver columnPermissionResolver) {
+                                ColumnPermissionResolver columnPermissionResolver,
+                                PermissionEvaluator permissionEvaluator) {
         this.schemaRegistry = schemaRegistry;
         this.dynamicSensitiveFieldsByModule = buildSensitiveFields(columnRegistry);
         this.columnPermissionResolver = columnPermissionResolver;
+        this.permissionEvaluator = permissionEvaluator;
     }
 
     /**
@@ -214,11 +217,7 @@ public class AiSqlSafetyValidator {
     );
 
     private boolean hasPermission(String permission) {
-        String sseLoginId = SseChatContext.getLoginId();
-        if (StringUtils.hasText(sseLoginId) && !"null".equalsIgnoreCase(sseLoginId)) {
-            return SseChatContext.hasPermission(permission);
-        }
-        return StpUtil.hasPermission(permission);
+        return permissionEvaluator.hasPermission(permission);
     }
 
     private boolean hasColumnPermission(String moduleCode, String field) {

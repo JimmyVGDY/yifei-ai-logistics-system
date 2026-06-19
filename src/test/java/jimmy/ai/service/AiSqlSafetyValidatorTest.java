@@ -19,7 +19,7 @@ class AiSqlSafetyValidatorTest {
 
     private final StandardColumnRegistry columnRegistry = new StandardColumnRegistry();
     private final AiReadableSchemaRegistry schemaRegistry = new AiReadableSchemaRegistry(columnRegistry);
-    private final AiSqlSafetyValidator validator = new AiSqlSafetyValidator(schemaRegistry, columnRegistry);
+    private final AiSqlSafetyValidator validator = new AiSqlSafetyValidator(schemaRegistry, columnRegistry, null, new jimmy.ai.service.PermissionEvaluator());
 
     @Test
     void shouldAllowSelectJoinWhenUserHasAllTablePermissions() {
@@ -65,7 +65,7 @@ class AiSqlSafetyValidatorTest {
         ColumnPermissionResolver resolver = mock(ColumnPermissionResolver.class);
         when(resolver.allowedColumns("system:log")).thenReturn(Set.of());
         AiSqlSafetyValidator validatorWithColumnPermission =
-                new AiSqlSafetyValidator(schemaRegistry, columnRegistry, resolver);
+                new AiSqlSafetyValidator(schemaRegistry, columnRegistry, resolver, new jimmy.ai.service.PermissionEvaluator());
         try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
             stp.when(() -> StpUtil.hasPermission("system:log:query")).thenReturn(true);
             assertThatThrownBy(() -> validatorWithColumnPermission.validate("select request_params from sys_operation_log"))
@@ -175,7 +175,7 @@ class AiSqlSafetyValidatorTest {
         ColumnPermissionResolver resolver = mock(ColumnPermissionResolver.class);
         when(resolver.allowedColumns("fee")).thenReturn(Set.of("payable_fee"));
         AiSqlSafetyValidator validatorWithColumnPermission =
-                new AiSqlSafetyValidator(schemaRegistry, columnRegistry, resolver);
+                new AiSqlSafetyValidator(schemaRegistry, columnRegistry, resolver, new jimmy.ai.service.PermissionEvaluator());
 
         try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
             stp.when(() -> StpUtil.hasPermission("fee:query")).thenReturn(true);
@@ -194,7 +194,7 @@ class AiSqlSafetyValidatorTest {
         ColumnPermissionResolver resolver = mock(ColumnPermissionResolver.class);
         when(resolver.allowedColumns("fee")).thenReturn(Set.of());
         AiSqlSafetyValidator validatorWithColumnPermission =
-                new AiSqlSafetyValidator(schemaRegistry, columnRegistry, resolver);
+                new AiSqlSafetyValidator(schemaRegistry, columnRegistry, resolver, new jimmy.ai.service.PermissionEvaluator());
 
         try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
             stp.when(() -> StpUtil.hasPermission("fee:query")).thenReturn(true);

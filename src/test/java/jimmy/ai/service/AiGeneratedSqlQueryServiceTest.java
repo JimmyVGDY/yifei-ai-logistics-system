@@ -30,7 +30,7 @@ class AiGeneratedSqlQueryServiceTest {
         ColumnPermissionResolver columnPermissionResolver = mock(ColumnPermissionResolver.class);
         StandardColumnRegistry columnRegistry = new StandardColumnRegistry();
         AiReadableSchemaRegistry schemaRegistry = new AiReadableSchemaRegistry(columnRegistry);
-        AiSqlSafetyValidator validator = new AiSqlSafetyValidator(schemaRegistry, columnRegistry, columnPermissionResolver);
+        AiSqlSafetyValidator validator = new AiSqlSafetyValidator(schemaRegistry, columnRegistry, columnPermissionResolver, new jimmy.ai.service.PermissionEvaluator());
         AiGeneratedSqlQueryService service = new AiGeneratedSqlQueryService(
                 modelGateway,
                 validator,

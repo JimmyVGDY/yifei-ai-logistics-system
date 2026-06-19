@@ -108,6 +108,7 @@ public class AiReadonlyQueryService {
     private final AiQueryCursorService cursorService;
     private final AiToolCallContext toolCallContext;
     private final ColumnPermissionResolver columnPermissionResolver;
+    private final PermissionEvaluator permissionEvaluator;
 
     public AiReadonlyQueryService(AiQueryIntentParser intentParser,
                                   AiGeneratedSqlQueryService generatedSqlQueryService,
@@ -115,7 +116,7 @@ public class AiReadonlyQueryService {
                                   AiQuerySummaryService summaryService,
                                   AiSensitiveDataMasker masker) {
         this(intentParser, generatedSqlQueryService, logisticsRequirementService, summaryService, masker, null,
-                new AiToolCallContext(8), null);
+                new AiToolCallContext(8), null, new PermissionEvaluator(), null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -126,7 +127,9 @@ public class AiReadonlyQueryService {
                                   AiSensitiveDataMasker masker,
                                   AiQueryCursorService cursorService,
                                   AiToolCallContext toolCallContext,
-                                  ColumnPermissionResolver columnPermissionResolver) {
+                                  ColumnPermissionResolver columnPermissionResolver,
+                                  PermissionEvaluator permissionEvaluator,
+                                  UserContextResolver userContextResolver) {
         this.intentParser = intentParser;
         this.generatedSqlQueryService = generatedSqlQueryService;
         this.logisticsRequirementService = logisticsRequirementService;
@@ -135,6 +138,7 @@ public class AiReadonlyQueryService {
         this.cursorService = cursorService;
         this.toolCallContext = toolCallContext;
         this.columnPermissionResolver = columnPermissionResolver;
+        this.permissionEvaluator = permissionEvaluator;
     }
 
     public AiReadonlyQueryResult query(String message) {
@@ -815,13 +819,7 @@ public class AiReadonlyQueryService {
      * 同步请求仍走 {@link StpUtil}。
      */
     private boolean hasPermission(String permission) {
-        String sseLoginId = SseChatContext.getLoginId();
-        if (sseLoginId != null) {
-            // SSE 异步线程：使用 Controller 预捕获的权限列表
-            return SseChatContext.hasPermission(permission);
-        }
-        // 同步 HTTP 请求：正常走 SaToken
-        return StpUtil.hasPermission(permission);
+        return permissionEvaluator.hasPermission(permission);
     }
 
     /**
