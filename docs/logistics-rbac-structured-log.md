@@ -38,6 +38,18 @@ source scripts/sql/20260525_incremental_base_fields_and_indexes.sql;
 
 系统会根据菜单权限自动派生按钮权限。示例：`order:manage` 会派生 `order:query`、`order:create`、`order:update`、`order:delete`、`order:export`、`order:import`；`track:view` 会派生 `track:query`、`track:export`。
 
+### 列级权限
+
+RBAC 权限体系已从两层（菜单→按钮）扩展为三层（菜单→按钮→列字段）：
+
+- **权限码格式**：`{module}:column:{fieldName}`，如 `order:column:total_amount`。
+- **展开规则**：`:manage` 角色自动获得该模块全部列权限；`:view` 角色仅获得非敏感列。
+- **敏感列**：在 `ModuleManifest` 中标记 `sensitive=true` 的列（如手机号、费用金额、驾驶证号），`:view` 角色不自动授权。
+- **管理员覆盖**：权限配置页面（`/system/permissions`）支持按角色或按用户手动追加/取消列权限。
+- **响应过滤**：标注 `@ColumnScope` 的接口会根据当前用户列权限裁剪返回值，敏感字段不返回前端。
+- **AI 对齐**：AI 查询结果同样受列权限约束，`ColumnPermissionResolver` 统一判断。
+- **模块定义**：详见 `ModuleManifest`（`system/config/ModuleManifest.java`），新增模块时在此注册列清单和敏感标记。
+
 ### 客户数据隔离
 
 客户角色不是只靠前端隐藏菜单，而是在后端强制过滤数据：

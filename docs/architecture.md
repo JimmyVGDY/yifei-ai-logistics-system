@@ -65,6 +65,17 @@ practice-project-about-develop
 - `util`: 通用工具类（含 `LogMaskUtils` 日志脱敏工具、`FieldEncryptor` 字段加密、`CrudBusinessUtils` CRUD 辅助等）。
 - `resources/mapper`: MyBatis XML 映射文件。
 
+### 关键架构组件
+
+| 组件 | 位置 | 职责 |
+|------|------|------|
+| `ModuleManifest` | `system/config/` | **新增模块的唯一入口**。定义模块码、表名、列清单和敏感标记。`StandardColumnRegistry`、`SaTokenConfig` 模块前缀映射、`ColumnFilterAdvice` 路径映射均委托于此。 |
+| `PermissionEvaluator` | `ai/service/` | SSE/HTTP 双线程环境下的统一权限判断。替代此前 8 处重复的 `SseChatContext/StpUtil` 分支。 |
+| `UserContextResolver` | `ai/service/` | 当前用户标识（ID/UserCode/RoleCode/LoginSessionId）解析，兼容 SSE 和 HTTP 线程。 |
+| `ColumnFilterAdvice` | `common/web/` | 基于 `@ColumnScope` 注解的响应字段级过滤，按 RBAC 列权限裁剪 API 返回值。 |
+| `OperationContext` | `logistics/config/` | 从 HTTP 请求中提取客户端 IP/UA/参数（脱敏后），提供 `OperationLogInterceptor` 复用。 |
+| `DataScopeResolver` | `logistics/config/` | 数据行级隔离条件解析（当前仅 CUSTOMER 角色）。 |
+
 ## 已接入组件
 
 - **Nacos Discovery**: 服务注册与发现。

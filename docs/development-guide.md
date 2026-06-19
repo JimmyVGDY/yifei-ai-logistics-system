@@ -92,6 +92,20 @@ src/main/java/jimmy/
 - **Mapper**：只定义 SQL 映射接口，XML 中编写 SQL。
 - **Entity / DTO / VO**：允许按现有代码风格使用 Lombok，关键业务字段和校验规则需要保留清晰命名与中文注释。
 
+## 新增业务模块
+
+当需要新增一个可被通用管理页维护的业务模块（如"仓储管理"）时，按以下顺序操作：
+
+1. **数据库**：执行增量迁移脚本新建表，补齐 `deleted`/`version` 字段。
+2. **`ModuleManifest`**（`system/config/ModuleManifest.java`）：添加 `register()` 调用，定义模块码、前端路由名、中文名、表名、时间列和全部列清单（含敏感标记）。这是后端列权限、CRUD 白名单、AI 可查询列的统一数据源。
+3. **`LogisticsModuleQueryMapper.xml`**：添加 `<when test="module == 'warehouses'">` 分支，编写列表查询 SQL。
+4. **`SaTokenConfig`**：无需改动——模块前缀映射由 `ModuleManifest.routeModuleToPermissionPrefix()` 自动生成。
+5. **前端 `module-metadata.js`**：添加 `moduleMeta()` 条目，定义表格列和编辑字段。
+6. **前端 `router/index.js`**：添加路由，`meta.module` 设为前端路由名（如 `warehouses`）。
+7. **权限配置页**：重启后 `SystemPermissionService` 自动为新模块生成 PAGE/BUTTON/COLUMN 权限，管理员按需分配。
+
+> 此前模块定义分散在 6 个文件中，现已收敛至 `ModuleManifest` 一处。新增模块改动点从 6→4（无需再改 `CrudConfigRegistry`、`SaTokenConfig.buildModulePermissionPrefixes()`）。
+
 ## Git 工作流
 
 ### 分支策略
