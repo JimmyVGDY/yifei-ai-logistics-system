@@ -55,6 +55,8 @@ public interface SystemPermissionMapper {
 
     int createPermissionTable();
 
+    int addSensitiveFlagColumn();
+
     int createRolePermissionTable();
 
     int createUserPermissionTable();
@@ -76,6 +78,8 @@ public interface SystemPermissionMapper {
     int countPermissionById(@Param("permissionId") Long permissionId);
 
     int insertPermission(PermissionVO permission);
+
+    int updatePermissionMetadata(PermissionVO permission);
 
     int deleteRolePermissions(@Param("roleId") Long roleId);
 

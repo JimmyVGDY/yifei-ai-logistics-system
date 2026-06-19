@@ -70,6 +70,7 @@ create table if not exists sys_permission (
     module_code varchar(64) not null,
     action_code varchar(64) not null,
     menu_id bigint null,
+    sensitive_flag tinyint not null default 0 comment '敏感列标记：1敏感，0普通',
     sort_no int not null,
     status tinyint not null,
     create_time timestamp not null,

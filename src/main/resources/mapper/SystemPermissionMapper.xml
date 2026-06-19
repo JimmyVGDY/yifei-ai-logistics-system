@@ -22,6 +22,7 @@
         <result property="moduleCode" column="module_code"/>
         <result property="actionCode" column="action_code"/>
         <result property="menuId" column="menu_id"/>
+        <result property="sensitiveFlag" column="sensitive_flag"/>
         <result property="sortNo" column="sort_no"/>
     </resultMap>
 
@@ -34,11 +35,17 @@
             module_code varchar(64) not null,
             action_code varchar(64) not null,
             menu_id bigint null,
+            sensitive_flag tinyint default 0,
             sort_no int not null,
             status tinyint not null,
             create_time timestamp not null,
             update_time timestamp not null
         )
+    </update>
+
+    <update id="addSensitiveFlagColumn">
+        alter table sys_permission
+        add column sensitive_flag tinyint default 0
     </update>
 
     <update id="createRolePermissionTable">
@@ -91,6 +98,7 @@
                module_code,
                action_code,
                menu_id,
+               coalesce(sensitive_flag, 0) as sensitive_flag,
                sort_no
         from sys_permission
         where status = 1
@@ -236,13 +244,27 @@
     <insert id="insertPermission" parameterType="jimmy.system.model.PermissionVO">
         insert into sys_permission (
             id, permission_code, permission_name, permission_type,
-            module_code, action_code, menu_id, sort_no, status, create_time, update_time
+            module_code, action_code, menu_id, sensitive_flag, sort_no, status, create_time, update_time
         )
         values (
             #{id}, #{permissionCode}, #{permissionName}, #{permissionType},
-            #{moduleCode}, #{actionCode}, #{menuId}, #{sortNo}, 1, current_timestamp, current_timestamp
+            #{moduleCode}, #{actionCode}, #{menuId}, coalesce(#{sensitiveFlag}, 0), #{sortNo}, 1, current_timestamp, current_timestamp
         )
     </insert>
+
+    <update id="updatePermissionMetadata" parameterType="jimmy.system.model.PermissionVO">
+        update sys_permission
+        set permission_name = #{permissionName},
+            permission_type = #{permissionType},
+            module_code = #{moduleCode},
+            action_code = #{actionCode},
+            menu_id = #{menuId},
+            sensitive_flag = coalesce(#{sensitiveFlag}, 0),
+            sort_no = #{sortNo},
+            status = 1,
+            update_time = current_timestamp
+        where permission_code = #{permissionCode}
+    </update>
 
     <delete id="deleteRolePermissions">
         delete from sys_role_permission
