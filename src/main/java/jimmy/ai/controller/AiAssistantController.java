@@ -44,6 +44,8 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * AI 助手接口：只开放只读问答、日志排障、当前用户会话和长期记忆管理能力。
@@ -124,9 +126,23 @@ public class AiAssistantController {
         String username = String.valueOf(StpUtil.getSession().get("username", ""));
         String userCode = String.valueOf(StpUtil.getSession().get("userCode", ""));
         String loginSessionId = String.valueOf(StpUtil.getSession().get(TraceContextSupport.LOGIN_SESSION_ID, ""));
+        @SuppressWarnings("unchecked")
+        Map<String, Set<String>> columnIndex = (Map<String, Set<String>>) StpUtil.getSession().get("columnIndex");
 
-        StreamingResponseBody stream = outputStream ->
+        StreamingResponseBody stream = outputStream -> {
+            SseChatContext.setLoginIdAndPermissions(loginId, permissions);
+            SseChatContext.setRoleCode(roleCode);
+            SseChatContext.setCustomerId(customerId);
+            SseChatContext.setUsername(username);
+            SseChatContext.setUserCode(userCode);
+            SseChatContext.setLoginSessionId(loginSessionId);
+            SseChatContext.setColumnIndex(columnIndex);
+            try {
                 aiAssistantService.chatStream(request, outputStream, loginId, permissions, roleCode, customerId, username, userCode, loginSessionId);
+            } finally {
+                SseChatContext.clear();
+            }
+        };
         return ResponseEntity.ok()
                 .contentType(MediaType.TEXT_EVENT_STREAM)
                 .body(stream);
@@ -245,6 +261,8 @@ public class AiAssistantController {
         String userCode = String.valueOf(StpUtil.getSessionByLoginId(loginId).get("userCode", ""));
         String loginSessionId = String.valueOf(StpUtil.getSessionByLoginId(loginId)
                 .get(TraceContextSupport.LOGIN_SESSION_ID, ""));
+        @SuppressWarnings("unchecked")
+        Map<String, Set<String>> agentColumnIndex = (Map<String, Set<String>>) StpUtil.getSessionByLoginId(loginId).get("columnIndex");
         String traceId = traceContextSupport.currentOrNewTraceId();
         String operationId = traceContextSupport.currentOrNewOperationId();
 
@@ -263,6 +281,7 @@ public class AiAssistantController {
                 SseChatContext.setUsername(username);
                 SseChatContext.setUserCode(userCode);
                 SseChatContext.setLoginSessionId(loginSessionId);
+                SseChatContext.setColumnIndex(agentColumnIndex);
                 traceContextSupport.put(TraceContextSupport.TRACE_ID, traceId);
                 traceContextSupport.put(TraceContextSupport.OPERATION_ID, operationId);
                 traceContextSupport.put(TraceContextSupport.LOGIN_SESSION_ID, loginSessionId);

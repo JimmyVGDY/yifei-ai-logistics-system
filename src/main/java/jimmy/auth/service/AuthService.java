@@ -27,8 +27,11 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 认证授权服务 —— 统一管理登录、登出、会话保持、权限装配和个人资料管理。
@@ -190,11 +193,29 @@ public class AuthService {
         // Sa-Token StpUtil.checkPermission 仍使用扁平 permissionCodes 字符串
         StpUtil.getSessionByLoginId(loginUser.id).set("permissions", flatPermissions);
         StpUtil.getSessionByLoginId(loginUser.id).set("menus", menus);
+        // 列权限索引：module → 列名 Set，供 AI 助手等下游服务做 O(1) 列级过滤
+        StpUtil.getSessionByLoginId(loginUser.id).set("columnIndex", buildColumnIndex(structuredPermissions));
 
         String tokenValue = StpUtil.getTokenValueByLoginId(loginUser.id);
         log.info("账号登录成功，userId={}, username={}, roleCode={}",
                 loginUser.id, LogMaskUtils.maskAccount(loginUser.username), loginUser.roleCode);
         return buildResponse(loginUser, StpUtil.getTokenName(), tokenValue, structuredPermissions, menus);
+    }
+
+    /**
+     * 从结构化权限构建列索引：{@code module → Set<fieldName>}。
+     */
+    private Map<String, Set<String>> buildColumnIndex(Map<String, Map<String, Object>> structuredPermissions) {
+        Map<String, Set<String>> index = new LinkedHashMap<>();
+        for (var entry : structuredPermissions.entrySet()) {
+            if ("_standalone".equals(entry.getKey())) continue;
+            @SuppressWarnings("unchecked")
+            List<String> columns = (List<String>) entry.getValue().get("columns");
+            if (columns != null && !columns.isEmpty()) {
+                index.put(entry.getKey(), new LinkedHashSet<>(columns));
+            }
+        }
+        return index;
     }
 
     /**
@@ -224,6 +245,7 @@ public class AuthService {
         }
         StpUtil.getSessionByLoginId(userId).set("permissions", flatPermissions);
         StpUtil.getSessionByLoginId(userId).set("menus", menus);
+        StpUtil.getSessionByLoginId(userId).set("columnIndex", buildColumnIndex(structuredPermissions));
         ensureLoginSessionId(userId);
         SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
         return buildResponse(loginUser, tokenInfo.getTokenName(), tokenInfo.getTokenValue(), structuredPermissions, menus);

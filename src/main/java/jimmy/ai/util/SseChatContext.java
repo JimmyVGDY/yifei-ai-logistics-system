@@ -2,6 +2,8 @@ package jimmy.ai.util;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * SSE 异步线程中的登录上下文传递。
@@ -21,8 +23,42 @@ public final class SseChatContext {
     private static final ThreadLocal<String> USERNAME = new ThreadLocal<>();
     private static final ThreadLocal<String> USER_CODE = new ThreadLocal<>();
     private static final ThreadLocal<String> LOGIN_SESSION_ID = new ThreadLocal<>();
+    /** module → 列名 Set（snake_case），来自 AuthService 在登录时构建的 columnIndex */
+    private static final ThreadLocal<Map<String, Set<String>>> COLUMN_INDEX = new ThreadLocal<>();
 
     private SseChatContext() {
+    }
+
+    /**
+     * SSE 权限快照 —— 将分散的 ThreadLocal 值打包为不可变对象。
+     * <p>
+     * Controller 预先封装完整快照，异步线程一次性写入，避免逐个 set 遗漏。
+     */
+    public record SsePermissionSnapshot(
+            String loginId,
+            List<String> permissions,
+            Map<String, Set<String>> columnIndex,
+            String roleCode,
+            String customerId,
+            String username,
+            String userCode,
+            String loginSessionId
+    ) {}
+
+    /**
+     * 一次性设置所有 SSE 上下文值。
+     * 用于 agent 路径的 try 块开头，替代逐个 setter 调用。
+     */
+    public static void setSnapshot(SsePermissionSnapshot snapshot) {
+        if (snapshot == null) return;
+        LOGIN_ID.set(snapshot.loginId());
+        PERMISSIONS.set(snapshot.permissions() != null ? snapshot.permissions() : Collections.emptyList());
+        COLUMN_INDEX.set(snapshot.columnIndex());
+        ROLE_CODE.set(snapshot.roleCode());
+        CUSTOMER_ID.set(snapshot.customerId());
+        USERNAME.set(snapshot.username());
+        USER_CODE.set(snapshot.userCode());
+        LOGIN_SESSION_ID.set(snapshot.loginSessionId());
     }
 
     /**
@@ -64,6 +100,12 @@ public final class SseChatContext {
         LOGIN_SESSION_ID.set(loginSessionId);
     }
 
+    public static void setColumnIndex(Map<String, Set<String>> columnIndex) {
+        COLUMN_INDEX.set(columnIndex);
+    }
+
+    // ---- Getters ----
+
     public static String getLoginId() {
         return LOGIN_ID.get();
     }
@@ -88,6 +130,16 @@ public final class SseChatContext {
         return LOGIN_SESSION_ID.get();
     }
 
+    public static List<String> getPermissions() {
+        return PERMISSIONS.get();
+    }
+
+    public static Map<String, Set<String>> getColumnIndex() {
+        return COLUMN_INDEX.get();
+    }
+
+    // ---- 权限判断 ----
+
     public static boolean hasPermission(String permission) {
         List<String> perms = PERMISSIONS.get();
         return perms != null && perms.contains(permission);
@@ -99,6 +151,7 @@ public final class SseChatContext {
     public static void clear() {
         LOGIN_ID.remove();
         PERMISSIONS.remove();
+        COLUMN_INDEX.remove();
         ROLE_CODE.remove();
         CUSTOMER_ID.remove();
         USERNAME.remove();
