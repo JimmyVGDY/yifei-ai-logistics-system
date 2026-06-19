@@ -13,8 +13,6 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -33,26 +31,7 @@ public class ColumnFilterAdvice implements ResponseBodyAdvice<Object> {
 
     private static final String COLUMN_PREFIX = ":column:";
 
-    private static final Map<String, String> MODULE_PATH_TO_CODE;
-
-    static {
-        Map<String, String> map = new LinkedHashMap<>();
-        map.put("orders", "order");
-        map.put("customers", "customer");
-        map.put("waybills", "waybill");
-        map.put("dispatches", "dispatch");
-        map.put("tasks", "task");
-        map.put("tracks", "track");
-        map.put("drivers", "driver");
-        map.put("vehicles", "vehicle");
-        map.put("exceptions", "exception");
-        map.put("fees", "fee");
-        map.put("users", "system:user");
-        map.put("roles", "system:role");
-        map.put("operationLogs", "system:log");
-        map.put("files", "file");
-        MODULE_PATH_TO_CODE = Collections.unmodifiableMap(map);
-    }
+    private static final Map<String, String> MODULE_PATH_TO_CODE = jimmy.system.config.ModuleManifest.routeModuleToPermissionPrefix();
 
     private final StandardColumnRegistry columnRegistry;
 

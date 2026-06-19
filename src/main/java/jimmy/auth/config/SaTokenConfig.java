@@ -15,7 +15,6 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -28,12 +27,13 @@ import java.util.Map;
  *   <li><b>通用管理页</b>：GET→query，POST(一级)→create，DELETE→delete，其余 POST/PUT→update</li>
  * </ol>
  * <p>
- * 模块白名单在 {@link #buildModulePermissionPrefixes()} 中维护，只有登记的模块才能进入动态鉴权。
+ * 模块白名单由 {@link jimmy.system.config.ModuleManifest#routeModuleToPermissionPrefix()} 统一维护。
  */
 @Configuration
 public class SaTokenConfig implements WebMvcConfigurer {
 
-    private static final Map<String, String> MODULE_PERMISSION_PREFIXES = buildModulePermissionPrefixes();
+    /** 模块路径名 → 权限前缀映射，来自 {@link jimmy.system.config.ModuleManifest} 统一清单 */
+    private static final Map<String, String> MODULE_PERMISSION_PREFIXES = jimmy.system.config.ModuleManifest.routeModuleToPermissionPrefix();
 
     private final OperationLogInterceptor operationLogInterceptor;
     /** 允许跨域的前端地址，可配环境变量 CORS_ORIGINS=地址1,地址2 */
@@ -280,23 +280,4 @@ public class SaTokenConfig implements WebMvcConfigurer {
         return servletRequestAttributes.getRequest();
     }
 
-    private static Map<String, String> buildModulePermissionPrefixes() {
-        Map<String, String> map = new HashMap<>();
-        // 这里只允许已登记模块进入动态鉴权，避免前端传任意 module 绕过权限控制。
-        map.put("orders", "order");
-        map.put("customers", "customer");
-        map.put("waybills", "waybill");
-        map.put("dispatches", "dispatch");
-        map.put("tasks", "task");
-        map.put("tracks", "track");
-        map.put("drivers", "driver");
-        map.put("vehicles", "vehicle");
-        map.put("exceptions", "exception");
-        map.put("fees", "fee");
-        map.put("users", "system:user");
-        map.put("roles", "system:role");
-        map.put("operationLogs", "system:log");
-        map.put("files", "file");
-        return map;
-    }
 }
