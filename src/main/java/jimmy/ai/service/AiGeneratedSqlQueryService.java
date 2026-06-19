@@ -39,17 +39,20 @@ public class AiGeneratedSqlQueryService {
     private final JdbcTemplate jdbcTemplate;
     private final AiSensitiveDataMasker masker;
     private final AiAuditLogService auditLogService;
+    private final ColumnPermissionResolver columnPermissionResolver;
 
     public AiGeneratedSqlQueryService(AiModelGateway modelGateway,
                                       AiSqlSafetyValidator sqlSafetyValidator,
                                       JdbcTemplate jdbcTemplate,
                                       AiSensitiveDataMasker masker,
-                                      AiAuditLogService auditLogService) {
+                                      AiAuditLogService auditLogService,
+                                      ColumnPermissionResolver columnPermissionResolver) {
         this.modelGateway = modelGateway;
         this.sqlSafetyValidator = sqlSafetyValidator;
         this.jdbcTemplate = jdbcTemplate;
         this.masker = masker;
         this.auditLogService = auditLogService;
+        this.columnPermissionResolver = columnPermissionResolver;
     }
 
     public AiGeneratedSqlQueryResult query(String message) {
@@ -100,7 +103,8 @@ public class AiGeneratedSqlQueryService {
                 recordSqlStage("安全校验", message, "校验通过，tables=" + validatedSql.tables(), true);
                 preflight(validatedSql.sql());
                 List<Map<String, Object>> rows = jdbcTemplate.queryForList(wrapLimit(validatedSql.sql()));
-                List<Map<String, Object>> formatted = formatRows(rows);
+                List<Map<String, Object>> filteredRows = filterByColumnPermission(rows);
+                List<Map<String, Object>> formatted = formatRows(filteredRows);
                 String summary = summary(formatted);
                 log.info("AI 生成 SQL 查询完成，tables={}, rows={}, repairAttempt={}, sql={}",
                         validatedSql.tables(), formatted.size(), repairAttempt, LogMaskUtils.maskText(validatedSql.sql()));
@@ -255,6 +259,28 @@ public class AiGeneratedSqlQueryService {
             return timestamp.toLocalDateTime().format(DATE_TIME_FORMATTER);
         }
         return value;
+    }
+
+    /**
+     * 按 RBAC 列权限过滤查询结果：用户无权查看的列（snake_case 字段名）会被移除。
+     * <p>
+     * 使用全局并集（所有模块列权限的汇总），因为自定义 SQL 无法确定结果属于哪个模块。
+     */
+    private List<Map<String, Object>> filterByColumnPermission(List<Map<String, Object>> rows) {
+        java.util.Set<String> allowed = columnPermissionResolver.allGlobalColumns();
+        if (allowed.isEmpty()) return rows; // 无列权限定义时放行
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Map<String, Object> filtered = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : row.entrySet()) {
+                if (allowed.contains(entry.getKey())) {
+                    filtered.put(entry.getKey(), entry.getValue());
+                }
+            }
+            result.add(filtered);
+        }
+        return result;
     }
 
     private String summary(List<Map<String, Object>> rows) {

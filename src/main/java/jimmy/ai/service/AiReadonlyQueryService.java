@@ -19,6 +19,7 @@ import org.springframework.util.StringUtils;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -106,6 +107,7 @@ public class AiReadonlyQueryService {
     private final AiSensitiveDataMasker masker;
     private final AiQueryCursorService cursorService;
     private final AiToolCallContext toolCallContext;
+    private final ColumnPermissionResolver columnPermissionResolver;
 
     public AiReadonlyQueryService(AiQueryIntentParser intentParser,
                                   AiGeneratedSqlQueryService generatedSqlQueryService,
@@ -113,7 +115,7 @@ public class AiReadonlyQueryService {
                                   AiQuerySummaryService summaryService,
                                   AiSensitiveDataMasker masker) {
         this(intentParser, generatedSqlQueryService, logisticsRequirementService, summaryService, masker, null,
-                new AiToolCallContext(8));
+                new AiToolCallContext(8), null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -123,7 +125,8 @@ public class AiReadonlyQueryService {
                                   AiQuerySummaryService summaryService,
                                   AiSensitiveDataMasker masker,
                                   AiQueryCursorService cursorService,
-                                  AiToolCallContext toolCallContext) {
+                                  AiToolCallContext toolCallContext,
+                                  ColumnPermissionResolver columnPermissionResolver) {
         this.intentParser = intentParser;
         this.generatedSqlQueryService = generatedSqlQueryService;
         this.logisticsRequirementService = logisticsRequirementService;
@@ -131,6 +134,7 @@ public class AiReadonlyQueryService {
         this.masker = masker;
         this.cursorService = cursorService;
         this.toolCallContext = toolCallContext;
+        this.columnPermissionResolver = columnPermissionResolver;
     }
 
     public AiReadonlyQueryResult query(String message) {
@@ -383,7 +387,7 @@ public class AiReadonlyQueryService {
             String summary = masker.mask(summaryService.moduleSummary(intent, page));
             String result = masker.mask(summaryService.queryConditionSummary(intent) + "，命中 " + page.total() + " 条记录。");
             // 提取结构化数据行，过滤内部字段并映射为中文列名
-            List<Map<String, Object>> rows = buildDisplayRows(mergedRecords);
+            List<Map<String, Object>> rows = buildDisplayRows(mergedRecords, module.module());
             List<String> columns = rows.isEmpty() ? List.of() : new ArrayList<>(rows.get(0).keySet());
             int returnedCount = Math.max(0, (pageNo - 1) * pageSize + rows.size());
             long remainingCount = Math.max(0, page.total() - returnedCount);
@@ -698,7 +702,16 @@ public class AiReadonlyQueryService {
      * 将原始数据库记录转换为仅包含面向用户字段的中文显示行。
      * 排除 id、时间戳、审计字段、原始状态码（保留 statusLabel），并映射为中文列名。
      */
-    private List<Map<String, Object>> buildDisplayRows(List<ModuleRecordVO> records) {
+    /**
+     * 构建前端展示用的结构化数据行。
+     * <p>
+     * 过滤优先级：系统字段排除 → RBAC 列权限过滤 → status 冗余排除 → 中文标签映射。
+     */
+    private List<Map<String, Object>> buildDisplayRows(List<ModuleRecordVO> records, String moduleCode) {
+        // RBAC 列权限：用户有权看到的列（snake_case 字段名）。空 Set 表示无列权限数据，放行所有列。
+        Set<String> allowedColumns = columnPermissionResolver != null
+                ? columnPermissionResolver.allowedColumns(moduleCode)
+                : Collections.emptySet();
         // 不展示给用户的内部字段
         Set<String> EXCLUDE_FIELDS = Set.of(
             "id", "created_at", "updated_at", "create_time", "update_time",
@@ -767,6 +780,8 @@ public class AiReadonlyQueryService {
             boolean hasStatusLabel = record.keySet().stream().anyMatch(k -> k.endsWith("Label"));
             for (String key : record.keySet()) {
                 if (EXCLUDE_FIELDS.contains(key)) continue;
+                // RBAC 列权限过滤（在贴中文标签之前，key 是 snake_case）
+                if (!allowedColumns.isEmpty() && !allowedColumns.contains(key)) continue;
                 if (hasStatusLabel && REDUNDANT_STATUS.contains(key)) continue;
                 String label = LABELS.getOrDefault(key, null);
                 if (label != null) {
