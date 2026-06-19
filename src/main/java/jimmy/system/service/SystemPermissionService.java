@@ -446,6 +446,10 @@ public class SystemPermissionService {
                         continue; // :view 角色不自动获得敏感列
                     }
                 }
+                // 仅全新权限（未曾分配给任何角色）自动补齐，避免覆盖管理员手动取消的权限
+                if (systemPermissionMapper.countPermissionAssignments(permission.getId()) > 0) {
+                    continue;
+                }
                 systemPermissionMapper.insertRolePermission(idGenerator.nextId(), entry.getKey(), permission.getId());
             }
         }

@@ -205,6 +205,12 @@
           and status = 1
     </select>
 
+    <select id="countPermissionAssignments" resultType="int">
+        select count(1)
+        from sys_role_permission
+        where permission_id = #{permissionId}
+    </select>
+
     <select id="countPermissionMenu" resultType="int">
         select count(1)
         from sys_menu

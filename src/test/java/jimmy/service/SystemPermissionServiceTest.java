@@ -3,10 +3,13 @@ package jimmy.system.service;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.system.config.StandardColumnRegistry;
 import jimmy.system.mapper.SystemPermissionMapper;
+import cn.dev33.satoken.stp.StpUtil;
 import jimmy.system.model.MenuVO;
 import jimmy.system.model.PermissionTreeNodeVO;
 import jimmy.system.model.PermissionVO;
+import jimmy.system.model.RoleMenuUpdateRequest;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,7 +18,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SystemPermissionServiceTest {
@@ -157,5 +165,42 @@ class SystemPermissionServiceTest {
         permission.setSensitiveFlag(sensitive);
         permission.setSortNo(1);
         return permission;
+    }
+
+    // ── 权限重置 Bug 反馈循环 ──
+
+    @Test
+    void shouldNotReAddManuallyRemovedPermissionOnSync() {
+        // 模拟角色 1 拥有 order 菜单和部分权限（管理员手动取消了一些列权限）
+        MenuVO menu = menu(1L, "运单管理", "/orders", "order:manage");
+        PermissionVO page = permission(1L, "order:manage", "运单管理", "PAGE", 1L, false);
+        PermissionVO queryBtn = permission(2L, "order:query", "运单管理-查询", "BUTTON", 1L, false);
+        PermissionVO colOrderNo = permission(3L, "order:column:order_no", "运单管理-订单号（列）", "COLUMN", 1L, false);
+        // 敏感列 colAmount — 管理员已经手动取消
+        PermissionVO colAmount = permission(4L, "order:column:total_amount", "运单管理-订单金额（列）", "COLUMN", 1L, true);
+
+        when(mapper.selectAllActiveMenus()).thenReturn(List.of(menu));
+        when(mapper.selectAllActivePermissions()).thenReturn(List.of(page, queryBtn, colOrderNo, colAmount));
+        when(mapper.selectAllRoleIds()).thenReturn(List.of(1L));
+        when(mapper.countRoleById(1L)).thenReturn(1);
+        when(mapper.countRoleMenus(1L)).thenReturn(1);
+        when(mapper.selectRoleMenuIds(1L)).thenReturn(List.of(1L));
+        // 管理员特意不包含 colAmount
+        when(mapper.selectRolePermissionIds(1L)).thenReturn(List.of(page.getId(), queryBtn.getId(), colOrderNo.getId()));
+        when(mapper.countMenuById(1L)).thenReturn(1);
+        when(mapper.countPermissionById(anyLong())).thenReturn(1);
+        // colAmount 曾经被分配过（管理员手动取消了），不应被视为新权限
+        when(mapper.countPermissionAssignments(colAmount.getId())).thenReturn(1);
+
+        RoleMenuUpdateRequest request = new RoleMenuUpdateRequest();
+        request.setMenuIds(List.of(1L));
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdDefaultNull).thenReturn(null);
+            service.updateRoleMenus(1L, request);
+        }
+
+        // Bug：colAmount 不应该被重新加回来
+        verify(mapper, never()).insertRolePermission(anyLong(), eq(1L), eq(colAmount.getId()));
     }
 }

@@ -77,6 +77,9 @@ public interface SystemPermissionMapper {
 
     int countPermissionById(@Param("permissionId") Long permissionId);
 
+    /** 查询某权限被分配给角色的次数。0 表示全新权限，>0 表示已被分配过。 */
+    int countPermissionAssignments(@Param("permissionId") Long permissionId);
+
     int insertPermission(PermissionVO permission);
 
     int updatePermissionMetadata(PermissionVO permission);
