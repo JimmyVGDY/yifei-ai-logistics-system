@@ -480,20 +480,27 @@ PUT /ai/memory/settings
 
 | 字段 | 说明 |
 |------|------|
-| `model_name` | 模型名称（如 `deepseek-chat`、`gpt-4o-mini`） |
+| `model_name` | 模型名称（如 `deepseek-v4-flash`、`gpt-4o-mini`） |
 | `purpose` | 调用用途：`chat` / `sql_generate` / `sql_self_check` / `sql_repair` / `memory_extract` |
-| `prompt_tokens` / `completion_tokens` / `total_tokens` | Token 消耗统计 |
-| `estimated_cost` | 估算费用（美元），按模型单价 × Token 数计算 |
+| `prompt_tokens` / `completion_tokens` / `cached_tokens` / `total_tokens` | Token 消耗统计（含缓存命中数） |
+| `estimated_cost` | 估算费用，按输入/输出分开计价 + 缓存折扣 |
+| `estimated_cost_currency` | 费用币种（CNY / USD），DeepSeek 用人民币，OpenAI 用美元 |
 | `duration_ms` | 调用耗时（毫秒） |
 
-**模型单价参考（美元/百万 Token）：**
+**费用计算方式：**
 
-| 模型 | 单价 |
-|------|------|
-| `deepseek-chat` | $0.28 |
-| `gpt-4o-mini` | $0.60 |
-| `gpt-4o` | $5.00 |
-| 其他 | $0.60（默认） |
+费用 = (未命中输入 Token / 1M) × 输入单价 + (缓存输入 Token / 1M) × 缓存单价 + (输出 Token / 1M) × 输出单价。
+缓存命中数从 Spring AI 的 `Usage.getNativeUsage()` → `OpenAiApi.Usage.promptTokensDetails().cachedTokens()` 获取。
+
+**模型单价参考：**
+
+| 模型 | 输入（缓存未命中） | 输入（缓存命中） | 输出 | 币种 |
+|------|:---:|:---:|:---:|:---:|
+| `deepseek-v4-flash` | ¥1.00/M | ¥0.02/M | ¥2.00/M | CNY |
+| `deepseek-chat`（废弃中） | ¥1.00/M | ¥0.02/M | ¥2.00/M | CNY |
+| `gpt-4o-mini` | $0.15/M | $0.15/M | $0.60/M | USD |
+| `gpt-4o` | $2.50/M | $2.50/M | $10.00/M | USD |
+| 其他 | $0.15/M | $0.15/M | $0.60/M | USD（默认） |
 
 配置开关：`APP_AI_TOKEN_USAGE_ENABLED=true`（默认开启）。写入失败不影响主业务。
 

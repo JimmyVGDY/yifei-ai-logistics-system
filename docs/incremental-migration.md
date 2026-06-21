@@ -182,3 +182,16 @@ source scripts/sql/20260621_incremental_ai_prompt_template.sql;
 - 脚本只在模板编码不存在时插入默认模板，不覆盖已经人工调整过的模板内容。
 
 该脚本可重复执行，不清库、不重建旧表。Prompt 模板运行逻辑和输出校验链路见 [Spring AI 接入说明](spring-ai.md) 和 [AI 助手设计文档](ai-assistant-design.md)。
+
+### `20260621_incremental_token_usage_add_currency.sql`
+
+该脚本用于完善 AI Token 用量追踪的费用计算精度：
+
+- 新增 `ai_token_usage.estimated_cost_currency` 字段（VARCHAR(10)），记录费用币种（DeepSeek → CNY，OpenAI → USD）。
+- 新增 `ai_token_usage.cached_tokens` 字段（INT），记录 API 返回的缓存命中输入 Token 数。
+- 回填旧数据：deepseek 系列模型标记为 CNY，其余默认 USD。
+- 增加 `idx_token_usage_currency` 索引。
+
+相关代码改动：
+- `AiTokenUsageService` 的费用计算从单一单价改为输入/输出分开计价 + 缓存折扣。DeepSeek v4-flash 缓存命中 ¥0.02/M vs 未命中 ¥1.00/M。
+- `AiModelGateway` 通过 `Usage.getNativeUsage()` → `OpenAiApi.Usage.promptTokensDetails().cachedTokens()` 提取缓存命中数。
