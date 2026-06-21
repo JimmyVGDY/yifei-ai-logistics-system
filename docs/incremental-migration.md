@@ -22,6 +22,7 @@ source scripts/sql/20260611_incremental_ai_token_usage.sql;
 source scripts/sql/20260612_incremental_ai_document_index.sql;
 source scripts/sql/20260613_incremental_ai_query_cursor.sql;
 source scripts/sql/20260619_incremental_permission_sensitive_flag.sql;
+source scripts/sql/20260621_incremental_ai_prompt_template.sql;
 ```
 
 这些脚本会保留现有数据，并补充：
@@ -170,3 +171,14 @@ source scripts/sql/20260619_incremental_permission_sensitive_flag.sql;
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
 - [配置说明](configuration.md)
 - [Spring AI 接入说明](spring-ai.md)
+
+### `20260621_incremental_ai_prompt_template.sql`
+
+该脚本用于启用 AI Prompt 模板治理和模板级 token 追踪：
+
+- 新增 `ai_prompt_template` 表，保存模板编码、版本、模板类型、Mustache 模板内容、变量声明、输出结构和启停状态。
+- 初始化 `AI_CHAT_SYSTEM`、`AI_CHAT_USER`、`AI_SQL_GENERATE_*`、`AI_SQL_SELF_CHECK_*`、`AI_SQL_REPAIR_*`、`AI_FILE_ANALYSIS_*`、`AI_MEMORY_EXTRACT_*` 默认模板。
+- 补齐 `ai_token_usage.template_code` 和 `ai_token_usage.template_version` 字段，方便按模板版本排查模型调用和 token 消耗。
+- 脚本只在模板编码不存在时插入默认模板，不覆盖已经人工调整过的模板内容。
+
+该脚本可重复执行，不清库、不重建旧表。Prompt 模板运行逻辑和输出校验链路见 [Spring AI 接入说明](spring-ai.md) 和 [AI 助手设计文档](ai-assistant-design.md)。

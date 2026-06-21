@@ -534,6 +534,31 @@ order by cost_usd desc;
 
 - [项目文档索引](README.md)
 - [AI 助手设计文档](ai-assistant-design.md)
+
+## Prompt 模板治理与输出校验
+
+当前 AI 助手已把高风险 Prompt 从 Java 代码中抽离为可版本化模板，默认读取 `ai_prompt_template` 表；如果表不存在、模板停用、变量缺失或渲染失败，会自动回退到代码内置模板，不影响 `/ai/chat`、`/ai/chat/stream`、文件分析、长期记忆和临时 SQL 查询。
+
+第一批模板编码包括：
+
+| 模板编码 | 用途 |
+| --- | --- |
+| `AI_CHAT_SYSTEM` / `AI_CHAT_USER` | 普通问答和 SSE 问答的系统提示词、用户提示词 |
+| `AI_SQL_GENERATE_SYSTEM` / `AI_SQL_GENERATE_USER` | 临时只读 SQL 候选生成 |
+| `AI_SQL_SELF_CHECK_SYSTEM` / `AI_SQL_SELF_CHECK_USER` | 临时 SQL 自检修正 |
+| `AI_SQL_REPAIR_SYSTEM` / `AI_SQL_REPAIR_USER` | SQL 语法预检失败后的自动纠错 |
+| `AI_FILE_ANALYSIS_SYSTEM` / `AI_FILE_ANALYSIS_USER` | 文件内容分析 |
+| `AI_MEMORY_EXTRACT_SYSTEM` / `AI_MEMORY_EXTRACT_USER` | 长期记忆候选提取 |
+
+模板使用 Mustache 渲染。每个模板必须声明 `required_variables` 和 `optional_variables`，渲染服务只会把声明过的变量传入模板，避免未审计上下文被误注入 Prompt。模型调用会记录 `template_code`、`template_version` 和 `purpose`，用于后续 token 统计和审计排查。
+
+输出校验分三层：
+
+1. `AiOutputValidator` 负责剥离 Markdown 代码块、提取 JSON、处理空输出和超长输出。
+2. `AiSqlOutputValidator` 负责 SQL 生成链路第一道校验，只接受单条 `SELECT` 文本，禁止解释文字、Markdown、多语句、注释和写操作关键字。
+3. `AiToolOutputValidator` 负责面向前端展示的工具摘要清洗，避免权限码、SQL、表字段名、异常堆栈和敏感数据直接展示给用户。
+
+临时 SQL 链路仍保持只读边界：模型生成候选 SQL 后，先经过模板化自检和输出校验，再进入 `AiSqlSafetyValidator` 的表白名单、字段白名单、权限、敏感列和 `EXPLAIN` 预检；失败时最多按语法错误摘要自动纠错 3 次。相关 SQL 规范见 [MyBatis 与 SQL 规范](mybatis.md)，数据库脚本见 [数据库增量迁移说明](incremental-migration.md)。
 - [配置说明](configuration.md)
 - [MyBatis 使用规范](mybatis.md)
 - [环境与中间件版本清单](environment-versions.md)

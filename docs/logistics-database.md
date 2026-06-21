@@ -172,3 +172,11 @@ mysql -uroot logistics_management < scripts/sql/20260603_incremental_security_ha
 - [数据库增量迁移说明](incremental-migration.md)
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
 - [认证接口文档](auth-api.md)
+
+## AI Prompt 模板表
+
+`ai_prompt_template` 用于保存 AI Prompt 模板和版本信息，是 AI 助手 Prompt 治理的主表。它保存模板编码、模板名称、版本号、模板类型、Mustache 模板内容、必填变量、可选变量、输出结构要求、模型用途和状态。应用启动不会自动重建该表，已有数据库请执行 `scripts/sql/20260621_incremental_ai_prompt_template.sql`。
+
+`ai_token_usage` 已补充 `template_code` 和 `template_version` 字段，用于把模型调用、Token 消耗、模板版本和异常排查串起来。字段不存在时应用会降级为原 token 记录方式，不影响 AI 主流程。
+
+当前默认模板覆盖普通问答、临时 SQL 生成、自检、纠错、文件分析和长期记忆提取。模板缺失或渲染失败时会使用代码兜底模板，避免因为模板表问题导致 AI 页面不可用。配置说明见 [配置说明](configuration.md)，AI 设计说明见 [AI 助手设计文档](ai-assistant-design.md)。

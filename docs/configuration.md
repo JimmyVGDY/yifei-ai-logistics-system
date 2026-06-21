@@ -276,3 +276,12 @@ falsePositiveProbability = 0.01
 - [Spring AI 接入说明](spring-ai.md)
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
 - [本地开发指南](local-development.md)
+
+### AI Prompt 模板配置
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `APP_AI_PROMPT_DB_ENABLED` | `true` | 是否优先读取数据库中的 `ai_prompt_template` 模板 |
+| `APP_AI_PROMPT_FALLBACK_ENABLED` | `true` | 数据库模板不可用、变量缺失或渲染失败时是否启用代码兜底模板 |
+
+Prompt 模板只影响模型输入和输出治理，不改变 `/ai/chat`、`/ai/chat/stream`、业务只读查询、RAG、长期记忆和会话管理接口。已有数据库需要执行 [数据库增量迁移说明](incremental-migration.md) 中登记的 `20260621_incremental_ai_prompt_template.sql`。

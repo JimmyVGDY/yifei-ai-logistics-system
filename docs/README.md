@@ -77,3 +77,7 @@
 - 练习和中间件示例接口已接入 Sa-Token 权限映射，不再只是登录即可访问。
 
 相关说明见 [logistics-rbac-structured-log.md](logistics-rbac-structured-log.md)、[logistics-database.md](logistics-database.md)、[incremental-migration.md](incremental-migration.md) 和 [configuration.md](configuration.md)。
+
+## AI Prompt 治理补充
+
+AI 助手 Prompt 已纳入模板化治理。继续开发 AI 能力前，需要同时阅读 [Spring AI 接入说明](spring-ai.md)、[AI 助手设计文档](ai-assistant-design.md)、[MyBatis 使用规范](mybatis.md) 和 [数据库增量迁移说明](incremental-migration.md)。涉及新增 Prompt 时，需要同步维护 `ai_prompt_template` 默认模板、输出校验、测试用例和文档交叉引用。

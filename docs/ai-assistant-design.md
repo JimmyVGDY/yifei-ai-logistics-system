@@ -462,3 +462,17 @@ AI 助手相关行为必须进入现有审计体系。
 - [MyBatis 使用规范](mybatis.md)
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
 - [链路追踪与会话审计标识说明](trace-context-audit.md)
+
+## 17. Prompt 模板与结构化输出治理
+
+AI 助手的 Prompt 已升级为可版本化治理资产，而不是散落在 Java 代码中的硬编码字符串。当前通过 `ai_prompt_template` 表维护问答、临时 SQL、文件分析和长期记忆提取模板；如果数据库表未执行、模板停用或渲染失败，会自动回退到 `DefaultAiPromptTemplates` 中的代码兜底模板，保证现有 AI 问答不中断。
+
+设计原则如下：
+
+- Prompt 模板使用 Mustache 渲染，变量必须先声明在 `required_variables` 或 `optional_variables` 中，未声明变量不会传入模板。
+- 模型输出不能直接进入业务链路，必须经过输出校验、权限校验、脱敏和审计。
+- 临时 SQL 必须走“生成 -> 自检 -> 输出校验 -> 安全校验 -> 语法预检 -> 执行”的链路，语法问题最多自动纠错 3 次。
+- Tool Calling 结果展示给前端前要清洗权限码、SQL、表字段名、异常堆栈和敏感信息；审计日志只保留脱敏摘要和必要追踪 ID。
+- 新增 AI 能力时，应优先新增模板编码、输出结构约束和测试，再接入业务服务。
+
+相关实现见 [Spring AI 接入说明](spring-ai.md)，数据库脚本见 [数据库增量迁移说明](incremental-migration.md)，SQL 安全例外边界见 [MyBatis 使用规范](mybatis.md)。
