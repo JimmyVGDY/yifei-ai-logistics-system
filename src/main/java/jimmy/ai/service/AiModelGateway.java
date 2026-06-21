@@ -132,14 +132,39 @@ public class AiModelGateway {
             Usage usage = chatResponse.getMetadata() != null ? chatResponse.getMetadata().getUsage() : null;
             int promptTokens = usage != null ? (int) usage.getPromptTokens() : 0;
             int completionTokens = usage != null ? (int) usage.getCompletionTokens() : 0;
+            int cachedTokens = extractCachedTokens(usage);
             tokenUsageService.record(
                     properties.model(), purpose, promptMetadata.templateCode(), promptMetadata.templateVersion(),
-                    promptTokens, completionTokens,
+                    promptTokens, completionTokens, cachedTokens,
                     currentUserId(), currentUserCode(), conversationId,
                     properties.baseUrl(), durationMs);
         } catch (RuntimeException exception) {
             log.debug("AI Token 用量记录异常，已跳过，reason={}", exception.getMessage());
         }
+    }
+
+    /**
+     * 从 Spring AI Usage 中提取缓存命中的输入 Token 数。
+     * <p>
+     * Spring AI 的 {@link Usage} 接口没有直接暴露缓存信息，需通过 {@code getNativeUsage()}
+     * 获取底层 {@link OpenAiApi.Usage} 对象，再取 {@code promptTokensDetails().cachedTokens()}。
+     * 如果底层 Provider 不是 OpenAI 兼容接口，返回 0。
+     */
+    private int extractCachedTokens(Usage usage) {
+        if (usage == null) {
+            return 0;
+        }
+        try {
+            Object nativeUsage = usage.getNativeUsage();
+            if (nativeUsage instanceof OpenAiApi.Usage openAiUsage
+                    && openAiUsage.promptTokensDetails() != null
+                    && openAiUsage.promptTokensDetails().cachedTokens() != null) {
+                return openAiUsage.promptTokensDetails().cachedTokens();
+            }
+        } catch (RuntimeException ignored) {
+            log.debug("提取缓存 Token 信息失败，按缓存未命中计费");
+        }
+        return 0;
     }
 
     /**
@@ -149,7 +174,7 @@ public class AiModelGateway {
                                    PromptTemplateMetadata promptMetadata, long durationMs) {
         try {
             tokenUsageService.record(
-                    properties.model(), purpose, promptMetadata.templateCode(), promptMetadata.templateVersion(), 0, 0,
+                    properties.model(), purpose, promptMetadata.templateCode(), promptMetadata.templateVersion(), 0, 0, 0,
                     currentUserId(), currentUserCode(), conversationId,
                     properties.baseUrl(), durationMs);
         } catch (RuntimeException exception) {

@@ -15,11 +15,13 @@ public class AiTokenUsage {
     private Integer templateVersion;
     private Integer promptTokens;
     private Integer completionTokens;
+    private Integer cachedTokens;
     private Integer totalTokens;
     private String userId;
     private String userCode;
     private String conversationId;
     private BigDecimal estimatedCost;
+    private String estimatedCostCurrency;
     private String modelBaseUrl;
     private Long durationMs;
     private LocalDateTime createdAt;
@@ -45,6 +47,9 @@ public class AiTokenUsage {
     public Integer getCompletionTokens() { return completionTokens; }
     public void setCompletionTokens(Integer completionTokens) { this.completionTokens = completionTokens; }
 
+    public Integer getCachedTokens() { return cachedTokens; }
+    public void setCachedTokens(Integer cachedTokens) { this.cachedTokens = cachedTokens; }
+
     public Integer getTotalTokens() { return totalTokens; }
     public void setTotalTokens(Integer totalTokens) { this.totalTokens = totalTokens; }
 
@@ -59,6 +64,9 @@ public class AiTokenUsage {
 
     public BigDecimal getEstimatedCost() { return estimatedCost; }
     public void setEstimatedCost(BigDecimal estimatedCost) { this.estimatedCost = estimatedCost; }
+
+    public String getEstimatedCostCurrency() { return estimatedCostCurrency; }
+    public void setEstimatedCostCurrency(String estimatedCostCurrency) { this.estimatedCostCurrency = estimatedCostCurrency; }
 
     public String getModelBaseUrl() { return modelBaseUrl; }
     public void setModelBaseUrl(String modelBaseUrl) { this.modelBaseUrl = modelBaseUrl; }

@@ -6,27 +6,32 @@
 
     <insert id="insert">
         insert into ai_token_usage (
-            id, model_name, purpose, prompt_tokens, completion_tokens, total_tokens,
-            user_id, user_code, conversation_id, estimated_cost, model_base_url, duration_ms, created_at
+            id, model_name, purpose, prompt_tokens, completion_tokens, cached_tokens, total_tokens,
+            user_id, user_code, conversation_id, estimated_cost, estimated_cost_currency,
+            model_base_url, duration_ms, created_at
         ) values (
-            #{id}, #{modelName}, #{purpose}, #{promptTokens}, #{completionTokens}, #{totalTokens},
-            #{userId}, #{userCode}, #{conversationId}, #{estimatedCost}, #{modelBaseUrl}, #{durationMs}, #{createdAt}
+            #{id}, #{modelName}, #{purpose}, #{promptTokens}, #{completionTokens}, #{cachedTokens}, #{totalTokens},
+            #{userId}, #{userCode}, #{conversationId}, #{estimatedCost}, #{estimatedCostCurrency},
+            #{modelBaseUrl}, #{durationMs}, #{createdAt}
         )
     </insert>
 
     <insert id="insertWithTemplate">
         insert into ai_token_usage (
-            id, model_name, purpose, template_code, template_version, prompt_tokens, completion_tokens, total_tokens,
-            user_id, user_code, conversation_id, estimated_cost, model_base_url, duration_ms, created_at
+            id, model_name, purpose, template_code, template_version, prompt_tokens, completion_tokens, cached_tokens, total_tokens,
+            user_id, user_code, conversation_id, estimated_cost, estimated_cost_currency,
+            model_base_url, duration_ms, created_at
         ) values (
-            #{id}, #{modelName}, #{purpose}, #{templateCode}, #{templateVersion}, #{promptTokens}, #{completionTokens}, #{totalTokens},
-            #{userId}, #{userCode}, #{conversationId}, #{estimatedCost}, #{modelBaseUrl}, #{durationMs}, #{createdAt}
+            #{id}, #{modelName}, #{purpose}, #{templateCode}, #{templateVersion}, #{promptTokens}, #{completionTokens}, #{cachedTokens}, #{totalTokens},
+            #{userId}, #{userCode}, #{conversationId}, #{estimatedCost}, #{estimatedCostCurrency},
+            #{modelBaseUrl}, #{durationMs}, #{createdAt}
         )
     </insert>
 
     <select id="selectByTimeRange" resultType="jimmy.ai.entity.AiTokenUsage">
-        select id, model_name, purpose, prompt_tokens, completion_tokens, total_tokens,
-               user_id, user_code, conversation_id, estimated_cost, model_base_url, duration_ms, created_at
+        select id, model_name, purpose, prompt_tokens, completion_tokens, cached_tokens, total_tokens,
+               user_id, user_code, conversation_id, estimated_cost, estimated_cost_currency,
+               model_base_url, duration_ms, created_at
         from ai_token_usage
         where created_at between #{startTime} and #{endTime}
           and deleted = 0

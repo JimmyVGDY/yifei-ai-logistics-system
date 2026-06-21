@@ -24,17 +24,43 @@ import java.util.Map;
 public class AiTokenUsageService {
 
     /**
-     * 模型单价（美元/百万 Token），用于费用估算。
-     * 未在列表中的模型按 gpt-4o-mini 价格计费。
+     * 模型单价（每百万 Token），输入和输出分开计费，按模型供应商使用对应币种。
+     * <p>
+     * DeepSeek 以人民币官方定价为准；OpenAI 以美元定价。
+     * 旧模型名 deepseek-chat / deepseek-reasoner 将于 2026-07-24 废弃，保留兼容。
+     * 未在列表中的模型按默认价格（USD）计费。
      */
-    private static final Map<String, BigDecimal> MODEL_PRICE_PER_MILLION = Map.of(
-            "gpt-4o-mini", new BigDecimal("0.60"),
-            "gpt-4o", new BigDecimal("5.00"),
-            "gpt-4-turbo", new BigDecimal("10.00"),
-            "deepseek-chat", new BigDecimal("0.28"),
-            "deepseek-reasoner", new BigDecimal("0.55")
+    private static final Map<String, PricePair> MODEL_PRICES = Map.ofEntries(
+            // ── OpenAI (美元, USD, 暂无缓存折扣) ──
+            entry("gpt-4o-mini",  new PricePair("0.15", "0.15", "0.60", "USD")),
+            entry("gpt-4o",       new PricePair("2.50", "2.50", "10.00", "USD")),
+            entry("gpt-4-turbo",  new PricePair("10.00", "10.00", "30.00", "USD")),
+            // ── DeepSeek (人民币, CNY) ──
+            entry("deepseek-chat",       new PricePair("1.00", "0.02", "2.00", "CNY")),  // 即将废弃
+            entry("deepseek-reasoner",    new PricePair("1.00", "0.02", "2.00", "CNY")), // 即将废弃
+            entry("deepseek-v4-flash",    new PricePair("1.00", "0.02", "2.00", "CNY")),
+            entry("deepseek-v4-pro",      new PricePair("3.13", "0.06", "6.26", "CNY"))
     );
-    private static final BigDecimal DEFAULT_PRICE = new BigDecimal("0.60");
+    private static final PricePair DEFAULT_PRICES = new PricePair("0.15", "0.15", "0.60", "USD");
+
+    /**
+     * 输入/输出分别定价，支持缓存命中折扣。
+     *
+     * @param input        输入每百万 Token 价格（缓存未命中）
+     * @param inputCached  输入每百万 Token 价格（缓存命中，约 98% 折扣）
+     * @param output       输出每百万 Token 价格
+     * @param currency     币种 (USD / CNY)
+     */
+    private record PricePair(BigDecimal input, BigDecimal inputCached, BigDecimal output, String currency) {
+        PricePair(String input, String inputCached, String output, String currency) {
+            this(new BigDecimal(input), new BigDecimal(inputCached), new BigDecimal(output), currency);
+        }
+    }
+
+    private static Map.Entry<String, PricePair> entry(String model, PricePair pair) {
+        return Map.entry(model, pair);
+    }
+
     private static final BigDecimal MILLION = new BigDecimal("1000000");
 
     private final AiTokenUsageMapper tokenUsageMapper;
@@ -66,10 +92,10 @@ public class AiTokenUsageService {
      * @param durationMs      调用耗时（毫秒）
      */
     public void record(String modelName, String purpose, int promptTokens, int completionTokens,
-                       String userId, String userCode, String conversationId,
+                       int cachedTokens, String userId, String userCode, String conversationId,
                        String modelBaseUrl, long durationMs) {
-        record(modelName, purpose, null, null, promptTokens, completionTokens, userId, userCode,
-                conversationId, modelBaseUrl, durationMs);
+        record(modelName, purpose, null, null, promptTokens, completionTokens, cachedTokens,
+                userId, userCode, conversationId, modelBaseUrl, durationMs);
     }
 
     /**
@@ -78,7 +104,8 @@ public class AiTokenUsageService {
      * 模板字段是增量字段，服务会先判断字段是否存在；旧库未迁移时自动回退到普通 Token 记录。
      */
     public void record(String modelName, String purpose, String templateCode, Integer templateVersion,
-                       int promptTokens, int completionTokens, String userId, String userCode,
+                       int promptTokens, int completionTokens, int cachedTokens,
+                       String userId, String userCode,
                        String conversationId, String modelBaseUrl, long durationMs) {
         try {
             AiTokenUsage usage = new AiTokenUsage();
@@ -89,11 +116,14 @@ public class AiTokenUsageService {
             usage.setTemplateVersion(templateVersion);
             usage.setPromptTokens(promptTokens);
             usage.setCompletionTokens(completionTokens);
+            usage.setCachedTokens(cachedTokens);
             usage.setTotalTokens(promptTokens + completionTokens);
             usage.setUserId(userId);
             usage.setUserCode(userCode);
             usage.setConversationId(conversationId);
-            usage.setEstimatedCost(estimateCost(modelName, promptTokens, completionTokens));
+            PricePair prices = MODEL_PRICES.getOrDefault(modelName, DEFAULT_PRICES);
+            usage.setEstimatedCost(estimateCost(prices, promptTokens, completionTokens, cachedTokens));
+            usage.setEstimatedCostCurrency(prices.currency);
             usage.setModelBaseUrl(modelBaseUrl);
             usage.setDurationMs(durationMs);
             usage.setCreatedAt(LocalDateTime.now());
@@ -127,12 +157,16 @@ public class AiTokenUsageService {
     }
 
     /**
-     * 估算费用 = (总 Token 数 / 1,000,000) * 模型单价。
+     * 估算费用 = (输入未命中 Token / 1M) × 输入单价 + (输入缓存命中 Token / 1M) × 缓存单价 + (输出 Token / 1M) × 输出单价。
+     * <p>
+     * 费用币种取决于模型供应商（DeepSeek → CNY, OpenAI → USD）。
+     * 缓存命中的输入 Token（DeepSeek 约 98% 折扣：¥1.00 → ¥0.02 / M）。
      */
-    private BigDecimal estimateCost(String modelName, int promptTokens, int completionTokens) {
-        BigDecimal price = MODEL_PRICE_PER_MILLION.getOrDefault(modelName, DEFAULT_PRICE);
-        int totalTokens = promptTokens + completionTokens;
-        return price.multiply(new BigDecimal(totalTokens))
+    private static BigDecimal estimateCost(PricePair prices, int promptTokens, int completionTokens, int cachedTokens) {
+        int cacheMissTokens = promptTokens - cachedTokens;
+        return prices.input.multiply(new BigDecimal(cacheMissTokens))
+                .add(prices.inputCached.multiply(new BigDecimal(cachedTokens)))
+                .add(prices.output.multiply(new BigDecimal(completionTokens)))
                 .divide(MILLION, 8, RoundingMode.HALF_UP);
     }
 
