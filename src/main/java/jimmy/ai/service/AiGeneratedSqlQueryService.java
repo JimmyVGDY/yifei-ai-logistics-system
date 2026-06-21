@@ -1,8 +1,10 @@
 package jimmy.ai.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.ai.model.AiPromptTemplateCodes;
 import jimmy.ai.util.SseChatContext;
 import jimmy.ai.model.AiGeneratedSqlQueryResult;
+import jimmy.ai.model.PromptRenderResult;
 import jimmy.common.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -45,19 +47,25 @@ public class AiGeneratedSqlQueryService {
     private final AiSensitiveDataMasker masker;
     private final AiAuditLogService auditLogService;
     private final ColumnPermissionResolver columnPermissionResolver;
+    private final AiPromptTemplateService promptTemplateService;
+    private final AiSqlOutputValidator sqlOutputValidator;
 
     public AiGeneratedSqlQueryService(AiModelGateway modelGateway,
                                       AiSqlSafetyValidator sqlSafetyValidator,
                                       JdbcTemplate jdbcTemplate,
                                       AiSensitiveDataMasker masker,
                                       AiAuditLogService auditLogService,
-                                      ColumnPermissionResolver columnPermissionResolver) {
+                                      ColumnPermissionResolver columnPermissionResolver,
+                                      AiPromptTemplateService promptTemplateService,
+                                      AiSqlOutputValidator sqlOutputValidator) {
         this.modelGateway = modelGateway;
         this.sqlSafetyValidator = sqlSafetyValidator;
         this.jdbcTemplate = jdbcTemplate;
         this.masker = masker;
         this.auditLogService = auditLogService;
         this.columnPermissionResolver = columnPermissionResolver;
+        this.promptTemplateService = promptTemplateService;
+        this.sqlOutputValidator = sqlOutputValidator;
     }
 
     public AiGeneratedSqlQueryResult query(String message) {
@@ -72,21 +80,33 @@ public class AiGeneratedSqlQueryService {
             return AiGeneratedSqlQueryResult.message("当前未配置模型，无法生成临时只读 SQL。请使用普通业务查询。");
         }
         try {
-            Optional<String> candidate = modelGateway.chat(systemPrompt(), userPrompt(message), "sql_generate");
+            Optional<String> candidate = modelGateway.chat(
+                    renderPrompt(AiPromptTemplateCodes.AI_SQL_GENERATE_SYSTEM, message, null, null, null, 0),
+                    renderPrompt(AiPromptTemplateCodes.AI_SQL_GENERATE_USER, message, null, null, null, 0),
+                    "sql_generate",
+                    null
+            );
             if (candidate.isEmpty()) {
                 recordSqlStage("生成", message, "SQL_GENERATE_EMPTY：模型未生成 SQL", false);
                 return AiGeneratedSqlQueryResult.message("模型暂时无法生成只读查询语句，请稍后重试。");
             }
+            String candidateSql = validateSqlOutput("生成输出校验", message, candidate.get());
             recordSqlStage("生成", message, "候选 SQL 已生成", true);
 
-            Optional<String> checked = modelGateway.chat(selfCheckSystemPrompt(), selfCheckUserPrompt(message, candidate.get()), "sql_self_check");
+            Optional<String> checked = modelGateway.chat(
+                    renderPrompt(AiPromptTemplateCodes.AI_SQL_SELF_CHECK_SYSTEM, message, candidateSql, null, null, 0),
+                    renderPrompt(AiPromptTemplateCodes.AI_SQL_SELF_CHECK_USER, message, candidateSql, null, null, 0),
+                    "sql_self_check",
+                    null
+            );
             if (checked.isEmpty() || !StringUtils.hasText(checked.get())) {
                 recordSqlStage("自检", message, "SQL_SELF_CHECK_FAILED：模型自检未返回可用 SQL", false);
                 return AiGeneratedSqlQueryResult.message("临时只读查询自检失败，请换一种描述后重试。");
             }
+            String checkedSql = validateSqlOutput("自检输出校验", message, checked.get());
             recordSqlStage("自检", message, "模型自检完成", true);
 
-            return executeWithRepairLoop(message, checked.get());
+            return executeWithRepairLoop(message, checkedSql);
         } catch (IllegalArgumentException exception) {
             log.info("AI 生成 SQL 查询被安全校验拦截，errorCode=SQL_SECURITY_BLOCKED, reason={}", exception.getMessage());
             recordSqlStage("安全校验", message, "SQL_SECURITY_BLOCKED：" + exception.getMessage(), false);
@@ -129,12 +149,17 @@ public class AiGeneratedSqlQueryService {
                 }
                 int nextAttempt = repairAttempt + 1;
                 recordSqlStage("语法纠错", message, "SQL_SYNTAX_ERROR：开始第" + nextAttempt + "次自动纠错", false);
-                Optional<String> repaired = modelGateway.chat(repairSystemPrompt(), repairUserPrompt(message, currentSql, exception, nextAttempt), "sql_repair");
+                Optional<String> repaired = modelGateway.chat(
+                        renderPrompt(AiPromptTemplateCodes.AI_SQL_REPAIR_SYSTEM, message, null, currentSql, exception, nextAttempt),
+                        renderPrompt(AiPromptTemplateCodes.AI_SQL_REPAIR_USER, message, null, currentSql, exception, nextAttempt),
+                        "sql_repair",
+                        null
+                );
                 if (repaired.isEmpty() || !StringUtils.hasText(repaired.get())) {
                     recordSqlStage("语法纠错", message, "SQL_SELF_CHECK_FAILED：第" + nextAttempt + "次纠错未返回可用 SQL", false);
                     return AiGeneratedSqlQueryResult.message("临时只读查询自动纠错失败，请换一种描述后重试。");
                 }
-                currentSql = repaired.get();
+                currentSql = validateSqlOutput("纠错输出校验", message, repaired.get());
                 recordSqlStage("语法纠错", message, "第" + nextAttempt + "次纠错完成，准备重新校验", true);
             }
         }
@@ -176,6 +201,32 @@ public class AiGeneratedSqlQueryService {
             return "CUSTOMER".equals(String.valueOf(roleCode));
         } catch (RuntimeException exception) {
             return false;
+        }
+    }
+
+    private PromptRenderResult renderPrompt(String templateCode,
+                                            String message,
+                                            String candidateSql,
+                                            String sql,
+                                            BadSqlGrammarException exception,
+                                            int attempt) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("message", message);
+        variables.put("candidateSql", candidateSql == null ? "" : candidateSql);
+        variables.put("sql", sql == null ? "" : sql);
+        variables.put("attempt", attempt);
+        variables.put("errorSummary", exception == null ? "" : syntaxErrorSummary(exception));
+        variables.put("schemaPrompt", sqlSafetyValidator.schemaPrompt());
+        variables.put("currentBusinessDate", LocalDateTime.now().toLocalDate().toString());
+        return promptTemplateService.render(templateCode, variables);
+    }
+
+    private String validateSqlOutput(String stage, String message, String output) {
+        try {
+            return sqlOutputValidator.normalizeSelect(output);
+        } catch (IllegalArgumentException exception) {
+            recordSqlStage(stage, message, exception.getMessage(), false);
+            throw exception;
         }
     }
 

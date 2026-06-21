@@ -1,6 +1,8 @@
 package jimmy.ai.service;
 
 import lombok.extern.slf4j.Slf4j;
+import jimmy.ai.model.AiPromptTemplateCodes;
+import jimmy.ai.model.PromptRenderResult;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
@@ -15,6 +17,8 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.StringJoiner;
 
 /**
@@ -34,11 +38,17 @@ public class AiFileAnalysisService {
 
     private final AiModelGateway modelGateway;
     private final AiSensitiveDataMasker masker;
+    private final AiPromptTemplateService promptTemplateService;
+    private final AiOutputValidator outputValidator;
 
     public AiFileAnalysisService(AiModelGateway modelGateway,
-                                  AiSensitiveDataMasker masker) {
+                                  AiSensitiveDataMasker masker,
+                                  AiPromptTemplateService promptTemplateService,
+                                  AiOutputValidator outputValidator) {
         this.modelGateway = modelGateway;
         this.masker = masker;
+        this.promptTemplateService = promptTemplateService;
+        this.outputValidator = outputValidator;
     }
 
     /**
@@ -66,12 +76,11 @@ public class AiFileAnalysisService {
         // 2. 注入 AI 分析
         if (modelGateway.configured()) {
             try {
-                String prompt = buildAnalysisPrompt(fileName, content, userQuestion);
-                Optional<String> result = modelGateway.chat(
-                        "你是物流管理系统的数据分析助手。请基于上传文件的内容进行分析，用简洁清晰的中文回答。",
-                        prompt, "file_analysis");
+                PromptRenderResult systemPrompt = renderSystemPrompt();
+                PromptRenderResult userPrompt = renderUserPrompt(fileName, content, userQuestion);
+                Optional<String> result = modelGateway.chat(systemPrompt, userPrompt, "file_analysis", null);
                 if (result.isPresent()) {
-                    return result.get();
+                    return outputValidator.limit(result.get());
                 }
             } catch (RuntimeException exception) {
                 log.debug("AI 文件分析失败，降级文件预览，reason={}", exception.getMessage());
@@ -179,6 +188,18 @@ public class AiFileAnalysisService {
                 + (StringUtils.hasText(userQuestion) ? "\n用户问题：" + userQuestion : "")
                 + "\n\n文件内容预览：\n" + masker.mask(content)
                 + "\n\n请基于以上文件内容回答用户问题，或对文件数据进行摘要分析。";
+    }
+
+    private PromptRenderResult renderSystemPrompt() {
+        return promptTemplateService.render(AiPromptTemplateCodes.AI_FILE_ANALYSIS_SYSTEM, Map.of());
+    }
+
+    private PromptRenderResult renderUserPrompt(String fileName, String content, String userQuestion) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("fileName", fileName == null ? "" : fileName);
+        variables.put("userQuestion", StringUtils.hasText(userQuestion) ? userQuestion : "");
+        variables.put("content", masker.mask(content));
+        return promptTemplateService.render(AiPromptTemplateCodes.AI_FILE_ANALYSIS_USER, variables);
     }
 
     private String extension(String filename) {

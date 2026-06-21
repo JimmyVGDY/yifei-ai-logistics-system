@@ -4,11 +4,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jimmy.ai.model.AiMemoryCandidate;
+import jimmy.ai.model.AiPromptTemplateCodes;
+import jimmy.ai.model.PromptRenderResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -54,10 +58,17 @@ public class AiMemoryExtractor {
 
     private final AiModelGateway modelGateway;
     private final ObjectMapper objectMapper;
+    private final AiPromptTemplateService promptTemplateService;
+    private final AiOutputValidator outputValidator;
 
-    public AiMemoryExtractor(AiModelGateway modelGateway, ObjectMapper objectMapper) {
+    public AiMemoryExtractor(AiModelGateway modelGateway,
+                             ObjectMapper objectMapper,
+                             AiPromptTemplateService promptTemplateService,
+                             AiOutputValidator outputValidator) {
         this.modelGateway = modelGateway;
         this.objectMapper = objectMapper;
+        this.promptTemplateService = promptTemplateService;
+        this.outputValidator = outputValidator;
     }
 
     /**
@@ -80,21 +91,19 @@ public class AiMemoryExtractor {
             return ExtractionDecision.unavailable();
         }
 
-        // 构造用户提示词：用户问题 + 工具调用摘要 + AI 回答摘要（截断防止过长）
-        StringBuilder userPrompt = new StringBuilder();
-        userPrompt.append("用户问题：").append(truncate(userMessage, 200)).append("\n");
-        if (toolTargets != null && !toolTargets.isEmpty()) {
-            userPrompt.append("AI 调用的工具/模块：").append(String.join("、", toolTargets)).append("\n");
-        }
-        userPrompt.append("AI 回答摘要：").append(truncate(assistantMessage, 300));
-
         try {
-            Optional<String> result = modelGateway.chat(SYSTEM_PROMPT, userPrompt.toString(), "memory_extract");
+            PromptRenderResult systemPrompt = promptTemplateService.render(AiPromptTemplateCodes.AI_MEMORY_EXTRACT_SYSTEM, Map.of());
+            PromptRenderResult userPrompt = renderUserPrompt(userMessage, assistantMessage, toolTargets);
+            Optional<String> result = modelGateway.chat(systemPrompt, userPrompt, "memory_extract", null);
             if (result.isEmpty()) {
                 return ExtractionDecision.unavailable(); // 模型调用异常，降级关键词匹配
             }
 
-            JsonNode node = objectMapper.readTree(result.get());
+            Optional<String> json = outputValidator.extractJsonObject(result.get());
+            if (json.isEmpty()) {
+                return ExtractionDecision.unavailable();
+            }
+            JsonNode node = objectMapper.readTree(json.get());
             boolean hasMemory = node.path("hasMemory").asBoolean(false);
             if (!hasMemory) {
                 return ExtractionDecision.skip(); // LLM 明确判断：不值得记忆
@@ -140,6 +149,14 @@ public class AiMemoryExtractor {
     private String truncate(String value, int maxLen) {
         if (value == null) return "";
         return value.length() <= maxLen ? value : value.substring(0, maxLen) + "...";
+    }
+
+    private PromptRenderResult renderUserPrompt(String userMessage, String assistantMessage, List<String> toolTargets) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("userMessage", truncate(userMessage, 200));
+        variables.put("assistantMessage", truncate(assistantMessage, 300));
+        variables.put("toolTargets", toolTargets == null || toolTargets.isEmpty() ? "" : String.join("、", toolTargets));
+        return promptTemplateService.render(AiPromptTemplateCodes.AI_MEMORY_EXTRACT_USER, variables);
     }
 
     /**

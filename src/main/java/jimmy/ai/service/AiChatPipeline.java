@@ -11,8 +11,10 @@ import jimmy.ai.model.AiLogAnalysisResponse;
 import jimmy.ai.model.AiLogAnalyzeRequest;
 import jimmy.ai.model.AiMemoryRecallResult;
 import jimmy.ai.model.AiMessageVO;
+import jimmy.ai.model.AiPromptTemplateCodes;
 import jimmy.ai.model.AiReadonlyQueryResult;
 import jimmy.ai.model.AiToolCall;
+import jimmy.ai.model.PromptRenderResult;
 import jimmy.ai.util.SseChatContext;
 import jimmy.common.trace.TraceContextSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +27,9 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -51,6 +55,8 @@ public class AiChatPipeline {
     private final AiMemoryService memoryService;
     private final AiFallbackHandler fallbackHandler;
     private final AiIntentPlanner intentPlanner;
+    private final AiPromptTemplateService promptTemplateService;
+    private final AiToolOutputValidator toolOutputValidator;
     private final long heartbeatSeconds;
 
     public AiChatPipeline(AiKnowledgeService knowledgeService,
@@ -66,6 +72,8 @@ public class AiChatPipeline {
                           AiMemoryService memoryService,
                           AiFallbackHandler fallbackHandler,
                           AiIntentPlanner intentPlanner,
+                          AiPromptTemplateService promptTemplateService,
+                          AiToolOutputValidator toolOutputValidator,
                           @Value("${app.ai.sse.heartbeat-seconds:10}") long heartbeatSeconds) {
         this.knowledgeService = knowledgeService;
         this.readonlyQueryService = readonlyQueryService;
@@ -80,6 +88,8 @@ public class AiChatPipeline {
         this.memoryService = memoryService;
         this.fallbackHandler = fallbackHandler;
         this.intentPlanner = intentPlanner;
+        this.promptTemplateService = promptTemplateService;
+        this.toolOutputValidator = toolOutputValidator;
         this.heartbeatSeconds = Math.max(1, heartbeatSeconds);
     }
 
@@ -164,10 +174,11 @@ public class AiChatPipeline {
                 toolCalls.add(new AiToolCall("日志排障", "操作日志", analysis.summary()));
             }
 
-            String userPrompt = buildUserPrompt(request, safeMessage, conversationId, context);
+            PromptRenderResult systemPrompt = renderSystemPrompt();
+            PromptRenderResult userPrompt = renderUserPrompt(request, safeMessage, conversationId, context);
             Optional<String> modelAnswer = streaming
-                    ? safeChatWithTools(buildSystemPrompt(), userPrompt, safeMessage)
-                    : callModelWithTools(buildSystemPrompt(), userPrompt, safeMessage);
+                    ? safeChatWithTools(systemPrompt, userPrompt, safeMessage)
+                    : callModelWithTools(systemPrompt, userPrompt, safeMessage);
             AiToolCallContext.Snapshot toolSnapshot = toolCallContext.snapshotAndClear();
             if (streaming) {
                 toolCallContext.begin(outputStream);
@@ -198,23 +209,25 @@ public class AiChatPipeline {
                 }
             }
 
-            for (AiToolCall toolCall : toolCalls) {
+            List<AiToolCall> safeToolCalls = sanitizeToolCalls(toolCalls);
+
+            for (AiToolCall toolCall : safeToolCalls) {
                 auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
             }
             String answer = fallbackQueryExecuted
-                    ? fallbackHandler.fallbackAnswer(context.toString(), toolCalls)
-                    : modelAnswer.orElseGet(() -> fallbackHandler.fallbackAnswer(context.toString(), toolCalls));
-            AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, toolCalls, citations);
-            memoryService.rememberInteraction(conversation.conversationId(), safeMessage, answer, toolCalls);
+                    ? fallbackHandler.fallbackAnswer(context.toString(), safeToolCalls)
+                    : modelAnswer.orElseGet(() -> fallbackHandler.fallbackAnswer(context.toString(), safeToolCalls));
+            AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, safeToolCalls, citations);
+            memoryService.rememberInteraction(conversation.conversationId(), safeMessage, answer, safeToolCalls);
             auditLogService.recordResponse(conversation.conversationId(), safeMessage,
-                    "引用来源=" + citations.size() + "，工具调用=" + toolCalls.size() + "，模型已配置=" + modelGateway.configured(),
+                    "引用来源=" + citations.size() + "，工具调用=" + safeToolCalls.size() + "，模型已配置=" + modelGateway.configured(),
                     System.currentTimeMillis() - start);
             log.info("AI助手问答完成，conversationId={}, streaming={}, modelConfigured={}, citationCount={}, toolCallCount={}, costMs={}",
-                    conversation.conversationId(), streaming, modelGateway.configured(), citations.size(), toolCalls.size(), System.currentTimeMillis() - start);
+                    conversation.conversationId(), streaming, modelGateway.configured(), citations.size(), safeToolCalls.size(), System.currentTimeMillis() - start);
             if (streaming) {
-                toolCallContext.notifyDone(conversation.conversationId(), answer, citations, toolCalls);
+                toolCallContext.notifyDone(conversation.conversationId(), answer, citations, safeToolCalls);
             }
-            return new AiChatResponse(conversation.conversationId(), answer, citations, toolCalls, dataResults,
+            return new AiChatResponse(conversation.conversationId(), answer, citations, safeToolCalls, dataResults,
                     traceContextSupport.currentOrNewTraceId(), traceContextSupport.currentOrNewOperationId());
         } catch (Exception exception) {
             log.error("AI助手问答异常，conversationId={}, streaming={}, message={}", conversationId, streaming, exception.getMessage(), exception);
@@ -262,18 +275,45 @@ public class AiChatPipeline {
                     : queryResult.toolCalls().getFirst();
             toolCallContext.notifyToolResult(firstToolCall.toolName(), firstToolCall.target(), queryResult);
         }
-        for (AiToolCall toolCall : toolCalls) {
+        List<AiToolCall> safeToolCalls = sanitizeToolCalls(toolCalls);
+        for (AiToolCall toolCall : safeToolCalls) {
             auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
         }
-        String answer = fallbackHandler.fallbackAnswer("业务只读查询摘要：" + queryResult.answerContext(), toolCalls);
-        AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, toolCalls, citations);
+        String answer = fallbackHandler.fallbackAnswer("业务只读查询摘要：" + queryResult.answerContext(), safeToolCalls);
+        AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, safeToolCalls, citations);
         auditLogService.recordResponse(conversation.conversationId(), safeMessage,
-                "按查询游标继续分页，工具调用=" + toolCalls.size(), System.currentTimeMillis() - start);
+                "按查询游标继续分页，工具调用=" + safeToolCalls.size(), System.currentTimeMillis() - start);
         if (streaming) {
-            toolCallContext.notifyDone(conversation.conversationId(), answer, citations, toolCalls);
+            toolCallContext.notifyDone(conversation.conversationId(), answer, citations, safeToolCalls);
         }
-        return new AiChatResponse(conversation.conversationId(), answer, citations, toolCalls, dataResults,
+        return new AiChatResponse(conversation.conversationId(), answer, citations, safeToolCalls, dataResults,
                 traceContextSupport.currentOrNewTraceId(), traceContextSupport.currentOrNewOperationId());
+    }
+
+    private PromptRenderResult renderUserPrompt(AiChatRequest request,
+                                                String safeMessage,
+                                                String conversationId,
+                                                StringBuilder context) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("safeMessage", safeMessage);
+        variables.put("currentBusinessDate", currentBusinessDate());
+        variables.put("pageContext", nullToBlank(request.pageContext()));
+        variables.put("conversationHistory", conversationHistory(conversationId));
+        variables.put("referenceContext", context == null ? "" : context.toString());
+        variables.put("traceId", traceContextSupport.currentOrNewTraceId());
+        variables.put("operationId", traceContextSupport.currentOrNewOperationId());
+        variables.put("loginSessionId", traceContextSupport.current(TraceContextSupport.LOGIN_SESSION_ID));
+        return promptTemplateService.render(AiPromptTemplateCodes.AI_CHAT_USER, variables);
+    }
+
+    private PromptRenderResult renderSystemPrompt() {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("toolMaxCalls", toolCallContext.maxToolCalls());
+        variables.put("currentBusinessDate", currentBusinessDate());
+        variables.put("traceId", traceContextSupport.currentOrNewTraceId());
+        variables.put("operationId", traceContextSupport.currentOrNewOperationId());
+        variables.put("loginSessionId", traceContextSupport.current(TraceContextSupport.LOGIN_SESSION_ID));
+        return promptTemplateService.render(AiPromptTemplateCodes.AI_CHAT_SYSTEM, variables);
     }
 
     private String buildUserPrompt(AiChatRequest request, String safeMessage, String conversationId, StringBuilder context) {
@@ -299,7 +339,9 @@ public class AiChatPipeline {
                 """.formatted(toolCallContext.maxToolCalls());
     }
 
-    private Optional<String> callModelWithTools(String systemPrompt, String userPrompt, String originalQuestion) {
+    private Optional<String> callModelWithTools(PromptRenderResult systemPrompt,
+                                                PromptRenderResult userPrompt,
+                                                String originalQuestion) {
         toolCallContext.begin();
         toolCallContext.setOriginalQuestion(originalQuestion);
         try {
@@ -310,7 +352,9 @@ public class AiChatPipeline {
         }
     }
 
-    private Optional<String> safeChatWithTools(String systemPrompt, String userPrompt, String originalQuestion) {
+    private Optional<String> safeChatWithTools(PromptRenderResult systemPrompt,
+                                               PromptRenderResult userPrompt,
+                                               String originalQuestion) {
         try {
             return callModelWithTools(systemPrompt, userPrompt, originalQuestion);
         } catch (RuntimeException exception) {
@@ -325,6 +369,16 @@ public class AiChatPipeline {
         traceContextSupport.put(TraceContextSupport.USERNAME_MASKED, masker.mask(username));
         traceContextSupport.put(TraceContextSupport.ROLE_CODE, roleCode);
         traceContextSupport.put(TraceContextSupport.LOGIN_SESSION_ID, loginSessionId);
+    }
+
+    private List<AiToolCall> sanitizeToolCalls(List<AiToolCall> toolCalls) {
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            return List.of();
+        }
+        return toolCalls.stream()
+                .map(toolOutputValidator::sanitize)
+                .filter(call -> call != null)
+                .toList();
     }
 
     private AiConversationVO saveConversation(String conversationId,
