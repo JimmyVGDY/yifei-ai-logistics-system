@@ -11,6 +11,8 @@ public class AiTokenUsage {
     private Long id;
     private String modelName;
     private String purpose;
+    private String templateCode;
+    private Integer templateVersion;
     private Integer promptTokens;
     private Integer completionTokens;
     private Integer totalTokens;
@@ -30,6 +32,12 @@ public class AiTokenUsage {
 
     public String getPurpose() { return purpose; }
     public void setPurpose(String purpose) { this.purpose = purpose; }
+
+    public String getTemplateCode() { return templateCode; }
+    public void setTemplateCode(String templateCode) { this.templateCode = templateCode; }
+
+    public Integer getTemplateVersion() { return templateVersion; }
+    public void setTemplateVersion(Integer templateVersion) { this.templateVersion = templateVersion; }
 
     public Integer getPromptTokens() { return promptTokens; }
     public void setPromptTokens(Integer promptTokens) { this.promptTokens = promptTokens; }

@@ -153,6 +153,9 @@ app:
       ttl-minutes: ${APP_AI_QUERY_CURSOR_TTL_MINUTES:60}
     token-usage:
       enabled: ${APP_AI_TOKEN_USAGE_ENABLED:true}
+    prompt:
+      db-enabled: ${APP_AI_PROMPT_DB_ENABLED:true}
+      fallback-enabled: ${APP_AI_PROMPT_FALLBACK_ENABLED:true}
     sse:
       timeout-ms: ${APP_AI_SSE_TIMEOUT_MS:180000}
       legacy-get-enabled: ${APP_AI_SSE_LEGACY_GET_ENABLED:false}

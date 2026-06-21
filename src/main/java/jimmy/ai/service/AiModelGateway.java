@@ -17,6 +17,8 @@ import io.micrometer.observation.ObservationRegistry;
 
 import java.util.Optional;
 import jimmy.ai.model.AiRuntimeProperties;
+import jimmy.ai.model.PromptRenderResult;
+import jimmy.ai.model.PromptTemplateMetadata;
 
 /**
  * Spring AI 模型网关 —— 隔离模型供应商配置、调用、Token 追踪和异常兜底。
@@ -72,6 +74,29 @@ public class AiModelGateway {
      */
     public Optional<String> chat(String systemPrompt, String userPrompt, String purpose,
                                   String conversationId, Object... tools) {
+        return chat(systemPrompt, userPrompt, purpose, conversationId, PromptTemplateMetadata.none(), tools);
+    }
+
+    /**
+     * 使用已渲染 Prompt 模板调用模型，并把模板编码和版本写入 Token 用量。
+     */
+    public Optional<String> chat(PromptRenderResult systemPrompt,
+                                 PromptRenderResult userPrompt,
+                                 String purpose,
+                                 String conversationId,
+                                 Object... tools) {
+        return chat(
+                systemPrompt == null ? "" : systemPrompt.content(),
+                userPrompt == null ? "" : userPrompt.content(),
+                purpose,
+                conversationId,
+                PromptTemplateMetadata.of(systemPrompt, userPrompt),
+                tools
+        );
+    }
+
+    private Optional<String> chat(String systemPrompt, String userPrompt, String purpose,
+                                  String conversationId, PromptTemplateMetadata promptMetadata, Object... tools) {
         AiRuntimeProperties properties = runtimePropertiesProvider.current();
         if (!properties.configured()) {
             return Optional.empty();
@@ -88,12 +113,12 @@ public class AiModelGateway {
             ChatResponse chatResponse = requestSpec.call().chatResponse();
             String answer = chatResponse.getResult().getOutput().getText();
             long durationMs = System.currentTimeMillis() - start;
-            recordUsage(properties, purpose, conversationId, chatResponse, durationMs);
+            recordUsage(properties, purpose, conversationId, promptMetadata, chatResponse, durationMs);
             return Optional.ofNullable(masker.mask(answer));
         } catch (RuntimeException exception) {
             long durationMs = System.currentTimeMillis() - start;
             log.warn("Spring AI 模型调用失败，已返回本地兜底，reason={}", exception.getMessage());
-            recordFailedUsage(properties, purpose, conversationId, durationMs);
+            recordFailedUsage(properties, purpose, conversationId, promptMetadata, durationMs);
             return Optional.empty();
         }
     }
@@ -102,13 +127,14 @@ public class AiModelGateway {
      * 记录成功调用的 Token 用量。
      */
     private void recordUsage(AiRuntimeProperties properties, String purpose, String conversationId,
-                              ChatResponse chatResponse, long durationMs) {
+                              PromptTemplateMetadata promptMetadata, ChatResponse chatResponse, long durationMs) {
         try {
             Usage usage = chatResponse.getMetadata() != null ? chatResponse.getMetadata().getUsage() : null;
             int promptTokens = usage != null ? (int) usage.getPromptTokens() : 0;
             int completionTokens = usage != null ? (int) usage.getCompletionTokens() : 0;
             tokenUsageService.record(
-                    properties.model(), purpose, promptTokens, completionTokens,
+                    properties.model(), purpose, promptMetadata.templateCode(), promptMetadata.templateVersion(),
+                    promptTokens, completionTokens,
                     currentUserId(), currentUserCode(), conversationId,
                     properties.baseUrl(), durationMs);
         } catch (RuntimeException exception) {
@@ -119,10 +145,11 @@ public class AiModelGateway {
     /**
      * 记录失败调用的基本信息（Token 数为 0，仅记录调用事实和耗时）。
      */
-    private void recordFailedUsage(AiRuntimeProperties properties, String purpose, String conversationId, long durationMs) {
+    private void recordFailedUsage(AiRuntimeProperties properties, String purpose, String conversationId,
+                                   PromptTemplateMetadata promptMetadata, long durationMs) {
         try {
             tokenUsageService.record(
-                    properties.model(), purpose, 0, 0,
+                    properties.model(), purpose, promptMetadata.templateCode(), promptMetadata.templateVersion(), 0, 0,
                     currentUserId(), currentUserCode(), conversationId,
                     properties.baseUrl(), durationMs);
         } catch (RuntimeException exception) {

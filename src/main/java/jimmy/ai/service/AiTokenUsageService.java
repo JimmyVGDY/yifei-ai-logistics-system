@@ -3,6 +3,7 @@ package jimmy.ai.service;
 import jimmy.ai.entity.AiTokenUsage;
 import jimmy.ai.mapper.AiTokenUsageMapper;
 import jimmy.common.id.CompactSnowflakeIdGenerator;
+import jimmy.logistics.util.ColumnExistenceChecker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -38,11 +39,15 @@ public class AiTokenUsageService {
 
     private final AiTokenUsageMapper tokenUsageMapper;
     private final CompactSnowflakeIdGenerator idGenerator;
+    private final ColumnExistenceChecker columnChecker;
+    private volatile Boolean templateColumnsExist;
 
     public AiTokenUsageService(AiTokenUsageMapper tokenUsageMapper,
-                                CompactSnowflakeIdGenerator idGenerator) {
+                                CompactSnowflakeIdGenerator idGenerator,
+                                ColumnExistenceChecker columnChecker) {
         this.tokenUsageMapper = tokenUsageMapper;
         this.idGenerator = idGenerator;
+        this.columnChecker = columnChecker;
     }
 
     /**
@@ -63,11 +68,25 @@ public class AiTokenUsageService {
     public void record(String modelName, String purpose, int promptTokens, int completionTokens,
                        String userId, String userCode, String conversationId,
                        String modelBaseUrl, long durationMs) {
+        record(modelName, purpose, null, null, promptTokens, completionTokens, userId, userCode,
+                conversationId, modelBaseUrl, durationMs);
+    }
+
+    /**
+     * 记录一次模型调用的 Token 消耗，并尽量附带 Prompt 模板版本。
+     * <p>
+     * 模板字段是增量字段，服务会先判断字段是否存在；旧库未迁移时自动回退到普通 Token 记录。
+     */
+    public void record(String modelName, String purpose, String templateCode, Integer templateVersion,
+                       int promptTokens, int completionTokens, String userId, String userCode,
+                       String conversationId, String modelBaseUrl, long durationMs) {
         try {
             AiTokenUsage usage = new AiTokenUsage();
             usage.setId(idGenerator.nextId());
             usage.setModelName(modelName);
             usage.setPurpose(purpose);
+            usage.setTemplateCode(templateCode);
+            usage.setTemplateVersion(templateVersion);
             usage.setPromptTokens(promptTokens);
             usage.setCompletionTokens(completionTokens);
             usage.setTotalTokens(promptTokens + completionTokens);
@@ -78,7 +97,11 @@ public class AiTokenUsageService {
             usage.setModelBaseUrl(modelBaseUrl);
             usage.setDurationMs(durationMs);
             usage.setCreatedAt(LocalDateTime.now());
-            tokenUsageMapper.insert(usage);
+            if (hasTemplateColumns()) {
+                tokenUsageMapper.insertWithTemplate(usage);
+            } else {
+                tokenUsageMapper.insert(usage);
+            }
         } catch (RuntimeException exception) {
             log.debug("AI Token 用量记录写入失败，model={}, purpose={}, reason={}",
                     modelName, purpose, exception.getMessage());
@@ -111,5 +134,20 @@ public class AiTokenUsageService {
         int totalTokens = promptTokens + completionTokens;
         return price.multiply(new BigDecimal(totalTokens))
                 .divide(MILLION, 8, RoundingMode.HALF_UP);
+    }
+
+    private boolean hasTemplateColumns() {
+        Boolean cached = templateColumnsExist;
+        if (cached != null) {
+            return cached;
+        }
+        synchronized (this) {
+            if (templateColumnsExist != null) {
+                return templateColumnsExist;
+            }
+            templateColumnsExist = columnChecker.hasColumn("ai_token_usage", "template_code")
+                    && columnChecker.hasColumn("ai_token_usage", "template_version");
+            return templateColumnsExist;
+        }
     }
 }

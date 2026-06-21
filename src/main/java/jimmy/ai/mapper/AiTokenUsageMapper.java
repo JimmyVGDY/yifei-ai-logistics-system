@@ -19,6 +19,13 @@ public interface AiTokenUsageMapper {
     int insert(AiTokenUsage usage);
 
     /**
+     * 插入带 Prompt 模板元信息的 Token 用量记录。
+     * <p>
+     * 仅在 ai_token_usage 已完成模板字段增量迁移时调用，避免旧库启动失败。
+     */
+    int insertWithTemplate(AiTokenUsage usage);
+
+    /**
      * 按时间范围查询用量记录，支持按模型、用途过滤。
      */
     List<AiTokenUsage> selectByTimeRange(@Param("startTime") LocalDateTime startTime,

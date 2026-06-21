@@ -125,6 +125,13 @@
             <artifactId>spring-ai-starter-model-ollama</artifactId>
         </dependency>
 
+        <!-- AI Prompt 模板渲染：把提示词作为可版本化业务资产维护。 -->
+        <dependency>
+            <groupId>com.github.spullara.mustache.java</groupId>
+            <artifactId>compiler</artifactId>
+            <version>0.9.14</version>
+        </dependency>
+
         <!-- Elasticsearch 集成，版本由 Spring Boot 3.5.x 统一管理。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

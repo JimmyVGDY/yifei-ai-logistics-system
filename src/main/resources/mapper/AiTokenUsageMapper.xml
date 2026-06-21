@@ -14,6 +14,16 @@
         )
     </insert>
 
+    <insert id="insertWithTemplate">
+        insert into ai_token_usage (
+            id, model_name, purpose, template_code, template_version, prompt_tokens, completion_tokens, total_tokens,
+            user_id, user_code, conversation_id, estimated_cost, model_base_url, duration_ms, created_at
+        ) values (
+            #{id}, #{modelName}, #{purpose}, #{templateCode}, #{templateVersion}, #{promptTokens}, #{completionTokens}, #{totalTokens},
+            #{userId}, #{userCode}, #{conversationId}, #{estimatedCost}, #{modelBaseUrl}, #{durationMs}, #{createdAt}
+        )
+    </insert>
+
     <select id="selectByTimeRange" resultType="jimmy.ai.entity.AiTokenUsage">
         select id, model_name, purpose, prompt_tokens, completion_tokens, total_tokens,
                user_id, user_code, conversation_id, estimated_cost, model_base_url, duration_ms, created_at
