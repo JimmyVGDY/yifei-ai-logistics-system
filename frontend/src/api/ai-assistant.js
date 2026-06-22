@@ -180,6 +180,18 @@ export function deleteAiMemoryItem(id) {
   return http.delete(`/ai/memory/items/${id}`)
 }
 
+export function approveAiMemoryItem(id) {
+  return http.put(`/ai/memory/items/${id}/approve`)
+}
+
+export function rejectAiMemoryItem(id) {
+  return http.put(`/ai/memory/items/${id}/reject`)
+}
+
+export function restoreAiMemoryItem(id) {
+  return http.put(`/ai/memory/items/${id}/restore`)
+}
+
 export function clearAiMemories() {
   return http.delete('/ai/memory/items')
 }

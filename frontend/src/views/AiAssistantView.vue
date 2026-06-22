@@ -73,11 +73,50 @@
           </div>
           <el-switch v-model="memoryEnabled" size="small" :loading="memoryLoading" @change="toggleMemory" />
         </div>
+        <el-segmented
+          v-model="memoryStatus"
+          class="memory-status-tabs"
+          size="small"
+          :options="MEMORY_STATUS_OPTIONS"
+          @change="loadMemory"
+        />
         <el-scrollbar class="memory-list">
           <div v-for="item in memoryItems" :key="item.id" class="memory-item">
-            <strong>{{ item.memoryTitle }}</strong>
+            <div class="memory-item-head">
+              <strong>{{ item.memoryTitle }}</strong>
+              <el-tag size="small" :type="memoryStatusTagType(item.status)">{{ memoryStatusLabel(item.status) }}</el-tag>
+            </div>
             <p>{{ item.memorySummary }}</p>
-            <el-button link type="danger" size="small" @click="removeMemory(item.id)">删除</el-button>
+            <div class="memory-meta">
+              <span>{{ memoryScopeLabel(item.memoryScope) }}</span>
+              <span>置信度 {{ formatConfidence(item.confidence) }}</span>
+              <span v-if="item.evidenceCount">证据 {{ item.evidenceCount }}</span>
+              <span v-if="item.conflictGroup">冲突组 {{ item.conflictGroup }}</span>
+            </div>
+            <div class="memory-actions">
+              <el-button
+                v-if="canApproveMemory(item)"
+                link
+                type="success"
+                size="small"
+                @click="approveMemory(item.id)"
+              >批准</el-button>
+              <el-button
+                v-if="canRejectMemory(item)"
+                link
+                type="warning"
+                size="small"
+                @click="rejectMemory(item.id)"
+              >拒绝</el-button>
+              <el-button
+                v-if="canRestoreMemory(item)"
+                link
+                type="primary"
+                size="small"
+                @click="restoreMemory(item.id)"
+              >恢复</el-button>
+              <el-button link type="danger" size="small" @click="removeMemory(item.id)">删除</el-button>
+            </div>
           </div>
           <el-empty v-if="!memoryItems.length" :image-size="54" description="暂无长期记忆" />
         </el-scrollbar>
@@ -275,6 +314,7 @@ import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
 import {
   analyzeAiLogs, submitFeedback,
+  approveAiMemoryItem,
   archiveAiConversation,
   chatWithAiStream,
   clearAiConversations,
@@ -285,7 +325,9 @@ import {
   fetchAiConversations,
   fetchAiMemoryItems,
   fetchAiMemoryProfile,
+  rejectAiMemoryItem,
   restoreAiConversation,
+  restoreAiMemoryItem,
   updateAiMemorySettings
 } from '../api/ai-assistant'
 import { hasPermission, getAuthToken } from '../stores/auth-store'
@@ -308,9 +350,19 @@ const memoryProfile = ref(null)
 const memoryItems = ref([])
 const memoryEnabled = ref(true)
 const memoryLoading = ref(false)
+const memoryStatus = ref('ACTIVE')
 const chatScrollbarRef = ref(null)
 const canAnalyzeLogs = computed(() => hasPermission('ai:log:analyze'))
 const DATA_PREVIEW_LIMIT = 10
+
+const MEMORY_STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: '生效中' },
+  { value: 'CANDIDATE', label: '候选' },
+  { value: 'CONFLICTED', label: '冲突' },
+  { value: 'SUSPECTED_HALLUCINATION', label: '疑似幻觉' },
+  { value: 'ARCHIVED', label: '已归档' },
+  { value: 'REJECTED', label: '已拒绝' }
+]
 
 /** 数据库字段名 → 中文展示名的全局映射，用于 AI 结构化数据表格的列标题 */
 const FIELD_LABEL_MAP = {
@@ -616,7 +668,7 @@ async function loadMemory() {
   try {
     const [profile, page] = await Promise.all([
       fetchAiMemoryProfile(),
-      fetchAiMemoryItems({ page: 1, pageSize: 5 })
+      fetchAiMemoryItems({ page: 1, pageSize: 20, status: memoryStatus.value })
     ])
     memoryProfile.value = profile
     memoryEnabled.value = profile?.memoryEnabled !== false
@@ -635,6 +687,62 @@ async function toggleMemory(value) {
   } finally {
     memoryLoading.value = false
   }
+}
+
+function memoryStatusLabel(status) {
+  return MEMORY_STATUS_OPTIONS.find((item) => item.value === status)?.label || '未知'
+}
+
+function memoryStatusTagType(status) {
+  if (status === 'ACTIVE') return 'success'
+  if (status === 'CANDIDATE') return 'info'
+  if (status === 'CONFLICTED' || status === 'SUSPECTED_HALLUCINATION') return 'warning'
+  if (status === 'ARCHIVED' || status === 'REJECTED') return 'danger'
+  return 'info'
+}
+
+function memoryScopeLabel(scope) {
+  if (scope === 'GLOBAL') return '全局'
+  if (scope === 'MODULE') return '模块'
+  if (scope === 'SCENARIO') return '场景'
+  return '未分组'
+}
+
+function formatConfidence(value) {
+  if (value === null || value === undefined || value === '') return '-'
+  return `${Math.round(Number(value) * 100)}%`
+}
+
+function canApproveMemory(item) {
+  return ['CANDIDATE', 'CONFLICTED', 'SUSPECTED_HALLUCINATION'].includes(item.status)
+}
+
+function canRejectMemory(item) {
+  return ['CANDIDATE', 'CONFLICTED', 'SUSPECTED_HALLUCINATION'].includes(item.status)
+}
+
+function canRestoreMemory(item) {
+  return ['ARCHIVED', 'REJECTED'].includes(item.status)
+}
+
+async function approveMemory(id) {
+  await approveAiMemoryItem(id)
+  ElMessage.success('已批准长期记忆')
+  memoryStatus.value = 'ACTIVE'
+  await loadMemory()
+}
+
+async function rejectMemory(id) {
+  await rejectAiMemoryItem(id)
+  ElMessage.success('已拒绝长期记忆')
+  await loadMemory()
+}
+
+async function restoreMemory(id) {
+  await restoreAiMemoryItem(id)
+  ElMessage.success('已恢复为候选记忆')
+  memoryStatus.value = 'CANDIDATE'
+  await loadMemory()
 }
 
 async function removeMemory(id) {
@@ -872,6 +980,16 @@ onBeforeUnmount(() => {
   padding-right: 4px;
 }
 
+.memory-status-tabs {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.memory-status-tabs :deep(.el-segmented__item) {
+  min-width: 0;
+  padding: 0 6px;
+}
+
 .memory-item {
   padding: 10px;
   margin-bottom: 8px;
@@ -880,10 +998,19 @@ onBeforeUnmount(() => {
   background: #f8fbff;
 }
 
+.memory-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .memory-item strong {
   display: block;
+  min-width: 0;
   font-size: 13px;
   color: #1e3a8a;
+  overflow-wrap: anywhere;
 }
 
 .memory-item p {
@@ -891,6 +1018,22 @@ onBeforeUnmount(() => {
   font-size: 12px;
   line-height: 1.5;
   color: #475569;
+  overflow-wrap: anywhere;
+}
+
+.memory-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 4px 0 6px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.memory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
 }
 
 .assistant-header {
