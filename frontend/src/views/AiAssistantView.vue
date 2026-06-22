@@ -855,7 +855,7 @@ function dataResultKey(result, index) {
 }
 
 function formatElapsed(ms) {
-  if (ms < 1000) return (ms / 1000).toFixed(1) + 's'
+  if (ms < 1000) return ms + 'ms'
   return (ms / 1000).toFixed(1) + 's'
 }
 

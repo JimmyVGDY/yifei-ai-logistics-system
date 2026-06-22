@@ -11,15 +11,15 @@
                answer_style as answerStyle,
                favorite_modules as favoriteModules,
                query_habits as queryHabits,
+               (select count(1) from ai_user_memory m
+                where m.deleted = 0 and m.user_id = p.user_id and ifnull(m.user_code, '') = ifnull(p.user_code, '')) as memoryCount,
+               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime,
                profile_version as profileVersion,
                answer_style_json as answerStyleJson,
                query_strategy_json as queryStrategyJson,
                module_affinity_json as moduleAffinityJson,
                profile_confidence as profileConfidence,
-               date_format(compiled_at, '%Y-%m-%d %H:%i:%s') as compiledAt,
-               (select count(1) from ai_user_memory m
-                where m.deleted = 0 and m.user_id = p.user_id and ifnull(m.user_code, '') = ifnull(p.user_code, '')) as memoryCount,
-               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
+               date_format(compiled_at, '%Y-%m-%d %H:%i:%s') as compiledAt
         from ai_user_profile p
         where user_id = #{userId}
           and ifnull(user_code, '') = ifnull(#{userCode}, '')
@@ -100,6 +100,9 @@
                memory_summary as memorySummary,
                confidence,
                qdrant_point_id as qdrantPointId,
+               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
+               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
+               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime,
                status,
                memory_scope as memoryScope,
                scope_value as scopeValue,
@@ -109,10 +112,7 @@
                negative_count as negativeCount,
                superseded_by as supersededBy,
                date_format(last_applied_at, '%Y-%m-%d %H:%i:%s') as lastAppliedAt,
-               policy_json as policyJson,
-               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
-               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
-               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
+               policy_json as policyJson
         from ai_user_memory
         <include refid="memoryFilters"/>
         order by updated_at desc
@@ -126,6 +126,9 @@
                memory_summary as memorySummary,
                confidence,
                qdrant_point_id as qdrantPointId,
+               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
+               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
+               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime,
                status,
                memory_scope as memoryScope,
                scope_value as scopeValue,
@@ -135,10 +138,7 @@
                negative_count as negativeCount,
                superseded_by as supersededBy,
                date_format(last_applied_at, '%Y-%m-%d %H:%i:%s') as lastAppliedAt,
-               policy_json as policyJson,
-               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
-               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
-               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
+               policy_json as policyJson
         from ai_user_memory
         where deleted = 0
           and user_id = #{userId}
@@ -160,6 +160,9 @@
                memory_summary as memorySummary,
                confidence,
                qdrant_point_id as qdrantPointId,
+               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
+               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
+               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime,
                status,
                memory_scope as memoryScope,
                scope_value as scopeValue,
@@ -169,10 +172,7 @@
                negative_count as negativeCount,
                superseded_by as supersededBy,
                date_format(last_applied_at, '%Y-%m-%d %H:%i:%s') as lastAppliedAt,
-               policy_json as policyJson,
-               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
-               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
-               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
+               policy_json as policyJson
         from ai_user_memory
         where id = #{id}
           and user_id = #{userId}
@@ -256,6 +256,9 @@
                memory_summary as memorySummary,
                confidence,
                qdrant_point_id as qdrantPointId,
+               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
+               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
+               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime,
                status,
                memory_scope as memoryScope,
                scope_value as scopeValue,
@@ -265,10 +268,7 @@
                negative_count as negativeCount,
                superseded_by as supersededBy,
                date_format(last_applied_at, '%Y-%m-%d %H:%i:%s') as lastAppliedAt,
-               policy_json as policyJson,
-               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
-               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
-               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
+               policy_json as policyJson
         from ai_user_memory
         where deleted = 0
           and user_id = #{userId}

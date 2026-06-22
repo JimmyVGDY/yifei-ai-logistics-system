@@ -27,7 +27,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotLoginException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ApiResponse<Void> handleNotLogin(NotLoginException exception) {
-        log.warn("接口访问未登录，reason={}", exception.getMessage());
+        log.info("接口访问未登录，reason={}", exception.getMessage());
         return ApiResponse.failure(401, "请先登录后再访问");
     }
 

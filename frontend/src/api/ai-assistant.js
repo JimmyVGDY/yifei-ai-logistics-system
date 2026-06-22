@@ -80,7 +80,7 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
               result = {
                 conversationId: data.conversationId || conversationId || '',
                 answer: data.answer || '',
-                citations: [],
+                citations: Array.isArray(data.citations) ? data.citations : [],
                 toolCalls,
                 dataResults,
                 elapsedMs: data.elapsedMs || 0

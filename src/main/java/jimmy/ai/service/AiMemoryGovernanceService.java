@@ -16,9 +16,14 @@ import java.util.Locale;
 /**
  * AI 长期记忆治理策略。
  * <p>
- * 它负责把“模型抽取出来的一句话”转换成可维护的记忆元数据：
- * 生命周期、作用域、冲突组、优先级和策略摘要。这样长期记忆不会因为
- * 一句临时纠偏就污染全局行为。
+ * 负责把模型抽取出的记忆候选转换成可维护的元数据（生命周期、作用域、冲突组、优先级），
+ * 并决定初始状态。治理判定综合多维度信号：
+ * <ol>
+ *   <li><b>幻觉风险评估</b>：不确定词密度 + LLM 置信度 + 来源匹配度 + 显式偏好信号</li>
+ *   <li><b>来源验证</b>：用户原话是否实际支持记忆声称的偏好</li>
+ *   <li><b>冲突检测</b>：是否与同冲突组的已有生效记忆矛盾</li>
+ *   <li><b>置信度阈值</b>：低于阈值的直接建议丢弃</li>
+ * </ol>
  */
 @Service
 public class AiMemoryGovernanceService {
@@ -34,28 +39,65 @@ public class AiMemoryGovernanceService {
     public static final String SCOPE_MODULE = "MODULE";
     public static final String SCOPE_SCENARIO = "SCENARIO";
 
+    /** 幻觉风险阈值：超过此值的候选记忆直接标记为疑似幻觉 */
+    public static final double HALLUCINATION_RISK_THRESHOLD = 0.55;
+
+    private final AiMemoryConfidenceEngine confidenceEngine;
+    private final AiMemorySourceVerifier sourceVerifier;
+
+    public AiMemoryGovernanceService(AiMemoryConfidenceEngine confidenceEngine,
+                                      AiMemorySourceVerifier sourceVerifier) {
+        this.confidenceEngine = confidenceEngine;
+        this.sourceVerifier = sourceVerifier;
+    }
+
     /**
-     * 根据候选内容和本轮工具调用上下文做治理判定。
+     * 根据候选内容和本轮对话上下文做治理判定。
+     * <p>
+     * 判定流程：
+     * 1. 来源验证——用户原话是否支持记忆的偏好声称
+     * 2. 多维度幻觉风险评估
+     * 3. 综合确定初始状态
+     * 4. 推断作用域、冲突组、优先级
      */
     public AiMemoryGovernanceDecision decide(AiMemoryCandidate candidate,
                                              String userMessage,
                                              List<AiToolCall> toolCalls) {
+        return decide(candidate, userMessage, toolCalls, true);
+    }
+
+    /**
+     * 带来源标记的治理判定。
+     *
+     * @param isLlmExtracted 是否由 LLM 提炼（false 表示关键词降级或行为统计）
+     */
+    public AiMemoryGovernanceDecision decide(AiMemoryCandidate candidate,
+                                             String userMessage,
+                                             List<AiToolCall> toolCalls,
+                                             boolean isLlmExtracted) {
         String type = safe(candidate.memoryType()).toUpperCase(Locale.ROOT);
         String title = safe(candidate.memoryTitle());
         String summary = safe(candidate.memorySummary());
         String text = (title + " " + summary + " " + safe(userMessage)).toLowerCase(Locale.ROOT);
-        /*
-         * “明确偏好”只能来自用户原话，不能来自模型抽取出来的摘要。
-         * 否则模型把“用户可能希望...”写进候选记忆时，会反过来把自己的猜测升级成有效长期记忆。
-         */
-        boolean explicit = isExplicitPreference(safe(userMessage).toLowerCase(Locale.ROOT));
+
+        // 来源验证
+        AiMemorySourceVerifier.VerificationResult verification = sourceVerifier.verify(candidate, userMessage);
+        boolean sourceMatched = verification != AiMemorySourceVerifier.VerificationResult.NO_MATCH;
+        boolean strongSourceMatch = verification == AiMemorySourceVerifier.VerificationResult.STRONG_MATCH;
+
+        // 多维度幻觉风险评估
+        double risk = confidenceEngine.hallucinationRisk(
+                text, safe(userMessage), candidate.confidence(), sourceMatched, isLlmExtracted);
+
+        // 显式偏好检测
+        boolean explicit = confidenceEngine.hasExplicitPreference(safe(userMessage).toLowerCase(Locale.ROOT));
 
         ScopeDecision scope = inferScope(type, text, toolCalls);
         String conflictGroup = inferConflictGroup(type, text, scope);
         int priority = inferPriority(type, explicit, scope.memoryScope());
-        String status = inferInitialStatus(candidate.confidence(), explicit, type, text);
+        String status = inferInitialStatus(candidate.confidence(), explicit, type, text, risk, strongSourceMatch, isLlmExtracted);
         String memoryKey = buildMemoryKey(type, conflictGroup, summary);
-        String policyJson = buildPolicyJson(type, scope, conflictGroup, priority, explicit);
+        String policyJson = buildPolicyJson(type, scope, conflictGroup, priority, explicit, risk, isLlmExtracted);
 
         return new AiMemoryGovernanceDecision(
                 memoryKey,
@@ -75,6 +117,55 @@ public class AiMemoryGovernanceService {
 
     public boolean isRecallableStatus(String status) {
         return STATUS_ACTIVE.equals(status) || STATUS_WEAKENING.equals(status);
+    }
+
+    /**
+     * 根据多维度信号推断初始状态。
+     * <p>
+     * 优先级（从高到低）：
+     * <ol>
+     *   <li>高幻觉风险（≥0.55）→ SUSPECTED_HALLUCINATION，无论置信度多高</li>
+     *   <li>显式偏好 + 高置信度(≥0.82) + 低幻觉风险 → ACTIVE</li>
+     *   <li>显式偏好 + 中等置信度(≥0.75) + 强来源匹配 → ACTIVE</li>
+     *   <li>LLM 提炼 + 置信度≥0.92 + 低幻觉风险 + 强来源匹配 → ACTIVE</li>
+     *   <li>其他 → CANDIDATE</li>
+     * </ol>
+     */
+    private String inferInitialStatus(double confidence, boolean explicit, String type,
+                                       String text, double hallucinationRisk,
+                                       boolean strongSourceMatch, boolean isLlmExtracted) {
+        // 高幻觉风险 → 隔离，无论其他信号多强
+        if (hallucinationRisk >= HALLUCINATION_RISK_THRESHOLD) {
+            return STATUS_HALLUCINATION;
+        }
+
+        // 显式偏好 + 高置信度 + 低幻觉风险 → 直接生效
+        if (explicit && confidence >= 0.82 && hallucinationRisk < 0.35) {
+            return STATUS_ACTIVE;
+        }
+
+        // 显式偏好 + 中等置信度 + 强来源匹配 → 直接生效
+        if (explicit && confidence >= 0.75 && strongSourceMatch && hallucinationRisk < 0.40) {
+            return STATUS_ACTIVE;
+        }
+
+        // LLM 提炼 + 非常高置信度 + 低风险 + 强来源匹配 → 直接生效
+        if (isLlmExtracted && confidence >= 0.92 && hallucinationRisk < 0.25 && strongSourceMatch) {
+            return STATUS_ACTIVE;
+        }
+
+        // FAVORITE_MODULE 类型默认候选，等待更多证据
+        if ("FAVORITE_MODULE".equals(type)) {
+            return STATUS_CANDIDATE;
+        }
+
+        // 中等置信度但幻觉风险可控 → 候选
+        if (confidence >= 0.78 && hallucinationRisk < 0.45) {
+            return STATUS_CANDIDATE;
+        }
+
+        // 低置信度但非幻觉 → 候选（等待证据积累后自动升级）
+        return STATUS_CANDIDATE;
     }
 
     private ScopeDecision inferScope(String type, String text, List<AiToolCall> toolCalls) {
@@ -141,36 +232,20 @@ public class AiMemoryGovernanceService {
         return Math.min(base, 95);
     }
 
-    private String inferInitialStatus(double confidence, boolean explicit, String type, String text) {
-        /*
-         * 长期记忆必须有明确证据。包含“可能、猜测、应该、大概”等不确定表达，
-         * 且不是用户明确偏好的内容，先隔离为疑似幻觉，等待用户确认或后续证据强化。
-         */
-        if (!explicit && containsAny(text, "可能", "也许", "大概", "猜测", "推测", "应该是", "不确定", "疑似")) {
-            return STATUS_HALLUCINATION;
-        }
-        if (explicit && confidence >= 0.82) {
-            return STATUS_ACTIVE;
-        }
-        if ("FAVORITE_MODULE".equals(type)) {
-            return STATUS_CANDIDATE;
-        }
-        return confidence >= 0.92 ? STATUS_ACTIVE : STATUS_CANDIDATE;
-    }
-
-    private boolean isExplicitPreference(String text) {
-        return containsAny(text, "以后", "默认", "记住", "我希望", "我喜欢", "不要", "只查", "别查", "以后都", "以后不要");
-    }
-
     private String buildMemoryKey(String type, String conflictGroup, String summary) {
         return type.toLowerCase(Locale.ROOT) + ":" + conflictGroup + ":" + digest(summary);
     }
 
-    private String buildPolicyJson(String type, ScopeDecision scope, String conflictGroup, int priority, boolean explicit) {
+    private String buildPolicyJson(String type, ScopeDecision scope, String conflictGroup,
+                                    int priority, boolean explicit,
+                                    double hallucinationRisk, boolean isLlmExtracted) {
         return """
-                {"memoryType":"%s","scope":"%s","scopeValue":"%s","conflictGroup":"%s","priority":%d,"explicit":%s}
-                """.formatted(escape(type), escape(scope.memoryScope()), escape(scope.scopeValue()),
-                escape(conflictGroup), priority, explicit).trim();
+                {"memoryType":"%s","scope":"%s","scopeValue":"%s","conflictGroup":"%s","priority":%d,"explicit":%s,"hallucinationRisk":%.2f,"source":"%s"}
+                """.formatted(
+                escape(type), escape(scope.memoryScope()), escape(scope.scopeValue()),
+                escape(conflictGroup), priority, explicit,
+                hallucinationRisk, isLlmExtracted ? "llm" : "keyword"
+        ).trim();
     }
 
     private String firstToolTarget(List<AiToolCall> toolCalls) {

@@ -9,6 +9,7 @@ import jimmy.ai.model.AiConversationVO;
 import jimmy.ai.model.AiDataResult;
 import jimmy.ai.model.AiExecutionMode;
 import jimmy.ai.model.AiExecutionPlan;
+import jimmy.ai.model.GroundingCheck;
 import jimmy.ai.model.AiLogAnalysisResponse;
 import jimmy.ai.model.AiLogAnalyzeRequest;
 import jimmy.ai.model.AiMemoryRecallResult;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -175,6 +177,9 @@ public class AiChatPipeline {
             }
 
             if (executionPlan.mode() == AiExecutionMode.LOG_ANALYSIS || looksLikeLogQuestion(safeMessage)) {
+                if (executionPlan.mode() != AiExecutionMode.LOG_ANALYSIS) {
+                    log.info("意图分类器未识别为日志问题，但消息关键词命中兜底规则，conversationId={}", conversationId);
+                }
                 AiLogAnalysisResponse analysis = logAnalysisService.analyze(new AiLogAnalyzeRequest(
                         extractToken(safeMessage, "traceId"),
                         extractToken(safeMessage, "operationId"),
@@ -235,7 +240,13 @@ public class AiChatPipeline {
             String answer = fallbackQueryExecuted
                     ? fallbackHandler.fallbackAnswer(context.toString(), safeToolCalls)
                     : modelAnswer.orElseGet(() -> fallbackHandler.fallbackAnswer(context.toString(), safeToolCalls));
-            answer = groundingGuard.correctAnswer(answer, citations, safeToolCalls, dataResults);
+            GroundingCheck check = groundingGuard.check(answer, citations, safeToolCalls, dataResults);
+            if (check.discardOriginal()) {
+                log.warn("AI 回答幻觉已拦截，改用兜底回答，conversationId={}, issues={}", conversationId, check.issues());
+                answer = fallbackHandler.fallbackAnswer(context.toString(), safeToolCalls);
+            } else {
+                answer = check.answer();
+            }
             AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, safeToolCalls, citations);
             memoryService.rememberInteraction(conversation.conversationId(), safeMessage, answer, safeToolCalls);
             auditLogService.recordResponse(conversation.conversationId(), safeMessage,
@@ -299,7 +310,12 @@ public class AiChatPipeline {
             auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
         }
         String answer = fallbackHandler.fallbackAnswer("业务只读查询摘要：" + queryResult.answerContext(), safeToolCalls);
-        answer = groundingGuard.correctAnswer(answer, citations, safeToolCalls, dataResults);
+        GroundingCheck check = groundingGuard.check(answer, citations, safeToolCalls, dataResults);
+        if (check.discardOriginal()) {
+            log.warn("AI 游标续页回答幻觉已拦截，conversationId={}, issues={}", conversationId, check.issues());
+        } else {
+            answer = check.answer();
+        }
         AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, safeToolCalls, citations);
         auditLogService.recordResponse(conversation.conversationId(), safeMessage,
                 "按查询游标继续分页，工具调用=" + safeToolCalls.size(), System.currentTimeMillis() - start);
@@ -443,7 +459,7 @@ public class AiChatPipeline {
         }
         return toolCalls.stream()
                 .map(toolOutputValidator::sanitize)
-                .filter(call -> call != null)
+                .filter(Objects::nonNull)
                 .toList();
     }
 

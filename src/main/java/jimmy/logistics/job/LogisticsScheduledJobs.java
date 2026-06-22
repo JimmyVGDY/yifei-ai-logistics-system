@@ -1,6 +1,7 @@
 package jimmy.logistics.job;
 
 import com.xxl.job.core.handler.annotation.XxlJob;
+import jimmy.ai.service.AiMemoryService;
 import jimmy.ai.service.AiProactiveAlertService;
 import jimmy.common.trace.TraceContextSupport;
 import jimmy.logistics.mapper.LogisticsDashboardMapper;
@@ -27,6 +28,7 @@ public class LogisticsScheduledJobs {
     private final LogisticsDashboardMapper dashboardMapper;
     private final OperationLogMapper operationLogMapper;
     private final AiProactiveAlertService proactiveAlertService;
+    private final AiMemoryService aiMemoryService;
     private final TraceContextSupport traceContextSupport;
 
     @Value("${app.operation-log.retention-days:180}")
@@ -35,10 +37,12 @@ public class LogisticsScheduledJobs {
     public LogisticsScheduledJobs(LogisticsDashboardMapper dashboardMapper,
                                   OperationLogMapper operationLogMapper,
                                   AiProactiveAlertService proactiveAlertService,
+                                  AiMemoryService aiMemoryService,
                                   TraceContextSupport traceContextSupport) {
         this.dashboardMapper = dashboardMapper;
         this.operationLogMapper = operationLogMapper;
         this.proactiveAlertService = proactiveAlertService;
+        this.aiMemoryService = aiMemoryService;
         this.traceContextSupport = traceContextSupport;
     }
 
@@ -165,6 +169,21 @@ public class LogisticsScheduledJobs {
                     log.warn("AI 异常检测告警：{}", anomaly);
                 }
             }
+        });
+    }
+
+    /**
+     * AI 长期记忆生命周期维护：自动升级候选记忆、恢复疑似幻觉、衰减过期记忆、清理归档记忆。
+     * <p>
+     * 建议每天凌晨执行一次（XXL-Job Cron: {@code 0 7 3 * * ?}）。
+     * 整个过程对用户完全无感，仅在日志中记录变更摘要。
+     */
+    @XxlJob("memoryLifecycleMaintenance")
+    public void memoryLifecycleMaintenance() {
+        runJob("memoryLifecycleMaintenance", () -> {
+            log.info("AI 长期记忆生命周期维护开始");
+            var result = aiMemoryService.runMaintenance();
+            log.info("AI 长期记忆生命周期维护完成，summary={}", result.summary());
         });
     }
 

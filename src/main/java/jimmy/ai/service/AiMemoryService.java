@@ -48,6 +48,7 @@ public class AiMemoryService {
     private final AiAuditLogService auditLogService;
     private final AiMemoryExtractor memoryExtractor;
     private final AiMemoryGovernanceService memoryGovernanceService;
+    private final AiMemoryLifecycleManager lifecycleManager;
     private final AiUserProfileCompiler profileCompiler;
 
     public AiMemoryService(AiMemoryMapper memoryMapper,
@@ -59,6 +60,7 @@ public class AiMemoryService {
                            AiAuditLogService auditLogService,
                            AiMemoryExtractor memoryExtractor,
                            AiMemoryGovernanceService memoryGovernanceService,
+                           AiMemoryLifecycleManager lifecycleManager,
                            AiUserProfileCompiler profileCompiler) {
         this.memoryMapper = memoryMapper;
         this.idGenerator = idGenerator;
@@ -69,6 +71,7 @@ public class AiMemoryService {
         this.auditLogService = auditLogService;
         this.memoryExtractor = memoryExtractor;
         this.memoryGovernanceService = memoryGovernanceService;
+        this.lifecycleManager = lifecycleManager;
         this.profileCompiler = profileCompiler;
     }
 
@@ -239,12 +242,14 @@ public class AiMemoryService {
             recordEvent(null, "SKIP_DISABLED", "AI_MEMORY", "用户已关闭长期记忆，跳过自动写入", conversationId);
             return;
         }
-        for (AiMemoryCandidate candidate : extractCandidates(userMessage, assistantMessage, toolCalls)) {
-            saveCandidate(conversationId, userMessage, toolCalls, candidate);
+        ExtractionResult extraction = extractCandidates(userMessage, assistantMessage, toolCalls);
+        for (AiMemoryCandidate candidate : extraction.candidates()) {
+            saveCandidate(conversationId, userMessage, toolCalls, candidate, extraction.isLlmExtracted());
         }
     }
 
-    private void saveCandidate(String conversationId, String userMessage, List<AiToolCall> toolCalls, AiMemoryCandidate candidate) {
+    private void saveCandidate(String conversationId, String userMessage, List<AiToolCall> toolCalls,
+                               AiMemoryCandidate candidate, boolean isLlmExtracted) {
         UserScope scope = currentScope();
         String summary = safeMemory(candidate.memorySummary());
         if (!StringUtils.hasText(summary) || containsSensitiveContent(summary)) {
@@ -259,7 +264,7 @@ public class AiMemoryService {
             recordEvent(null, "SKIP_DUPLICATE", "AI_MEMORY", "候选记忆已存在，已跳过", conversationId);
             return;
         }
-        AiMemoryGovernanceDecision decision = memoryGovernanceService.decide(candidate, userMessage, toolCalls);
+        AiMemoryGovernanceDecision decision = memoryGovernanceService.decide(candidate, userMessage, toolCalls, isLlmExtracted);
         String finalStatus = decision.status();
         List<Long> activeConflictIds = StringUtils.hasText(decision.conflictGroup())
                 ? memoryMapper.selectActiveConflictMemoryIds(scope.userId(), scope.userCode(), decision.conflictGroup())
@@ -320,20 +325,21 @@ public class AiMemoryService {
      * LLM 可用时由模型判断对话是否包含偏好/习惯，从根源上解决"查什么存什么"的问题。
      * LLM 不可用时降级为关键词匹配，仅抓取用户明确表达偏好的语句，不再使用兜底规则。
      */
-    private List<AiMemoryCandidate> extractCandidates(String userMessage, String assistantMessage, List<AiToolCall> toolCalls) {
+    private ExtractionResult extractCandidates(String userMessage, String assistantMessage, List<AiToolCall> toolCalls) {
         List<String> toolTargets = collectToolTargets(toolCalls);
 
         // 1. 优先使用 LLM 提炼记忆
         AiMemoryExtractor.ExtractionDecision decision = memoryExtractor.extract(userMessage, assistantMessage, toolTargets);
         if (decision.processed()) {
             if (decision.candidate() != null) {
-                return List.of(decision.candidate());
+                return ExtractionResult.of(List.of(decision.candidate()), true);
             }
-            return List.of(); // LLM 判断该对话不值得记忆，不存任何内容
+            return ExtractionResult.empty(); // LLM 判断该对话不值得记忆，不存任何内容
         }
 
         // 2. LLM 不可用时降级为关键词匹配（仅保留高置信度规则）
-        return keywordExtract(userMessage, assistantMessage, toolCalls);
+        List<AiMemoryCandidate> keywordCandidates = keywordExtract(userMessage, assistantMessage, toolCalls);
+        return ExtractionResult.of(keywordCandidates, false);
     }
 
     /**
@@ -596,6 +602,30 @@ public class AiMemoryService {
 
     private String joinLimited(LinkedHashSet<String> values) {
         return String.join("\n", values.stream().limit(20).toList());
+    }
+
+    /**
+     * 触发一轮记忆生命周期维护（供定时任务或管理接口调用）。
+     * <p>
+     * 对用户完全无感：自动升级候选记忆、恢复疑似幻觉、衰减过期记忆、清理归档记忆。
+     */
+    public AiMemoryLifecycleManager.MaintenanceResult runMaintenance() {
+        if (!tablesExist()) {
+            return new AiMemoryLifecycleManager.MaintenanceResult(0, 0, 0, 0, 0, "tables not ready");
+        }
+        return lifecycleManager.executeMaintenance();
+    }
+
+    /**
+     * 提取结果：携带来源标记（LLM 提炼 vs 关键词降级），供治理判定参考。
+     */
+    private record ExtractionResult(List<AiMemoryCandidate> candidates, boolean isLlmExtracted) {
+        static ExtractionResult of(List<AiMemoryCandidate> candidates, boolean isLlmExtracted) {
+            return new ExtractionResult(candidates, isLlmExtracted);
+        }
+        static ExtractionResult empty() {
+            return new ExtractionResult(List.of(), false);
+        }
     }
 
     private record UserScope(String userId, String userCode) {
