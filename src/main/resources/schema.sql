@@ -193,6 +193,87 @@ create table if not exists ai_conversation_message (
     key idx_ai_message_trace (trace_id, operation_id, login_session_id)
 ) comment='AI会话消息表';
 
+create table if not exists ai_user_profile (
+    id bigint primary key comment '短位随机主键',
+    user_id varchar(64) not null comment '登录用户ID，保持原值用于审计追踪',
+    user_code varchar(64) null comment '登录用户业务编号，保持原值用于审计追踪',
+    memory_enabled tinyint not null default 1 comment '是否启用长期记忆',
+    answer_style varchar(255) null comment '回答风格偏好',
+    favorite_modules text null comment '常用模块摘要',
+    query_habits text null comment '常用查询习惯摘要',
+    profile_version int not null default 1 comment '画像版本号',
+    answer_style_json text null comment '回答风格画像JSON，脱敏',
+    query_strategy_json text null comment '查询策略画像JSON，脱敏',
+    module_affinity_json text null comment '模块偏好画像JSON，脱敏',
+    profile_confidence decimal(6,4) not null default 0.8000 comment '画像总体置信度',
+    compiled_at datetime null comment '画像最近编译时间',
+    last_recall_time datetime null comment '最近一次长期记忆召回时间',
+    created_at datetime not null default current_timestamp,
+    updated_at datetime not null default current_timestamp on update current_timestamp,
+    deleted tinyint not null default 0 comment '逻辑删除标记',
+    unique key uk_ai_profile_user (user_id, user_code),
+    key idx_ai_profile_enabled (memory_enabled, deleted),
+    key idx_ai_profile_compile (compiled_at, profile_version)
+) comment='AI账号级长期记忆画像';
+
+create table if not exists ai_user_memory (
+    id bigint primary key comment '短位随机主键',
+    user_id varchar(64) not null comment '登录用户ID，保持原值用于审计追踪',
+    user_code varchar(64) null comment '登录用户业务编号，保持原值用于审计追踪',
+    memory_type varchar(64) not null comment '记忆类型：ANSWER_STYLE/QUERY_HABIT/FAVORITE_MODULE',
+    memory_key varchar(128) null comment '记忆稳定键，用于同类记忆去重和画像编译',
+    memory_scope varchar(32) not null default 'GLOBAL' comment '作用域：GLOBAL/MODULE/SCENARIO/ENTITY',
+    scope_value varchar(128) null comment '作用域取值，例如 tasks、task_exception、answer_style',
+    conflict_group varchar(128) null comment '冲突组，同组只能有有限条记忆参与召回',
+    priority int not null default 50 comment '优先级，数值越大越优先',
+    evidence_count int not null default 1 comment '正向证据次数',
+    negative_count int not null default 0 comment '负向反馈次数',
+    superseded_by bigint null comment '替代该记忆的新记忆ID',
+    effective_from datetime null comment '生效开始时间',
+    effective_until datetime null comment '生效截止时间，为空表示长期有效',
+    memory_title varchar(255) not null comment '脱敏后的记忆标题',
+    memory_summary text not null comment '脱敏后的记忆摘要，不保存敏感原文',
+    confidence decimal(6,4) not null default 0.8000 comment '自动抽取置信度',
+    qdrant_point_id varchar(64) null comment 'Qdrant 向量点 ID',
+    source_conversation_id varchar(64) null comment '来源 AI 会话 ID',
+    source_trace_id varchar(64) null comment '来源 traceId',
+    recall_count int not null default 0 comment '召回次数',
+    reinforce_count int not null default 0 comment '强化计数',
+    last_reinforced_at datetime null comment '最后强化时间',
+    status varchar(20) not null default 'ACTIVE' comment '生命周期状态：CANDIDATE/ACTIVE/CONFLICTED/SUPERSEDED/WEAKENING/ARCHIVED',
+    last_recall_time datetime null comment '最近召回时间',
+    last_applied_at datetime null comment '最近一次真正应用到回答的时间',
+    policy_json text null comment '脱敏后的策略JSON，用于画像编译和前端解释',
+    created_at datetime not null default current_timestamp,
+    updated_at datetime not null default current_timestamp on update current_timestamp,
+    deleted tinyint not null default 0 comment '逻辑删除标记',
+    key idx_ai_memory_user_type (user_id, user_code, memory_type, deleted),
+    key idx_ai_memory_point (qdrant_point_id),
+    key idx_ai_memory_recall (last_recall_time, confidence),
+    key idx_ai_memory_status (status, last_reinforced_at),
+    key idx_ai_memory_governance (user_id, user_code, status, memory_scope, conflict_group, deleted),
+    key idx_ai_memory_effective (effective_from, effective_until, last_applied_at)
+) comment='AI账号级长期记忆';
+
+create table if not exists ai_memory_event (
+    id bigint primary key comment '短位随机主键',
+    memory_id bigint null comment '关联长期记忆 ID',
+    event_type varchar(64) not null comment '事件类型：CREATE/RECALL/PROMOTE/CONFLICT/DELETE 等',
+    event_source varchar(64) not null comment '事件来源：USER/AI_MEMORY/SYSTEM',
+    user_id varchar(64) not null comment '登录用户ID，保持原值用于审计追踪',
+    user_code varchar(64) null comment '登录用户业务编号，保持原值用于审计追踪',
+    trace_id varchar(64) null,
+    operation_id varchar(64) null,
+    login_session_id varchar(64) null,
+    ai_conversation_id varchar(64) null,
+    event_summary text null comment '脱敏后的事件摘要',
+    event_detail_json text null comment '脱敏后的事件明细JSON',
+    created_at datetime not null default current_timestamp,
+    key idx_ai_memory_event_user_time (user_id, user_code, created_at),
+    key idx_ai_memory_event_trace (trace_id, operation_id, login_session_id),
+    key idx_ai_memory_event_memory (memory_id)
+) comment='AI长期记忆事件审计';
+
 create table if not exists sys_uploaded_file (
     id bigint primary key,
     original_name varchar(255) not null,
