@@ -39,6 +39,16 @@ source scripts/sql/20260602_incremental_operation_log_login_session.sql;
 
 AI 长期记忆链路会额外写入 `ai_memory_event` 表，并在 `sys_operation_log` 中补充 `ai_memory_id`、`ai_memory_event_type`、`ai_memory_source`、`ai_memory_hit_count` 和 `ai_memory_trace_summary`。这些字段只保存脱敏摘要，用来确认某次回答是否参考了长期记忆、召回了几条、是否写入新记忆或因敏感内容被拒绝写入。
 
+记忆治理和幻觉处理会继续写入审计事件：
+
+- `CREATE_CANDIDATE`：弱信号候选记忆，只进入候选池，不参与召回。
+- `CREATE_CONFLICTED`：与已有偏好冲突，等待用户在 AI 侧栏处理。
+- `CREATE_SUSPECTED_HALLUCINATION`：疑似模型推测产生的记忆，不参与召回。
+- `MEMORY_APPROVE` / `MEMORY_REJECT` / `MEMORY_RESTORE`：用户对候选、冲突、疑似幻觉或归档记忆的治理操作。
+- `PROFILE_COMPILE`：定时任务或记忆变更后重新编译用户画像。
+
+普通回答的幻觉护栏不会保存未脱敏原文。排查时优先看同一 `traceId` 下是否存在引用、工具调用、结构化数据结果和 `AiGroundingGuard` 修正后的回答摘要。
+
 AI 会话历史会写入 `ai_conversation` 和 `ai_conversation_message`。其中 `ai_conversation` 负责归档、删除、最近上下文和消息数量，`ai_conversation_message` 负责单条用户消息、AI 回复、失败消息、工具摘要和引用摘要。删除采用逻辑删除，普通用户不可见但审计链路保留。
 
 AI 查询结果游标会写入 `ai_query_cursor`。该表只保存当前用户当前会话的脱敏查询状态、分页位置、总数和已返回条数，用于“继续看”“查看剩余数据”等追问。游标本身不替代操作日志；排查时仍以 `traceId`、`operationId`、`loginSessionId` 和 `aiConversationId` 串联用户提问、工具调用、回答生成和后续分页查询。

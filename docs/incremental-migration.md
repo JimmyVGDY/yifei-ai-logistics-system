@@ -23,6 +23,7 @@ source scripts/sql/20260612_incremental_ai_document_index.sql;
 source scripts/sql/20260613_incremental_ai_query_cursor.sql;
 source scripts/sql/20260619_incremental_permission_sensitive_flag.sql;
 source scripts/sql/20260621_incremental_ai_prompt_template.sql;
+source scripts/sql/20260622_incremental_ai_memory_governance.sql;
 ```
 
 这些脚本会保留现有数据，并补充：
@@ -44,6 +45,7 @@ source scripts/sql/20260621_incremental_ai_prompt_template.sql;
 - AI 会话持久化表：`ai_conversation`、`ai_conversation_message`，服务重启后仍可回显历史会话
 - AI RAG 文档索引状态表：`ai_document_index`，用于按内容哈希跳过未变化文档，并记录索引失败原因
 - AI 查询结果游标表：`ai_query_cursor`，用于“继续看”“查看剩余数据”“下一页”等多轮追问分页
+- AI 长期记忆治理字段：记忆作用域、冲突组、候选态、疑似幻觉状态、画像编译字段和记忆事件详情
 - 权限目录敏感列标记：`sys_permission.sensitive_flag`，用于区分普通列和敏感列，避免只读角色自动获得手机号、金额、异常详情等敏感字段
 
 权限增量脚本会根据现有 `sys_menu` 和 `sys_role_menu` 推导默认权限数据，不会删除旧角色、旧用户或旧菜单。
@@ -188,6 +190,29 @@ source scripts/sql/20260621_incremental_ai_prompt_template.sql;
 该脚本用于完善 AI Token 用量追踪的费用计算精度：
 
 - 新增 `ai_token_usage.estimated_cost_currency` 字段（VARCHAR(10)），记录费用币种（DeepSeek → CNY，OpenAI → USD）。
+
+### `20260622_incremental_ai_memory_governance.sql`
+
+该脚本用于启用 AI 长期记忆治理、用户画像编译和记忆幻觉隔离：
+
+- `ai_user_memory` 新增 `memory_scope`、`scope_value`、`memory_key`、`conflict_group`、`priority`、`evidence_count`、`negative_count`、`superseded_by`、`effective_from`、`effective_until`、`last_applied_at`、`policy_json`。
+- `ai_user_profile` 新增画像版本、回答风格 JSON、查询策略 JSON、模块偏好 JSON、画像置信度和最近编译时间。
+- `ai_memory_event` 新增 `event_detail_json`，用于记录候选晋升、冲突识别、疑似幻觉、画像编译等脱敏审计详情。
+- 脚本只追加字段和索引，不清库、不重建现有表，可重复执行。
+
+长期记忆状态建议按下面含义理解：
+
+| 状态 | 含义 | 是否参与召回 |
+| --- | --- | --- |
+| `ACTIVE` | 已生效记忆，可用于个性化回答 | 是 |
+| `CANDIDATE` | 候选记忆，需要更多证据或用户批准 | 否 |
+| `CONFLICTED` | 与已有偏好冲突，等待用户处理 | 否 |
+| `SUSPECTED_HALLUCINATION` | 疑似由模型猜测产生，等待确认或拒绝 | 否 |
+| `SUPERSEDED` | 被新记忆替代 | 否 |
+| `WEAKENING` | 长期未强化，处于衰减期 | 是 |
+| `ARCHIVED` / `REJECTED` | 已归档或用户拒绝 | 否 |
+
+相关设计见 [Spring AI 接入说明](spring-ai.md)、[AI 助手设计文档](ai-assistant-design.md) 和 [链路追踪与会话审计说明](trace-context-audit.md)。
 - 新增 `ai_token_usage.cached_tokens` 字段（INT），记录 API 返回的缓存命中输入 Token 数。
 - 回填旧数据：deepseek 系列模型标记为 CNY，其余默认 USD。
 - 增加 `idx_token_usage_currency` 索引。

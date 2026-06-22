@@ -81,3 +81,13 @@
 ## AI Prompt 治理补充
 
 AI 助手 Prompt 已纳入模板化治理。继续开发 AI 能力前，需要同时阅读 [Spring AI 接入说明](spring-ai.md)、[AI 助手设计文档](ai-assistant-design.md)、[MyBatis 使用规范](mybatis.md) 和 [数据库增量迁移说明](incremental-migration.md)。涉及新增 Prompt 时，需要同步维护 `ai_prompt_template` 默认模板、输出校验、测试用例和文档交叉引用。
+
+## AI 长期记忆治理与幻觉处理补充
+
+AI 长期记忆已增加候选、冲突、疑似幻觉、替代和画像编译机制。继续开发记忆、RAG、Tool Calling 或临时 SQL 能力前，需要优先阅读：
+
+- [Spring AI 接入说明](spring-ai.md)：运行链路、Prompt 模板、长期记忆、Qdrant、幻觉护栏和临时 SQL 说明。
+- [AI 助手设计文档](ai-assistant-design.md)：意图边界、长期记忆治理、权限隔离和风险控制。
+- [数据库设计说明](logistics-database.md)：`ai_user_memory`、`ai_user_profile`、`ai_memory_event` 字段含义。
+- [数据库增量迁移说明](incremental-migration.md)：`20260622_incremental_ai_memory_governance.sql` 执行范围。
+- [链路追踪与会话审计说明](trace-context-audit.md)：记忆治理事件、AI 回答修正和全链路排查方式。

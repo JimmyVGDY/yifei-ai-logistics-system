@@ -48,6 +48,15 @@ password: 空（按实际配置）
 - `ai_document_index`: RAG 文档索引状态表，记录系统文档路径、文件名、内容哈希、分块数量、索引状态、错误摘要和索引时间；不保存文档正文，Qdrant payload 也只保存脱敏摘要。
 - `ai_query_cursor`: AI 查询结果游标表，保存当前用户当前会话最近一次只读查询的脱敏条件、分页位置、总数和已返回条数，用于“继续看”“查看剩余数据”“下一页”等多轮追问。
 
+`20260622_incremental_ai_memory_governance.sql` 会继续扩展 AI 记忆表：
+
+- `ai_user_memory.memory_scope/scope_value`：限定记忆只在全局、某模块或某业务场景内生效，避免“只查运输任务异常”污染所有异常查询。
+- `ai_user_memory.conflict_group/superseded_by`：记录同类偏好冲突和替代关系，支持新偏好替换旧偏好。
+- `ai_user_memory.evidence_count/negative_count/priority`：记录正向证据、负反馈和优先级，供定时任务晋升候选、降权或归档。
+- `ai_user_memory.status=SUSPECTED_HALLUCINATION`：隔离模型推测出的疑似幻觉记忆，不参与召回，等待用户批准或拒绝。
+- `ai_user_profile.profile_version/*_json/profile_confidence/compiled_at`：保存由有效记忆编译出来的结构化用户画像。
+- `ai_memory_event.event_detail_json`：保存脱敏治理详情，用于审计记忆创建、召回、冲突、替代、归档、删除和画像编译。
+
 ### 增量字段说明
 
 核心业务表和系统表通过增量脚本补齐通用审计字段：
