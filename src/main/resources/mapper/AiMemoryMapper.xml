@@ -11,6 +11,12 @@
                answer_style as answerStyle,
                favorite_modules as favoriteModules,
                query_habits as queryHabits,
+               profile_version as profileVersion,
+               answer_style_json as answerStyleJson,
+               query_strategy_json as queryStrategyJson,
+               module_affinity_json as moduleAffinityJson,
+               profile_confidence as profileConfidence,
+               date_format(compiled_at, '%Y-%m-%d %H:%i:%s') as compiledAt,
                (select count(1) from ai_user_memory m
                 where m.deleted = 0 and m.user_id = p.user_id and ifnull(m.user_code, '') = ifnull(p.user_code, '')) as memoryCount,
                date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
@@ -49,6 +55,23 @@
           and deleted = 0
     </update>
 
+    <update id="updateProfileCompiled">
+        update ai_user_profile
+        set answer_style = #{answerStyle},
+            favorite_modules = #{favoriteModules},
+            query_habits = #{queryHabits},
+            answer_style_json = #{answerStyleJson},
+            query_strategy_json = #{queryStrategyJson},
+            module_affinity_json = #{moduleAffinityJson},
+            profile_confidence = #{profileConfidence},
+            profile_version = ifnull(profile_version, 0) + 1,
+            compiled_at = current_timestamp,
+            updated_at = current_timestamp
+        where user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and deleted = 0
+    </update>
+
     <sql id="memoryFilters">
         where deleted = 0
           and user_id = #{userId}
@@ -59,6 +82,9 @@
         </if>
         <if test="memoryType != null and memoryType != ''">
             and memory_type = #{memoryType}
+        </if>
+        <if test="status != null and status != ''">
+            and status = #{status}
         </if>
     </sql>
 
@@ -74,6 +100,16 @@
                memory_summary as memorySummary,
                confidence,
                qdrant_point_id as qdrantPointId,
+               status,
+               memory_scope as memoryScope,
+               scope_value as scopeValue,
+               conflict_group as conflictGroup,
+               priority,
+               evidence_count as evidenceCount,
+               negative_count as negativeCount,
+               superseded_by as supersededBy,
+               date_format(last_applied_at, '%Y-%m-%d %H:%i:%s') as lastAppliedAt,
+               policy_json as policyJson,
                date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
                date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
                date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
@@ -90,6 +126,16 @@
                memory_summary as memorySummary,
                confidence,
                qdrant_point_id as qdrantPointId,
+               status,
+               memory_scope as memoryScope,
+               scope_value as scopeValue,
+               conflict_group as conflictGroup,
+               priority,
+               evidence_count as evidenceCount,
+               negative_count as negativeCount,
+               superseded_by as supersededBy,
+               date_format(last_applied_at, '%Y-%m-%d %H:%i:%s') as lastAppliedAt,
+               policy_json as policyJson,
                date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
                date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
                date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
@@ -97,10 +143,13 @@
         where deleted = 0
           and user_id = #{userId}
           and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and status in ('ACTIVE', 'WEAKENING')
+          and (effective_from is null or effective_from &lt;= current_timestamp)
+          and (effective_until is null or effective_until &gt; current_timestamp)
           and (#{keyword} is null or #{keyword} = ''
                or memory_title like concat('%', #{keyword}, '%')
                or memory_summary like concat('%', #{keyword}, '%'))
-        order by last_recall_time desc, confidence desc, updated_at desc
+        order by priority desc, last_recall_time desc, confidence desc, updated_at desc
         limit #{limit}
     </select>
 
@@ -111,6 +160,16 @@
                memory_summary as memorySummary,
                confidence,
                qdrant_point_id as qdrantPointId,
+               status,
+               memory_scope as memoryScope,
+               scope_value as scopeValue,
+               conflict_group as conflictGroup,
+               priority,
+               evidence_count as evidenceCount,
+               negative_count as negativeCount,
+               superseded_by as supersededBy,
+               date_format(last_applied_at, '%Y-%m-%d %H:%i:%s') as lastAppliedAt,
+               policy_json as policyJson,
                date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
                date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
                date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
@@ -134,14 +193,111 @@
 
     <insert id="insertMemory">
         insert into ai_user_memory (
-            id, user_id, user_code, memory_type, memory_title, memory_summary, confidence,
+            id, user_id, user_code, memory_type, memory_key, memory_scope, scope_value, conflict_group,
+            priority, evidence_count, status, policy_json, memory_title, memory_summary, confidence,
             qdrant_point_id, source_conversation_id, source_trace_id, created_at, updated_at, deleted
         )
         values (
-            #{id}, #{userId}, #{userCode}, #{memoryType}, #{memoryTitle}, #{memorySummary}, #{confidence},
+            #{id}, #{userId}, #{userCode}, #{memoryType}, #{memoryKey}, #{memoryScope}, #{scopeValue}, #{conflictGroup},
+            #{priority}, #{evidenceCount}, #{status}, #{policyJson}, #{memoryTitle}, #{memorySummary}, #{confidence},
             #{qdrantPointId}, #{sourceConversationId}, #{sourceTraceId}, current_timestamp, current_timestamp, 0
         )
     </insert>
+
+    <select id="selectActiveConflictMemoryIds" resultType="long">
+        select id
+        from ai_user_memory
+        where deleted = 0
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and conflict_group = #{conflictGroup}
+          and status in ('ACTIVE', 'WEAKENING')
+        order by priority desc, confidence desc, updated_at desc
+    </select>
+
+    <update id="supersedeConflictMemories">
+        update ai_user_memory
+        set status = 'SUPERSEDED',
+            superseded_by = #{newMemoryId},
+            effective_until = current_timestamp,
+            updated_at = current_timestamp
+        where deleted = 0
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and conflict_group = #{conflictGroup}
+          and id != #{newMemoryId}
+          and status in ('ACTIVE', 'WEAKENING')
+    </update>
+
+    <update id="changeMemoryStatus">
+        update ai_user_memory
+        set status = #{status},
+            effective_from = case when #{status} = 'ACTIVE' then current_timestamp else effective_from end,
+            effective_until = case when #{status} in ('ARCHIVED', 'REJECTED', 'SUPERSEDED') then current_timestamp else effective_until end,
+            updated_at = current_timestamp
+        where id = #{id}
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and deleted = 0
+    </update>
+
+    <update id="markMemoryApplied">
+        update ai_user_memory
+        set last_applied_at = current_timestamp,
+            updated_at = current_timestamp
+        where id = #{id}
+          and deleted = 0
+    </update>
+
+    <select id="selectActiveMemoriesForProfile" resultType="jimmy.ai.model.AiMemoryItemVO">
+        select id,
+               memory_type as memoryType,
+               memory_title as memoryTitle,
+               memory_summary as memorySummary,
+               confidence,
+               qdrant_point_id as qdrantPointId,
+               status,
+               memory_scope as memoryScope,
+               scope_value as scopeValue,
+               conflict_group as conflictGroup,
+               priority,
+               evidence_count as evidenceCount,
+               negative_count as negativeCount,
+               superseded_by as supersededBy,
+               date_format(last_applied_at, '%Y-%m-%d %H:%i:%s') as lastAppliedAt,
+               policy_json as policyJson,
+               date_format(created_at, '%Y-%m-%d %H:%i:%s') as createTime,
+               date_format(updated_at, '%Y-%m-%d %H:%i:%s') as updateTime,
+               date_format(last_recall_time, '%Y-%m-%d %H:%i:%s') as lastRecallTime
+        from ai_user_memory
+        where deleted = 0
+          and user_id = #{userId}
+          and ifnull(user_code, '') = ifnull(#{userCode}, '')
+          and status in ('ACTIVE', 'WEAKENING')
+        order by priority desc, confidence desc, updated_at desc
+        limit #{limit}
+    </select>
+
+    <select id="selectPromotableCandidateIds" resultType="long">
+        select id
+        from ai_user_memory
+        where deleted = 0
+          and status = 'CANDIDATE'
+          and (confidence &gt;= #{minConfidence} or evidence_count &gt;= #{minEvidenceCount})
+        order by evidence_count desc, confidence desc, updated_at asc
+        limit #{limit}
+    </select>
+
+    <select id="selectDistinctActiveMemoryOwners" resultType="jimmy.ai.model.AiMemoryOwnerVO">
+        select user_id as userId,
+               user_code as userCode
+        from ai_user_memory
+        where deleted = 0
+          and status in ('ACTIVE', 'WEAKENING')
+        group by user_id, user_code
+        order by max(updated_at) desc
+        limit #{limit}
+    </select>
 
     <update id="markMemoryRecalled">
         update ai_user_memory

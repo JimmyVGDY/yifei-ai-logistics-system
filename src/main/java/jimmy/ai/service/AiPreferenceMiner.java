@@ -1,6 +1,8 @@
 package jimmy.ai.service;
 
 import jimmy.ai.mapper.AiMemoryMapper;
+import jimmy.ai.model.AiMemoryItemVO;
+import jimmy.ai.model.AiMemoryOwnerVO;
 import jimmy.logistics.util.ColumnExistenceChecker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -30,6 +32,32 @@ import java.util.concurrent.Executor;
 @Slf4j
 @Component
 public class AiPreferenceMiner {
+
+    private void promoteCandidates() {
+        if (!governanceColumnsReady()) {
+            return;
+        }
+        List<Long> promotableIds = memoryMapper.selectPromotableCandidateIds(0.90, 2, BATCH_SIZE);
+        if (!promotableIds.isEmpty()) {
+            memoryMapper.updateMemoryStatus(promotableIds, AiMemoryGovernanceService.STATUS_ACTIVE);
+            log.info("AI 记忆治理：{} 条候选记忆因证据或置信度达标晋升为 ACTIVE", promotableIds.size());
+        }
+    }
+
+    private void compileProfiles() {
+        if (!governanceColumnsReady()) {
+            return;
+        }
+        for (AiMemoryOwnerVO owner : memoryMapper.selectDistinctActiveMemoryOwners(BATCH_SIZE)) {
+            String userId = owner.userId();
+            String userCode = owner.userCode();
+            List<AiMemoryItemVO> memories = memoryMapper.selectActiveMemoriesForProfile(userId, userCode, 200);
+            AiUserProfileCompiler.ProfileSnapshot snapshot = profileCompiler.compile(memories, "先给结论，再列关键依据");
+            memoryMapper.updateProfileCompiled(userId, userCode, snapshot.answerStyle(), snapshot.favoriteModules(),
+                    snapshot.queryHabits(), snapshot.answerStyleJson(), snapshot.queryStrategyJson(),
+                    snapshot.moduleAffinityJson(), snapshot.profileConfidence());
+        }
+    }
 
     /**
      * 记忆进入衰减状态的沉默天数阈值。
@@ -75,13 +103,16 @@ public class AiPreferenceMiner {
     private final AiMemoryMapper memoryMapper;
     private final ColumnExistenceChecker columnChecker;
     private final Executor aiChatExecutor;
+    private final AiUserProfileCompiler profileCompiler;
 
     public AiPreferenceMiner(AiMemoryMapper memoryMapper,
                              ColumnExistenceChecker columnChecker,
-                             @Qualifier("aiChatExecutor") Executor aiChatExecutor) {
+                             @Qualifier("aiChatExecutor") Executor aiChatExecutor,
+                             AiUserProfileCompiler profileCompiler) {
         this.memoryMapper = memoryMapper;
         this.columnChecker = columnChecker;
         this.aiChatExecutor = aiChatExecutor;
+        this.profileCompiler = profileCompiler;
     }
 
     // ==================== 触发入口 ====================
@@ -130,6 +161,7 @@ public class AiPreferenceMiner {
             return;
         }
         // 1. ACTIVE 记忆超过 WEAKENING_DAYS 天未强化 → 标记为 WEAKENING
+        promoteCandidates();
         String weakeningBefore = DATETIME_FMT.format(LocalDateTime.now().minusDays(WEAKENING_DAYS));
         List<Long> weakeningIds = memoryMapper.selectMemoryIdsByStatus("ACTIVE", weakeningBefore, BATCH_SIZE);
         int weakeningCount = 0;
@@ -169,6 +201,7 @@ public class AiPreferenceMiner {
             log.info("生命周期：{} 条 ARCHIVED 记忆已软删除", deletedCount);
         }
 
+        compileProfiles();
         if (weakeningCount == 0 && archiveCount == 0 && deletedCount == 0) {
             log.debug("生命周期管理：无需处理的记忆");
         }
@@ -186,5 +219,12 @@ public class AiPreferenceMiner {
         return columnChecker.hasColumn("ai_user_memory", "status")
                 && columnChecker.hasColumn("ai_user_memory", "last_reinforced_at")
                 && columnChecker.hasColumn("ai_user_memory", "reinforce_count");
+    }
+
+    private boolean governanceColumnsReady() {
+        return lifecycleColumnsReady()
+                && columnChecker.hasColumn("ai_user_memory", "memory_scope")
+                && columnChecker.hasColumn("ai_user_memory", "conflict_group")
+                && columnChecker.hasColumn("ai_user_profile", "profile_version");
     }
 }

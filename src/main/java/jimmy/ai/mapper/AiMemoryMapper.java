@@ -1,6 +1,7 @@
 package jimmy.ai.mapper;
 
 import jimmy.ai.model.AiMemoryItemVO;
+import jimmy.ai.model.AiMemoryOwnerVO;
 import jimmy.ai.model.AiMemoryProfileVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -30,15 +31,27 @@ public interface AiMemoryMapper {
                             @Param("favoriteModules") String favoriteModules,
                             @Param("queryHabits") String queryHabits);
 
+    int updateProfileCompiled(@Param("userId") String userId,
+                              @Param("userCode") String userCode,
+                              @Param("answerStyle") String answerStyle,
+                              @Param("favoriteModules") String favoriteModules,
+                              @Param("queryHabits") String queryHabits,
+                              @Param("answerStyleJson") String answerStyleJson,
+                              @Param("queryStrategyJson") String queryStrategyJson,
+                              @Param("moduleAffinityJson") String moduleAffinityJson,
+                              @Param("profileConfidence") double profileConfidence);
+
     long countMemories(@Param("userId") String userId,
                        @Param("userCode") String userCode,
                        @Param("keyword") String keyword,
-                       @Param("memoryType") String memoryType);
+                       @Param("memoryType") String memoryType,
+                       @Param("status") String status);
 
     List<AiMemoryItemVO> selectMemories(@Param("userId") String userId,
                                         @Param("userCode") String userCode,
                                         @Param("keyword") String keyword,
                                         @Param("memoryType") String memoryType,
+                                        @Param("status") String status,
                                         @Param("offset") long offset,
                                         @Param("pageSize") int pageSize);
 
@@ -60,12 +73,46 @@ public interface AiMemoryMapper {
                      @Param("userId") String userId,
                      @Param("userCode") String userCode,
                      @Param("memoryType") String memoryType,
+                     @Param("memoryKey") String memoryKey,
+                     @Param("memoryScope") String memoryScope,
+                     @Param("scopeValue") String scopeValue,
+                     @Param("conflictGroup") String conflictGroup,
+                     @Param("priority") int priority,
+                     @Param("evidenceCount") int evidenceCount,
+                     @Param("status") String status,
+                     @Param("policyJson") String policyJson,
                      @Param("memoryTitle") String memoryTitle,
                      @Param("memorySummary") String memorySummary,
                      @Param("confidence") Double confidence,
                      @Param("qdrantPointId") String qdrantPointId,
                      @Param("sourceConversationId") String sourceConversationId,
                      @Param("sourceTraceId") String sourceTraceId);
+
+    List<Long> selectActiveConflictMemoryIds(@Param("userId") String userId,
+                                             @Param("userCode") String userCode,
+                                             @Param("conflictGroup") String conflictGroup);
+
+    int supersedeConflictMemories(@Param("userId") String userId,
+                                  @Param("userCode") String userCode,
+                                  @Param("conflictGroup") String conflictGroup,
+                                  @Param("newMemoryId") Long newMemoryId);
+
+    int changeMemoryStatus(@Param("id") Long id,
+                           @Param("userId") String userId,
+                           @Param("userCode") String userCode,
+                           @Param("status") String status);
+
+    int markMemoryApplied(@Param("id") Long id);
+
+    List<AiMemoryItemVO> selectActiveMemoriesForProfile(@Param("userId") String userId,
+                                                        @Param("userCode") String userCode,
+                                                        @Param("limit") int limit);
+
+    List<Long> selectPromotableCandidateIds(@Param("minConfidence") double minConfidence,
+                                            @Param("minEvidenceCount") int minEvidenceCount,
+                                            @Param("limit") int limit);
+
+    List<AiMemoryOwnerVO> selectDistinctActiveMemoryOwners(@Param("limit") int limit);
 
     int markMemoryRecalled(@Param("id") Long id);
 

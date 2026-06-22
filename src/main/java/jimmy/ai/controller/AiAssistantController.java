@@ -208,8 +208,30 @@ public class AiAssistantController {
     public ApiResponse<PageResult<AiMemoryItemVO>> memoryItems(@RequestParam(defaultValue = "1") int page,
                                                                @RequestParam(defaultValue = "20") int pageSize,
                                                                @RequestParam(required = false) String keyword,
-                                                               @RequestParam(required = false) String memoryType) {
-        return ApiResponse.success(aiMemoryService.items(page, pageSize, keyword, memoryType));
+                                                               @RequestParam(required = false) String memoryType,
+                                                               @RequestParam(required = false) String status) {
+        return ApiResponse.success(aiMemoryService.items(page, pageSize, keyword, memoryType, status));
+    }
+
+    @OperationLog("AI助手-批准长期记忆")
+    @PutMapping("/memory/items/{id}/approve")
+    public ApiResponse<Void> approveMemory(@PathVariable Long id) {
+        aiMemoryService.approveMemory(id);
+        return ApiResponse.success(null);
+    }
+
+    @OperationLog("AI助手-拒绝长期记忆")
+    @PutMapping("/memory/items/{id}/reject")
+    public ApiResponse<Void> rejectMemory(@PathVariable Long id) {
+        aiMemoryService.rejectMemory(id);
+        return ApiResponse.success(null);
+    }
+
+    @OperationLog("AI助手-恢复长期记忆")
+    @PutMapping("/memory/items/{id}/restore")
+    public ApiResponse<Void> restoreMemory(@PathVariable Long id) {
+        aiMemoryService.restoreMemory(id);
+        return ApiResponse.success(null);
     }
 
     @OperationLog("AI助手-删除长期记忆")

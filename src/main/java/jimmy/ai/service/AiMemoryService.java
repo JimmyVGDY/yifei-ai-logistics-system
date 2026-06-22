@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import jimmy.ai.mapper.AiMemoryMapper;
 import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiMemoryCandidate;
+import jimmy.ai.model.AiMemoryGovernanceDecision;
 import jimmy.ai.model.AiMemoryItemVO;
 import jimmy.ai.model.AiMemoryProfileVO;
 import jimmy.ai.model.AiMemoryRecallResult;
@@ -46,6 +47,8 @@ public class AiMemoryService {
     private final ColumnExistenceChecker columnChecker;
     private final AiAuditLogService auditLogService;
     private final AiMemoryExtractor memoryExtractor;
+    private final AiMemoryGovernanceService memoryGovernanceService;
+    private final AiUserProfileCompiler profileCompiler;
 
     public AiMemoryService(AiMemoryMapper memoryMapper,
                            CompactSnowflakeIdGenerator idGenerator,
@@ -54,7 +57,9 @@ public class AiMemoryService {
                            AiQdrantMemoryClient qdrantClient,
                            ColumnExistenceChecker columnChecker,
                            AiAuditLogService auditLogService,
-                           AiMemoryExtractor memoryExtractor) {
+                           AiMemoryExtractor memoryExtractor,
+                           AiMemoryGovernanceService memoryGovernanceService,
+                           AiUserProfileCompiler profileCompiler) {
         this.memoryMapper = memoryMapper;
         this.idGenerator = idGenerator;
         this.traceContextSupport = traceContextSupport;
@@ -63,6 +68,8 @@ public class AiMemoryService {
         this.columnChecker = columnChecker;
         this.auditLogService = auditLogService;
         this.memoryExtractor = memoryExtractor;
+        this.memoryGovernanceService = memoryGovernanceService;
+        this.profileCompiler = profileCompiler;
     }
 
     public AiMemoryProfileVO profile() {
@@ -76,6 +83,10 @@ public class AiMemoryService {
     }
 
     public PageResult<AiMemoryItemVO> items(int page, int pageSize, String keyword, String memoryType) {
+        return items(page, pageSize, keyword, memoryType, null);
+    }
+
+    public PageResult<AiMemoryItemVO> items(int page, int pageSize, String keyword, String memoryType, String status) {
         UserScope scope = currentScope();
         int safePage = Math.max(page, 1);
         int safePageSize = Math.max(1, Math.min(pageSize, 50));
@@ -83,9 +94,9 @@ public class AiMemoryService {
             return new PageResult<>(List.of(), safePage, safePageSize, 0L);
         }
         ensureProfile(scope);
-        long total = memoryMapper.countMemories(scope.userId(), scope.userCode(), normalize(keyword), normalize(memoryType));
+        long total = memoryMapper.countMemories(scope.userId(), scope.userCode(), normalize(keyword), normalize(memoryType), normalize(status));
         List<AiMemoryItemVO> records = memoryMapper.selectMemories(scope.userId(), scope.userCode(),
-                normalize(keyword), normalize(memoryType), (long) (safePage - 1) * safePageSize, safePageSize);
+                normalize(keyword), normalize(memoryType), normalize(status), (long) (safePage - 1) * safePageSize, safePageSize);
         return new PageResult<>(maskRecords(records), safePage, safePageSize, total);
     }
 
@@ -113,7 +124,56 @@ public class AiMemoryService {
         }
         memoryMapper.deleteMemory(id, scope.userId(), scope.userCode());
         qdrantClient.delete(memory.qdrantPointId());
+        compileProfile(scope);
         recordEvent(id, "DELETE", "USER", "用户删除单条 AI 长期记忆：" + memory.memoryTitle());
+    }
+
+    public void approveMemory(Long id) {
+        if (!tablesExist()) {
+            return;
+        }
+        UserScope scope = currentScope();
+        AiMemoryItemVO memory = memoryMapper.selectMemoryById(id, scope.userId(), scope.userCode());
+        if (memory == null) {
+            return;
+        }
+        memoryMapper.changeMemoryStatus(id, scope.userId(), scope.userCode(), AiMemoryGovernanceService.STATUS_ACTIVE);
+        if (StringUtils.hasText(memory.conflictGroup())) {
+            memoryMapper.supersedeConflictMemories(scope.userId(), scope.userCode(), memory.conflictGroup(), id);
+        }
+        compileProfile(scope);
+        recordEvent(id, "APPROVE", "USER", "用户批准 AI 长期记忆：" + memory.memoryTitle());
+    }
+
+    public void rejectMemory(Long id) {
+        if (!tablesExist()) {
+            return;
+        }
+        UserScope scope = currentScope();
+        AiMemoryItemVO memory = memoryMapper.selectMemoryById(id, scope.userId(), scope.userCode());
+        if (memory == null) {
+            return;
+        }
+        memoryMapper.changeMemoryStatus(id, scope.userId(), scope.userCode(), "REJECTED");
+        compileProfile(scope);
+        recordEvent(id, "REJECT", "USER", "用户拒绝 AI 长期记忆：" + memory.memoryTitle());
+    }
+
+    public void restoreMemory(Long id) {
+        if (!tablesExist()) {
+            return;
+        }
+        UserScope scope = currentScope();
+        AiMemoryItemVO memory = memoryMapper.selectMemoryById(id, scope.userId(), scope.userCode());
+        if (memory == null) {
+            return;
+        }
+        memoryMapper.changeMemoryStatus(id, scope.userId(), scope.userCode(), AiMemoryGovernanceService.STATUS_ACTIVE);
+        if (StringUtils.hasText(memory.conflictGroup())) {
+            memoryMapper.supersedeConflictMemories(scope.userId(), scope.userCode(), memory.conflictGroup(), id);
+        }
+        compileProfile(scope);
+        recordEvent(id, "RESTORE", "USER", "用户恢复 AI 长期记忆：" + memory.memoryTitle());
     }
 
     public void clearMemories() {
@@ -121,11 +181,12 @@ public class AiMemoryService {
             return;
         }
         UserScope scope = currentScope();
-        List<AiMemoryItemVO> memories = memoryMapper.selectMemories(scope.userId(), scope.userCode(), null, null, 0, 1000);
+        List<AiMemoryItemVO> memories = memoryMapper.selectMemories(scope.userId(), scope.userCode(), null, null, null, 0, 1000);
         memoryMapper.clearMemories(scope.userId(), scope.userCode());
         for (AiMemoryItemVO memory : memories) {
             qdrantClient.delete(memory.qdrantPointId());
         }
+        compileProfile(scope);
         recordEvent(null, "CLEAR", "USER", "用户清空 AI 长期记忆，count=" + memories.size());
     }
 
@@ -143,6 +204,7 @@ public class AiMemoryService {
         if (memories.isEmpty()) {
             memories = memoryMapper.selectRecallCandidates(scope.userId(), scope.userCode(), keyword, MAX_RECALL_COUNT);
         }
+        memories = selectRecallableMemories(memories);
         memories = maskRecords(memories);
         if (memories.isEmpty()) {
             recordEvent(null, "RECALL_EMPTY", "AI_MEMORY", "未召回到可用长期记忆", conversationId);
@@ -153,6 +215,7 @@ public class AiMemoryService {
         List<AiCitation> citations = new ArrayList<>();
         for (AiMemoryItemVO memory : memories) {
             memoryMapper.markMemoryRecalled(memory.id());
+            memoryMapper.markMemoryApplied(memory.id());
             // 每次召回命中同时强化记忆，置信度自动递增
             if (memory.confidence() != null && memory.confidence() < 0.96) {
                 memoryMapper.markMemoryReinforced(memory.id());
@@ -177,11 +240,11 @@ public class AiMemoryService {
             return;
         }
         for (AiMemoryCandidate candidate : extractCandidates(userMessage, assistantMessage, toolCalls)) {
-            saveCandidate(conversationId, candidate);
+            saveCandidate(conversationId, userMessage, toolCalls, candidate);
         }
     }
 
-    private void saveCandidate(String conversationId, AiMemoryCandidate candidate) {
+    private void saveCandidate(String conversationId, String userMessage, List<AiToolCall> toolCalls, AiMemoryCandidate candidate) {
         UserScope scope = currentScope();
         String summary = safeMemory(candidate.memorySummary());
         if (!StringUtils.hasText(summary) || containsSensitiveContent(summary)) {
@@ -196,6 +259,20 @@ public class AiMemoryService {
             recordEvent(null, "SKIP_DUPLICATE", "AI_MEMORY", "候选记忆已存在，已跳过", conversationId);
             return;
         }
+        AiMemoryGovernanceDecision decision = memoryGovernanceService.decide(candidate, userMessage, toolCalls);
+        String finalStatus = decision.status();
+        List<Long> activeConflictIds = StringUtils.hasText(decision.conflictGroup())
+                ? memoryMapper.selectActiveConflictMemoryIds(scope.userId(), scope.userCode(), decision.conflictGroup())
+                : List.of();
+        /*
+         * 如果新候选不是非常明确的强偏好，而同一冲突组已有生效记忆，就先进入冲突态。
+         * 这样可以防止“偶然一句话”或模型抽取偏差覆盖用户已经稳定使用的长期偏好。
+         */
+        if (!activeConflictIds.isEmpty()
+                && !AiMemoryGovernanceService.STATUS_ACTIVE.equals(finalStatus)
+                && !AiMemoryGovernanceService.STATUS_HALLUCINATION.equals(finalStatus)) {
+            finalStatus = AiMemoryGovernanceService.STATUS_CONFLICTED;
+        }
         Long id = idGenerator.nextId();
         String pointId = UUID.randomUUID().toString();
         boolean qdrantSaved = qdrantClient.upsert(pointId, summary, Map.of(
@@ -203,18 +280,37 @@ public class AiMemoryService {
                 "userId", scope.userId(),
                 "userCode", scope.userCode(),
                 "memoryType", candidate.memoryType(),
+                "memoryScope", decision.memoryScope(),
+                "scopeValue", decision.scopeValue(),
+                "conflictGroup", decision.conflictGroup(),
+                "status", finalStatus,
                 "confidence", candidate.confidence(),
-                "enabled", true
+                "enabled", memoryGovernanceService.isRecallableStatus(finalStatus)
         ));
         memoryMapper.insertMemory(id, scope.userId(), scope.userCode(), candidate.memoryType(),
+                decision.memoryKey(), decision.memoryScope(), decision.scopeValue(), decision.conflictGroup(),
+                decision.priority(), decision.evidenceCount(), finalStatus, decision.policyJson(),
                 safeMemory(candidate.memoryTitle()), summary, candidate.confidence(), qdrantSaved ? pointId : null,
                 conversationId, traceContextSupport.currentOrNewTraceId());
-        updateProfileHabits(candidate);
-        recordEvent(id, qdrantSaved ? "CREATE" : "CREATE_WITHOUT_VECTOR", "AI_MEMORY",
-                "AI 自动写入长期记忆：" + candidate.memoryType() + "，qdrantSaved=" + qdrantSaved, conversationId);
+        if (AiMemoryGovernanceService.STATUS_ACTIVE.equals(finalStatus) && StringUtils.hasText(decision.conflictGroup())) {
+            int superseded = memoryMapper.supersedeConflictMemories(scope.userId(), scope.userCode(), decision.conflictGroup(), id);
+            if (superseded > 0) {
+                recordEvent(id, "SUPERSEDE_CONFLICT", "AI_MEMORY",
+                        "新记忆替代同组旧偏好，conflictGroup=" + decision.conflictGroup() + "，count=" + superseded, conversationId);
+            }
+        }
+        compileProfile(scope);
+        String eventType = switch (finalStatus) {
+            case AiMemoryGovernanceService.STATUS_ACTIVE -> qdrantSaved ? "CREATE_ACTIVE" : "CREATE_ACTIVE_WITHOUT_VECTOR";
+            case AiMemoryGovernanceService.STATUS_CONFLICTED -> "CREATE_CONFLICTED";
+            case AiMemoryGovernanceService.STATUS_HALLUCINATION -> "CREATE_SUSPECTED_HALLUCINATION";
+            default -> "CREATE_CANDIDATE";
+        };
+        recordEvent(id, eventType, "AI_MEMORY",
+                "AI 写入长期记忆候选：" + candidate.memoryType() + "，status=" + finalStatus + "，qdrantSaved=" + qdrantSaved, conversationId);
         auditLogService.recordMemory(conversationId, qdrantSaved ? "CREATE" : "CREATE_WITHOUT_VECTOR",
                 "AI_MEMORY", String.valueOf(id), 0,
-                "AI 自动写入长期记忆：" + candidate.memoryType());
+                "AI 写入长期记忆候选：" + candidate.memoryType() + "，status=" + finalStatus);
     }
 
     /**
@@ -303,6 +399,27 @@ public class AiMemoryService {
         return memories;
     }
 
+    private List<AiMemoryItemVO> selectRecallableMemories(List<AiMemoryItemVO> memories) {
+        List<AiMemoryItemVO> result = new ArrayList<>();
+        LinkedHashSet<String> conflictGroups = new LinkedHashSet<>();
+        for (AiMemoryItemVO memory : memories == null ? List.<AiMemoryItemVO>of() : memories) {
+            if (memory == null || !memoryGovernanceService.isRecallableStatus(memory.status())) {
+                continue;
+            }
+            String conflictGroup = StringUtils.hasText(memory.conflictGroup()) ? memory.conflictGroup() : "memory:" + memory.id();
+            /*
+             * 同一冲突组只取优先级最高的一条，避免“回答简短”和“回答详细”这类冲突偏好同时进入上下文。
+             */
+            if (conflictGroups.add(conflictGroup)) {
+                result.add(memory);
+            }
+            if (result.size() >= MAX_RECALL_COUNT) {
+                break;
+            }
+        }
+        return result;
+    }
+
     private void updateProfileHabits(AiMemoryCandidate candidate) {
         UserScope scope = currentScope();
         AiMemoryProfileVO profile = profile();
@@ -315,6 +432,21 @@ public class AiMemoryService {
         }
         memoryMapper.updateProfileHabits(scope.userId(), scope.userCode(),
                 joinLimited(modules), joinLimited(habits));
+    }
+
+    private void compileProfile(UserScope scope) {
+        if (!governanceColumnsReady()) {
+            return;
+        }
+        ensureProfile(scope);
+        List<AiMemoryItemVO> activeMemories = memoryMapper.selectActiveMemoriesForProfile(scope.userId(), scope.userCode(), 200);
+        AiUserProfileCompiler.ProfileSnapshot snapshot = profileCompiler.compile(activeMemories, DEFAULT_ANSWER_STYLE);
+        memoryMapper.updateProfileCompiled(scope.userId(), scope.userCode(),
+                snapshot.answerStyle(), snapshot.favoriteModules(), snapshot.queryHabits(),
+                snapshot.answerStyleJson(), snapshot.queryStrategyJson(), snapshot.moduleAffinityJson(),
+                snapshot.profileConfidence());
+        recordEvent(null, "PROFILE_COMPILE", "AI_MEMORY",
+                "AI 用户画像已按有效长期记忆重新编译，memoryCount=" + activeMemories.size());
     }
 
     private void ensureProfile(UserScope scope) {
@@ -332,6 +464,13 @@ public class AiMemoryService {
                 && columnChecker.hasColumn("ai_memory_event", "event_type");
     }
 
+    private boolean governanceColumnsReady() {
+        return tablesExist()
+                && columnChecker.hasColumn("ai_user_memory", "memory_scope")
+                && columnChecker.hasColumn("ai_user_memory", "conflict_group")
+                && columnChecker.hasColumn("ai_user_profile", "profile_version");
+    }
+
     private AiMemoryProfileVO defaultProfile(UserScope scope) {
         return new AiMemoryProfileVO(scope.userId(), scope.userCode(), true, DEFAULT_ANSWER_STYLE, "", "", 0L, null);
     }
@@ -341,7 +480,10 @@ public class AiMemoryService {
         for (AiMemoryItemVO record : records == null ? List.<AiMemoryItemVO>of() : records) {
             masked.add(new AiMemoryItemVO(record.id(), record.memoryType(), masker.mask(record.memoryTitle()),
                     masker.mask(record.memorySummary()), record.confidence(), record.qdrantPointId(),
-                    record.createTime(), record.updateTime(), record.lastRecallTime()));
+                    record.createTime(), record.updateTime(), record.lastRecallTime(),
+                    record.status(), record.memoryScope(), record.scopeValue(), record.conflictGroup(),
+                    record.priority(), record.evidenceCount(), record.negativeCount(), record.supersededBy(),
+                    record.lastAppliedAt(), masker.mask(record.policyJson())));
         }
         return masked;
     }
