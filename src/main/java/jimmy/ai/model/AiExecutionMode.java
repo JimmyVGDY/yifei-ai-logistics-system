@@ -7,11 +7,14 @@ package jimmy.ai.model;
  */
 public enum AiExecutionMode {
     MODULE_QUERY("单模块查询"),
+    QUERY_CONTINUATION("上下文续查"),
     GLOBAL_SEARCH("全场景模糊搜索"),
     JOINED_QUERY("业务联合查询"),
     LOG_ANALYSIS("日志排障"),
     READONLY_SQL("临时只读 SQL"),
     RAG_SEARCH("文档知识检索"),
+    CONTROL_PREFERENCE("对话纠偏/偏好"),
+    CLARIFY_REQUIRED("需要澄清"),
     GENERAL_CHAT("普通问答");
 
     private final String label;

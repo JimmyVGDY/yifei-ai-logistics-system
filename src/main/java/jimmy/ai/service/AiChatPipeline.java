@@ -4,8 +4,10 @@ import cn.dev33.satoken.stp.StpUtil;
 import jimmy.ai.model.AiChatRequest;
 import jimmy.ai.model.AiChatResponse;
 import jimmy.ai.model.AiCitation;
+import jimmy.ai.model.AiConversationIntent;
 import jimmy.ai.model.AiConversationVO;
 import jimmy.ai.model.AiDataResult;
+import jimmy.ai.model.AiExecutionMode;
 import jimmy.ai.model.AiExecutionPlan;
 import jimmy.ai.model.AiLogAnalysisResponse;
 import jimmy.ai.model.AiLogAnalyzeRequest;
@@ -54,7 +56,7 @@ public class AiChatPipeline {
     private final AiToolCallContext toolCallContext;
     private final AiMemoryService memoryService;
     private final AiFallbackHandler fallbackHandler;
-    private final AiIntentPlanner intentPlanner;
+    private final AiConversationIntentClassifier intentClassifier;
     private final AiPromptTemplateService promptTemplateService;
     private final AiToolOutputValidator toolOutputValidator;
     private final long heartbeatSeconds;
@@ -71,7 +73,7 @@ public class AiChatPipeline {
                           AiToolCallContext toolCallContext,
                           AiMemoryService memoryService,
                           AiFallbackHandler fallbackHandler,
-                          AiIntentPlanner intentPlanner,
+                          AiConversationIntentClassifier intentClassifier,
                           AiPromptTemplateService promptTemplateService,
                           AiToolOutputValidator toolOutputValidator,
                           @Value("${app.ai.sse.heartbeat-seconds:10}") long heartbeatSeconds) {
@@ -87,7 +89,7 @@ public class AiChatPipeline {
         this.toolCallContext = toolCallContext;
         this.memoryService = memoryService;
         this.fallbackHandler = fallbackHandler;
-        this.intentPlanner = intentPlanner;
+        this.intentClassifier = intentClassifier;
         this.promptTemplateService = promptTemplateService;
         this.toolOutputValidator = toolOutputValidator;
         this.heartbeatSeconds = Math.max(1, heartbeatSeconds);
@@ -141,9 +143,18 @@ public class AiChatPipeline {
                         dataResults, start, streaming);
             }
 
-            AiExecutionPlan executionPlan = intentPlanner.plan(safeMessage);
+            AiConversationIntent conversationIntent = intentClassifier.classify(safeMessage, previousUserMessage);
+            AiExecutionPlan executionPlan = conversationIntent.executionPlan();
             log.info("AI 执行计划已生成，conversationId={}, mode={}, modules={}, reason={}",
                     conversationId, executionPlan.mode(), executionPlan.candidateModules(), executionPlan.reason());
+            /*
+             * 对话纠偏和澄清问题是“控制对话边界”的消息，不是业务查询。
+             * 这里提前返回，可以避免模型或兜底逻辑因为看到“异常、任务、订单”等词就擅自查库。
+             */
+            if (conversationIntent.directAnswer()) {
+                return handleDirectIntent(conversationId, safeMessage, conversationIntent.answer(), citations,
+                        toolCalls, dataResults, start, streaming);
+            }
             citations.addAll(knowledgeService.search(safeMessage));
             AiMemoryRecallResult memoryRecall = memoryService.recall(safeMessage, conversationId);
             StringBuilder context = new StringBuilder("AI 执行计划：")
@@ -160,7 +171,7 @@ public class AiChatPipeline {
                 toolCalls.add(new AiToolCall("长期记忆召回", "当前账号长期偏好", "命中 " + memoryRecall.hitCount() + " 条长期记忆"));
             }
 
-            if (looksLikeLogQuestion(safeMessage)) {
+            if (executionPlan.mode() == AiExecutionMode.LOG_ANALYSIS || looksLikeLogQuestion(safeMessage)) {
                 AiLogAnalysisResponse analysis = logAnalysisService.analyze(new AiLogAnalyzeRequest(
                         extractToken(safeMessage, "traceId"),
                         extractToken(safeMessage, "operationId"),
@@ -176,9 +187,13 @@ public class AiChatPipeline {
 
             PromptRenderResult systemPrompt = renderSystemPrompt();
             PromptRenderResult userPrompt = renderUserPrompt(request, safeMessage, conversationId, context);
-            Optional<String> modelAnswer = streaming
+            Optional<String> modelAnswer = conversationIntent.allowBusinessTools()
+                    ? (streaming
                     ? safeChatWithTools(systemPrompt, userPrompt, safeMessage)
-                    : callModelWithTools(systemPrompt, userPrompt, safeMessage);
+                    : callModelWithTools(systemPrompt, userPrompt, safeMessage))
+                    : (streaming
+                    ? safeChatWithoutTools(systemPrompt, userPrompt)
+                    : callModelWithoutTools(systemPrompt, userPrompt));
             AiToolCallContext.Snapshot toolSnapshot = toolCallContext.snapshotAndClear();
             if (streaming) {
                 toolCallContext.begin(outputStream);
@@ -189,7 +204,7 @@ public class AiChatPipeline {
             toolSnapshot.contexts().forEach(toolContext -> context.append("\nAI 工具调用摘要：").append(toolContext).append("\n"));
 
             boolean fallbackQueryExecuted = false;
-            if (toolCalls.isEmpty()) {
+            if (toolCalls.isEmpty() && conversationIntent.allowReadonlyFallback()) {
                 AiReadonlyQueryResult queryResult = readonlyQueryService.query(safeMessage, previousUserMessage,
                         conversationId, currentUserId(), currentUserCode());
                 if (queryResult.executed()) {
@@ -290,6 +305,30 @@ public class AiChatPipeline {
                 traceContextSupport.currentOrNewTraceId(), traceContextSupport.currentOrNewOperationId());
     }
 
+    private AiChatResponse handleDirectIntent(String conversationId,
+                                              String safeMessage,
+                                              String answer,
+                                              List<AiCitation> citations,
+                                              List<AiToolCall> toolCalls,
+                                              List<AiDataResult> dataResults,
+                                              long start,
+                                              boolean streaming) {
+        List<AiToolCall> safeToolCalls = sanitizeToolCalls(toolCalls);
+        AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, safeToolCalls, citations);
+        /*
+         * 纠偏/偏好类消息不查业务库，但仍进入长期记忆提炼。
+         * 这样“以后只查运输任务”这类偏好可以被后续会话参考，同时不污染业务查询日志。
+         */
+        memoryService.rememberInteraction(conversation.conversationId(), safeMessage, answer, safeToolCalls);
+        auditLogService.recordResponse(conversation.conversationId(), safeMessage,
+                "对话意图直接回复，未触发业务查询工具", System.currentTimeMillis() - start);
+        if (streaming) {
+            toolCallContext.notifyDone(conversation.conversationId(), answer, citations, safeToolCalls);
+        }
+        return new AiChatResponse(conversation.conversationId(), answer, citations, safeToolCalls, dataResults,
+                traceContextSupport.currentOrNewTraceId(), traceContextSupport.currentOrNewOperationId());
+    }
+
     private PromptRenderResult renderUserPrompt(AiChatRequest request,
                                                 String safeMessage,
                                                 String conversationId,
@@ -332,6 +371,7 @@ public class AiChatPipeline {
                 如果对话历史中有最近几轮的对话内容，请结合上下文理解用户的追问和省略表达。
                 用户说得模糊时，优先使用全场景模糊搜索；用户提到客户全貌、订单完整链路、司机任务链路、车辆任务链路或异常影响时，使用业务联合查询。
                 涉及统计、排名、汇总、关联或连表分析时，才使用临时只读 SQL 工具。
+                用户纠正你的行为、限制后续范围、要求记住或确认你是否理解时，先确认并更新偏好，不要马上查库。
                 如果上下文或工具结果提示权限不足，只能回复友好的中文权限提示，不要暴露权限码、内部模块名、字段名、SQL 或异常堆栈。
                 回答必须基于给定上下文或工具结果；不知道就说明需要进一步查询。
                 当工具结果已返回结构化数据时，聊天气泡只输出结论摘要、关键风险和查看建议，不要重复生成 Markdown 明细表格，也不要声称已完整列出所有记录。
@@ -349,6 +389,27 @@ public class AiChatPipeline {
         } catch (RuntimeException exception) {
             toolCallContext.snapshotAndClear();
             throw exception;
+        }
+    }
+
+    private Optional<String> callModelWithoutTools(PromptRenderResult systemPrompt,
+                                                   PromptRenderResult userPrompt) {
+        toolCallContext.begin();
+        try {
+            return modelGateway.chat(systemPrompt, userPrompt, "chat", null);
+        } catch (RuntimeException exception) {
+            toolCallContext.snapshotAndClear();
+            throw exception;
+        }
+    }
+
+    private Optional<String> safeChatWithoutTools(PromptRenderResult systemPrompt,
+                                                  PromptRenderResult userPrompt) {
+        try {
+            return callModelWithoutTools(systemPrompt, userPrompt);
+        } catch (RuntimeException exception) {
+            log.warn("SSE 普通模型调用失败，将使用兜底回答，reason={}", exception.getMessage());
+            return Optional.empty();
         }
     }
 

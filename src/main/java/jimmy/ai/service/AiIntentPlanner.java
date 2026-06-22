@@ -45,12 +45,21 @@ public class AiIntentPlanner {
         List<String> modules = new ArrayList<>();
         addIf(modules, text, "订单管理", "订单", "运单管理", "下单");
         addIf(modules, text, "运单中心", "运单", "运单号", "物流单");
+        addIf(modules, text, "调度管理", "调度", "派车");
+        addIf(modules, text, "运输任务", "运输任务", "配送任务", "任务");
         addIf(modules, text, "客户管理", "客户", "联系人", "手机号");
         addIf(modules, text, "司机管理", "司机", "驾驶员");
         addIf(modules, text, "车辆管理", "车辆", "车牌");
         addIf(modules, text, "异常管理", "异常", "待处理", "有问题");
         addIf(modules, text, "费用结算", "费用", "收款", "付款");
         addIf(modules, text, "物流轨迹", "轨迹", "位置", "路线");
+        /*
+         * “运输任务里的异常任务”是一个限定在运输任务模块内的查询，
+         * 不能因为出现“异常”两个字就同时扩展到异常管理。
+         */
+        if (modules.contains("运输任务") && !text.contains("异常管理")) {
+            modules.remove("异常管理");
+        }
         return modules.stream().distinct().toList();
     }
 
