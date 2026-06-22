@@ -59,6 +59,7 @@ public class AiChatPipeline {
     private final AiConversationIntentClassifier intentClassifier;
     private final AiPromptTemplateService promptTemplateService;
     private final AiToolOutputValidator toolOutputValidator;
+    private final AiGroundingGuard groundingGuard;
     private final long heartbeatSeconds;
 
     public AiChatPipeline(AiKnowledgeService knowledgeService,
@@ -76,6 +77,7 @@ public class AiChatPipeline {
                           AiConversationIntentClassifier intentClassifier,
                           AiPromptTemplateService promptTemplateService,
                           AiToolOutputValidator toolOutputValidator,
+                          AiGroundingGuard groundingGuard,
                           @Value("${app.ai.sse.heartbeat-seconds:10}") long heartbeatSeconds) {
         this.knowledgeService = knowledgeService;
         this.readonlyQueryService = readonlyQueryService;
@@ -92,6 +94,7 @@ public class AiChatPipeline {
         this.intentClassifier = intentClassifier;
         this.promptTemplateService = promptTemplateService;
         this.toolOutputValidator = toolOutputValidator;
+        this.groundingGuard = groundingGuard;
         this.heartbeatSeconds = Math.max(1, heartbeatSeconds);
     }
 
@@ -232,6 +235,7 @@ public class AiChatPipeline {
             String answer = fallbackQueryExecuted
                     ? fallbackHandler.fallbackAnswer(context.toString(), safeToolCalls)
                     : modelAnswer.orElseGet(() -> fallbackHandler.fallbackAnswer(context.toString(), safeToolCalls));
+            answer = groundingGuard.correctAnswer(answer, citations, safeToolCalls, dataResults);
             AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, safeToolCalls, citations);
             memoryService.rememberInteraction(conversation.conversationId(), safeMessage, answer, safeToolCalls);
             auditLogService.recordResponse(conversation.conversationId(), safeMessage,
@@ -295,6 +299,7 @@ public class AiChatPipeline {
             auditLogService.recordToolCall(conversationId, toolCall.toolName(), toolCall.target(), safeMessage, toolCall.result());
         }
         String answer = fallbackHandler.fallbackAnswer("业务只读查询摘要：" + queryResult.answerContext(), safeToolCalls);
+        answer = groundingGuard.correctAnswer(answer, citations, safeToolCalls, dataResults);
         AiConversationVO conversation = saveConversation(conversationId, safeMessage, answer, safeToolCalls, citations);
         auditLogService.recordResponse(conversation.conversationId(), safeMessage,
                 "按查询游标继续分页，工具调用=" + safeToolCalls.size(), System.currentTimeMillis() - start);
