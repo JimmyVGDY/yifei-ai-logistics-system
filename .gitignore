@@ -48,3 +48,13 @@ docker/sentinel/*.jar
 ops/*.log
 F:/Development/Maven/Repository/
 F:\\Development\\Maven\\Repository/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+uv.lock
+.pytest_cache/
+*.egg-info/
+dist/
