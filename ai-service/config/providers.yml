@@ -1,0 +1,51 @@
+# 模型 Provider 注册表
+#
+# 优先级: 数字越小优先级越高
+# 降级链: 按 priority 顺序尝试，前一个不可用时切下一个
+# 本地模型 (ollama-local) 默认关闭，启用时设置 enabled: true
+
+providers:
+  - name: deepseek
+    type: cloud
+    enabled: true
+    api_base: https://api.deepseek.com/v1
+    models:
+      - deepseek-chat
+      - deepseek-reasoner
+    priority: 1
+    timeout_seconds: 60
+
+  - name: qwen-cloud
+    type: cloud
+    enabled: true
+    api_base: https://dashscope.aliyuncs.com/compatible-mode/v1
+    models:
+      - qwen3-4b
+      - qwen3-14b
+      - qwen-vl-max
+    priority: 2
+    timeout_seconds: 60
+
+  - name: ollama-local
+    type: local
+    enabled: false                              # ← 本地模型预留，暂不启用
+    api_base: http://localhost:11434/v1
+    models:
+      - qwen3-14b
+      - bge-m3
+    priority: 3
+    timeout_seconds: 120
+
+# 按任务类型配置降级链
+fallback_chains:
+  intent-classify:    [deepseek-chat, qwen3-4b]
+  chat:               [deepseek-chat, qwen3-14b]
+  sql-generate:       [deepseek-reasoner, deepseek-chat, qwen3-14b]
+  sql-self-check:     [deepseek-chat, qwen3-4b]
+  log-analysis:       [deepseek-chat, qwen3-14b]
+  file-analysis:      [qwen-vl-max, deepseek-chat]
+  memory-extract:     [qwen3-4b, deepseek-chat]
+  grounding-check:    [qwen3-4b, deepseek-chat]
+  daily-briefing:     [deepseek-chat, qwen3-14b]
+  anomaly-check:      [deepseek-chat, qwen3-14b]
+  embedding:          [bge-m3]                  # ← 需本地 ollama-local 启用

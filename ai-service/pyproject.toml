@@ -1,0 +1,48 @@
+[project]
+name = "logistics-ai-service"
+version = "0.1.0"
+description = "物流管理系统 AI 能力服务 — 模型网关、Agent 编排、RAG、记忆智能"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "httpx>=0.28.0",
+    "pydantic>=2.10.0",
+    "python-multipart>=0.0.9",   # FastAPI form data 支持
+    "chevron>=0.14.0",          # Mustache 模板渲染
+    "pyyaml>=6.0.0",
+    "structlog>=25.0.0",
+    "redis>=5.2.0",
+    "qdrant-client>=1.12.0",
+    # OpenTelemetry — 链路追踪（core API + SDK + OTLP exporter）
+    "opentelemetry-api>=1.28.0",
+    "opentelemetry-sdk>=1.28.0",
+    "opentelemetry-instrumentation-fastapi>=0.49b0",
+    "opentelemetry-instrumentation-httpx>=0.49b0",
+    "opentelemetry-exporter-otlp-proto-http>=1.28.0",
+    # 监控指标
+    "prometheus-client>=0.21.0",
+    "prometheus-fastapi-instrumentator>=7.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-httpx>=0.30.0",
+    "ruff>=0.8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_service"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
