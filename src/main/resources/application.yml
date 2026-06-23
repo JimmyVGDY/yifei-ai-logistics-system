@@ -82,6 +82,12 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+  tracing:
+    sampling:
+      probability: ${OTEL_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
 
 sa-token:
   token-name: ${SA_TOKEN_NAME:satoken}
@@ -146,6 +152,11 @@ app:
     url: ${LOCAL_FRONTEND_URL:http://127.0.0.1:5173}
     working-directory: ${LOCAL_FRONTEND_WORKING_DIRECTORY:frontend}
   ai:
+    # ── Python AI 服务 ──
+    python:
+      enabled: ${APP_AI_PYTHON_ENABLED:false}       # 开发环境开启，生产暂默认关
+      base-url: ${APP_AI_PYTHON_BASE_URL:http://127.0.0.1:8001}
+      timeout-seconds: ${APP_AI_PYTHON_TIMEOUT_SECONDS:180}
     conversation-ttl-seconds: ${APP_AI_CONVERSATION_TTL_SECONDS:3600}
     tool:
       max-calls: ${APP_AI_TOOL_MAX_CALLS:8}

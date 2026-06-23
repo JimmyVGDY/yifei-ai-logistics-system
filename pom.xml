@@ -84,6 +84,18 @@
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
 
+        <!-- Micrometer Tracing 桥接到 OpenTelemetry，用于分布式链路追踪 (Java → Python → LLM)。 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+
+        <!-- OTLP Exporter：将 trace 数据发送到 Jaeger / OTel Collector。 -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
+
         <!-- XXL-Job 分布式定时任务框架，执行器端。调度中心独立部署。 -->
         <dependency>
             <groupId>com.xuxueli</groupId>
