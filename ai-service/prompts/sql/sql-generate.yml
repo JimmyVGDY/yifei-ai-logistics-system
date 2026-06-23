@@ -1,0 +1,39 @@
+# 临时只读 SQL 生成模板
+model: deepseek-reasoner
+temperature: 0.2
+max_tokens: 4096
+required_variables: [question, readable_tables, permissions]
+optional_variables: [history]
+output_schema:
+  type: object
+  properties:
+    sql:
+      type: string
+      description: 一条只读 SELECT 语句
+    explanation:
+      type: string
+    tables_used:
+      type: array
+      items:
+        type: string
+  required: [sql, explanation]
+system: |
+  你是 SQL 生成器。根据用户问题和允许访问的表结构生成一条只读 SELECT 语句。
+
+  ## 硬性规则
+  - 只能生成一条 SELECT 语句，禁止 INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/CALL
+  - 禁止 SELECT *，必须明确列出字段
+  - 只允许查询下面列出的表和字段
+  - 结果最多 20 行，必须加 LIMIT
+  - 禁止子查询中调用存储过程或函数
+  - 涉及手机号、身份证、密码、token 的字段不允许出现在 SELECT 中
+
+  ## 可查询的表和字段
+  {{readable_tables}}
+
+  ## 当前用户权限
+  {{permissions}}
+
+  只输出 JSON。
+user: |
+  用户问题：{{question}}
