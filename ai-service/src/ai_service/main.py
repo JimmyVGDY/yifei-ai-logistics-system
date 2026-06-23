@@ -54,10 +54,19 @@ def _setup_otel() -> None:
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    """应用生命周期：连接基础设施（不可用时仅警告不阻止启动）。"""
+    """应用生命周期：连接基础设施 + 初始化 AI 核心服务。"""
     import structlog
+    from pathlib import Path
+
+    import ai_service.core.model_gateway as mg_module
+    import ai_service.core.prompt_engine as pe_module
+    from ai_service.core.prompt_engine import PromptEngine
+    from ai_service.core.agent import AgentOrchestrator
+    import ai_service.api.chat as chat_module
+
     logger = structlog.get_logger()
 
+    # ── 基础设施 ──
     try:
         await redis_client.connect()
     except Exception:
@@ -73,8 +82,36 @@ async def lifespan(application: FastAPI):
     except Exception:
         logger.warning("java_unavailable", url=settings.java_internal_url)
 
+    # ── AI 核心服务 ──
+    _project_root = Path(__file__).parent.parent.parent
+    _prompts_dir = _project_root / "prompts"
+    _providers_path = _project_root / "config" / "providers.yml"
+
+    # ModelGateway
+    try:
+        await mg_module.init_gateway(_providers_path)
+        logger.info("model_gateway_ready", providers=_providers_path.as_posix())
+    except Exception:
+        logger.warning("model_gateway_init_failed")
+
+    # PromptEngine — 设置模块级单例
+    try:
+        pe_module.prompt_engine = PromptEngine(_prompts_dir)
+        logger.info("prompt_engine_ready", templates_dir=_prompts_dir.as_posix())
+    except Exception:
+        logger.warning("prompt_engine_init_failed")
+
+    # AgentOrchestrator — inject into chat router module
+    if mg_module.gateway is not None and pe_module.prompt_engine is not None:
+        chat_module.orchestrator = AgentOrchestrator(mg_module.gateway, pe_module.prompt_engine)
+        logger.info("agent_orchestrator_ready")
+    else:
+        logger.warning("orchestrator_skipped", reason="gateway_or_prompt_engine_unavailable")
+
     yield
 
+    # ── 关闭 ──
+    await mg_module.shutdown_gateway()
     await redis_client.close()
     await qdrant_client.close()
     await java_client.close()

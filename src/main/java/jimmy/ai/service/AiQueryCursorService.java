@@ -111,4 +111,39 @@ public class AiQueryCursorService {
     private String blankToDefault(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
+
+    /**
+     * 根据游标 ID 继续分页（供 Python Agent 的 continue_cursor 工具回调）。
+     *
+     * @param cursorId       游标 ID
+     * @param conversationId 会话 ID
+     * @param userId         用户 ID
+     * @param userCode       用户编码
+     * @param offset         偏移量（已返回条数）
+     * @return 游标实体，不存在时返回 empty
+     */
+    public Optional<AiQueryCursor> continueCursor(String cursorId, String conversationId, String userId, String userCode, int offset) {
+        if (!StringUtils.hasText(cursorId)) {
+            return Optional.empty();
+        }
+        try {
+            AiQueryCursor cursor = cursorMapper.selectActiveByCursorId(cursorId, conversationId, userId, userCode);
+            if (cursor == null || cursor.getExpiresAt() == null) {
+                return Optional.empty();
+            }
+            if (cursor.getExpiresAt().isBefore(LocalDateTime.now())) {
+                log.debug("游标已过期，cursorId={}, expiresAt={}", cursorId, cursor.getExpiresAt());
+                return Optional.empty();
+            }
+            // 更新游标分页位置
+            int pageSize = Math.max(1, cursor.getPageSize());
+            int currentPage = offset / pageSize;
+            cursor.setPage(Math.max(1, currentPage + 1));
+            cursor.setReturnedCount(Math.max(0, offset));
+            return Optional.of(cursor);
+        } catch (RuntimeException exception) {
+            log.debug("分页游标读取失败，cursorId={}, reason={}", cursorId, exception.getMessage());
+            return Optional.empty();
+        }
+    }
 }

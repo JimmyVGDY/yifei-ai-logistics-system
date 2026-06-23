@@ -1,5 +1,5 @@
 # 临时只读 SQL 生成模板
-model: deepseek-reasoner
+model: deepseek-v4-flash
 temperature: 0.2
 max_tokens: 4096
 required_variables: [question, readable_tables, permissions]

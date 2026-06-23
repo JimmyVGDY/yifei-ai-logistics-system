@@ -1,5 +1,5 @@
 # 长期记忆提炼模板（轻量）
-model: qwen3-4b
+model: deepseek-v4-flash
 temperature: 0.1
 max_tokens: 1024
 required_variables: [conversation_text]

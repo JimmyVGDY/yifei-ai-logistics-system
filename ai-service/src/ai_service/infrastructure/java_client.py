@@ -34,21 +34,28 @@ class JavaClient:
     # ── Tool Executor ──
 
     async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        """回调 Java /ai/internal/tool/execute 执行业务查询。"""
+        """回调 Java /ai/internal/tool/execute 执行业务查询。
+
+        Java 返回：Map 直接是工具执行结果（含 success/data/totalCount/cursorId/citation 等字段）。
+        """
         resp = await self.client.post(
             "/ai/internal/tool/execute",
             json={"toolName": tool_name, "arguments": arguments},
         )
         resp.raise_for_status()
-        return resp.json()["data"]
+        return resp.json()  # Java AiInternalController 直接返回执行结果 Map
 
     # ── Tool Registry ──
 
     async def fetch_tool_registry(self) -> list[dict[str, Any]]:
-        """拉取当前用户可用的工具列表（含 name、description、parameters Schema）。"""
+        """拉取当前用户可用的工具列表（含 name、description、parameters Schema）。
+
+        Java 返回格式：{"success": true, "tools": [...], "count": N}
+        """
         resp = await self.client.get("/ai/internal/tools/registry")
         resp.raise_for_status()
-        return resp.json()["data"]
+        body = resp.json()
+        return body.get("tools", [])
 
 
 java_client = JavaClient()

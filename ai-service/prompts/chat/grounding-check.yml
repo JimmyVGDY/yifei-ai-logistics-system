@@ -1,5 +1,5 @@
 # 回答幻觉检查模板（轻量）
-model: qwen3-4b
+model: deepseek-v4-flash
 temperature: 0.0
 max_tokens: 512
 required_variables: [answer_text, tool_results, citations]

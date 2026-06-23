@@ -1,5 +1,5 @@
 # 每日简报生成模板
-model: deepseek-chat
+model: deepseek-v4-flash
 temperature: 0.3
 max_tokens: 4096
 required_variables: [date, order_stats, anomaly_stats, revenue_stats]

@@ -1,51 +1,37 @@
 # 模型 Provider 注册表
-#
-# 优先级: 数字越小优先级越高
-# 降级链: 按 priority 顺序尝试，前一个不可用时切下一个
-# 本地模型 (ollama-local) 默认关闭，启用时设置 enabled: true
+# 与 Java 侧 spring.ai.openai.* 配置保持一致
+# API Key: 从环境变量 SPRING_AI_OPENAI_API_KEY 读取
 
 providers:
   - name: deepseek
     type: cloud
     enabled: true
-    api_base: https://api.deepseek.com/v1
+    api_base: https://api.deepseek.com
     models:
-      - deepseek-chat
-      - deepseek-reasoner
+      - deepseek-v4-flash       # 主力模型（与 Java Nacos 配置一致）
+      - deepseek-chat           # 备用模型
     priority: 1
-    timeout_seconds: 60
-
-  - name: qwen-cloud
-    type: cloud
-    enabled: true
-    api_base: https://dashscope.aliyuncs.com/compatible-mode/v1
-    models:
-      - qwen3-4b
-      - qwen3-14b
-      - qwen-vl-max
-    priority: 2
     timeout_seconds: 60
 
   - name: ollama-local
     type: local
-    enabled: false                              # ← 本地模型预留，暂不启用
+    enabled: false
     api_base: http://localhost:11434/v1
     models:
-      - qwen3-14b
-      - bge-m3
-    priority: 3
+      - bge-m3                  # Embedding 模型
+    priority: 2
     timeout_seconds: 120
 
-# 按任务类型配置降级链
+# 降级链：仅 deepseek 内部分级，qwen-cloud 等未在 Java 侧配置的模型不引入
 fallback_chains:
-  intent-classify:    [deepseek-chat, qwen3-4b]
-  chat:               [deepseek-chat, qwen3-14b]
-  sql-generate:       [deepseek-reasoner, deepseek-chat, qwen3-14b]
-  sql-self-check:     [deepseek-chat, qwen3-4b]
-  log-analysis:       [deepseek-chat, qwen3-14b]
-  file-analysis:      [qwen-vl-max, deepseek-chat]
-  memory-extract:     [qwen3-4b, deepseek-chat]
-  grounding-check:    [qwen3-4b, deepseek-chat]
-  daily-briefing:     [deepseek-chat, qwen3-14b]
-  anomaly-check:      [deepseek-chat, qwen3-14b]
-  embedding:          [bge-m3]                  # ← 需本地 ollama-local 启用
+  intent-classify:    [deepseek-v4-flash, deepseek-chat]
+  chat:               [deepseek-v4-flash, deepseek-chat]
+  sql-generate:       [deepseek-v4-flash, deepseek-chat]
+  sql-self-check:     [deepseek-v4-flash, deepseek-chat]
+  log-analysis:       [deepseek-v4-flash, deepseek-chat]
+  file-analysis:      [deepseek-v4-flash, deepseek-chat]
+  memory-extract:     [deepseek-v4-flash, deepseek-chat]
+  grounding-check:    [deepseek-v4-flash, deepseek-chat]
+  daily-briefing:     [deepseek-v4-flash, deepseek-chat]
+  anomaly-check:      [deepseek-v4-flash, deepseek-chat]
+  embedding:          [bge-m3]

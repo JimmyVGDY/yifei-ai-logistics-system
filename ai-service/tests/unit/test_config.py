@@ -32,7 +32,6 @@ def test_providers_yml_valid():
 
     names = {p["name"] for p in data["providers"]}
     assert "deepseek" in names
-    assert "qwen-cloud" in names
     assert "ollama-local" in names  # 预留
 
     # ollama-local 默认关闭
