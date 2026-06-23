@@ -1,5 +1,7 @@
 # Spring AI 接入说明
 
+> **⚠️ 迁移中：AI 模块正在从 Spring AI (Java) 迁移到 Python FastAPI**。本文档描述的是迁移前的 Java 实现。新架构下 Python AI Service 接管模型网关、Agent 编排、RAG 和记忆智能；Java 保留 Tool Executor、SQL 安全校验、会话管理和记忆治理。详见 [ADR 0001 — Java+Python 混合架构](adr/0001-java-python-hybrid-architecture.md) 和 [Python AI 服务开发指南](python-ai-service.md)。
+
 本文说明当前项目已落地的 Spring AI 只读助手能力，包括版本、配置、接口、权限、安全边界和本地验证方式。整体设计和后续演进路线见 [AI 助手设计文档](ai-assistant-design.md)。
 
 ## 当前状态

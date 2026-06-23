@@ -1,6 +1,6 @@
 # 物流管理系统 AI 助手设计文档
 
-> 本文档描述 AI 助手的整体设计和后续演进路线。当前项目已落地 Spring AI 只读助手：支持系统文档问答、MySQL 持久化会话、账号级长期记忆、日志排障、白名单业务查询和受控临时 SELECT 查询，不直接执行新增、修改、删除等写操作。具体配置和使用方式见 [Spring AI 接入说明](spring-ai.md)。
+> **⚠️ 迁移中 — 见 [ADR 0001](adr/0001-java-python-hybrid-architecture.md)**：AI 模块正在从 Java Spring AI 迁移到 Python FastAPI。本文描述业务需求、用户场景和总体架构（保持不变），但后端实现已拆分为 Java（Tool Executor + 记忆治理 + 会话 + 安全）和 Python（模型网关 + Agent + RAG + 记忆智能）。具体配置和使用方式见 [Spring AI 接入说明](spring-ai.md)（迁移前的 Java 实现）和 [Python AI 服务开发指南](python-ai-service.md)（新 Python 实现）。
 
 ## 1. 设计目标
 
