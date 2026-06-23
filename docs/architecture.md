@@ -8,9 +8,12 @@
 practice-project-about-develop
 ├── pom.xml
 ├── Dockerfile                      ← 应用 Docker 镜像
-├── docker-compose.yml              ← 13 服务全栈编排
+├── docker-compose.yml              ← 全栈编排（Java + Python + 中间件）
 ├── .env.example                    ← 环境变量模板
+├── CONTEXT-MAP.md                  ← 多上下文地图（Java + Python）
+├── CONTEXT.md                      ← Java 侧架构术语表
 ├── docs/                           ← 项目文档
+│   └── adr/                        ← 架构决策记录
 ├── ops/                            ← 运维脚本（Linux .sh + Windows .bat）
 │   ├── start.sh / start.bat        ← 一键启动
 │   ├── stop.sh / stop.bat          ← 停止
@@ -25,16 +28,30 @@ practice-project-about-develop
 ├── docker/
 │   └── sentinel/                   ← Sentinel 镜像构建
 ├── frontend/                       ← Vue 3 前端
+├── ai-service/                     ← Python AI 服务（新增）
+│   ├── pyproject.toml              ←   Python 依赖（uv）
+│   ├── Dockerfile
+│   ├── src/ai_service/             ←   源代码
+│   │   ├── main.py                 ←   FastAPI 入口 + OTel
+│   │   ├── api/                    ←   HTTP 路由
+│   │   ├── core/                   ←   Agent、模型网关、Prompt
+│   │   ├── memory/                 ←   记忆智能
+│   │   ├── rag/                    ←   文档检索
+│   │   ├── validation/             ←   输出校验
+│   │   └── infrastructure/         ←   Redis/Qdrant/Java 客户端
+│   ├── prompts/                    ←   Prompt 模板（Git 版本化）
+│   ├── config/                     ←   Provider 注册表
+│   └── tests/                      ←   单元测试
 └── src/main/
     ├── java/jimmy/
     │   ├── DemoApplication.java
-    │   ├── common/id/              ← 雪花 ID 生成器
-    │   ├── config/                 ← Spring Bean 和中间件配置
-    │   ├── controller/             ← 基础控制器
-    │   ├── service/                ← 服务层
-    │   ├── mapper/                 ← MyBatis 接口
-    │   ├── model/                  ← DTO/VO
-    │   ├── entity/                 ← 实体类
+    │   ├── common/
+    │   ├── config/
+    │   ├── controller/
+    │   ├── service/
+    │   ├── mapper/
+    │   ├── model/
+    │   ├── entity/
     │   └── logistics/              ← 物流业务模块
     │       ├── controller/
     │       ├── service/
@@ -76,6 +93,27 @@ practice-project-about-develop
 | `OperationContext` | `logistics/config/` | 从 HTTP 请求中提取客户端 IP/UA/参数（脱敏后），提供 `OperationLogInterceptor` 复用。 |
 | `DataScopeResolver` | `logistics/config/` | 数据行级隔离条件解析（当前仅 CUSTOMER 角色）。 |
 
+## 架构拓扑
+
+本系统采用 **Java + Python 混合架构**：
+
+```
+前端 (Vue3 :5173)
+  │
+  ▼
+Java Spring Boot (:8080)    ← 唯一业务入口（BFF）
+  │  鉴权 (Sa-Token) + 策略决策 (ModelPolicyDecider) + 数据安全网关
+  │  SSE 代理透传
+  │
+  ├── HTTP :8001 (127.0.0.1) ──► Python FastAPI  ← AI 推理引擎
+  │                                 模型网关 + Agent + RAG + 记忆智能
+  │                                 不直接暴露给前端
+  │
+  └── MySQL / Redis / ES / RabbitMQ  ← 业务数据 + 会话 + 缓存
+```
+
+详细架构决策见 [ADR 0001](adr/0001-java-python-hybrid-architecture.md)、术语表见 [CONTEXT-MAP.md](../CONTEXT-MAP.md) 和 [CONTEXT.md](../CONTEXT.md)。
+
 ## 已接入组件
 
 - **Nacos Discovery**: 服务注册与发现。
@@ -90,8 +128,13 @@ practice-project-about-develop
 - **Filebeat**: 日志采集，将应用日志写入 Elasticsearch。
 - **Grafana**: 监控仪表盘可视化，预置 JVM/HTTP/GC/错误率面板。
 - **Kibana**: 日志检索与可视化。
-- **XXL-Job**: 分布式定时任务，含合同到期预警/月度报表等任务。
-- **Docker Compose**: 13 服务一键编排部署。
+- **XXL-Job**: 分布式定时任务调度，复用为 Python AI 异步任务的调度器。
+- **Docker Compose**: 全栈服务编排。
+- **Python AI Service (FastAPI)**: Python 3.12 + FastAPI，AI 推理引擎（模型网关、Agent 编排、RAG、记忆智能），只监听 `127.0.0.1:8001`。
+- **Qdrant**: 向量数据库，归 Python 独占管理，Java 通过 HTTP API 间接访问。
+- **Ollama**: 本地 Embedding 模型服务 (bge-m3)，归 Python 独占调用。
+- **Jaeger**: OpenTelemetry 分布式链路追踪（OTLP :4318，UI :16686），Java + Python 双端自动埋点。
+- **uv**: Python 包管理器，替代 pip。
 
 ## 示例接口
 

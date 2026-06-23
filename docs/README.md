@@ -17,11 +17,21 @@
 
 | 文档 | 用途 |
 | --- | --- |
-| [architecture.md](architecture.md) | 项目目录、后端分层、前端结构和组件说明 |
+| [architecture.md](architecture.md) | 项目目录、Java+Python 混合架构拓扑、后端分层和组件说明 |
+| [CONTEXT-MAP.md](../CONTEXT-MAP.md) | 多上下文地图（Java Backend + Python AI Service） |
+| [CONTEXT.md](../CONTEXT.md) | Java 侧架构术语表（含 _Avoid_ 别名） |
 | [requirements-mapping.md](requirements-mapping.md) | 物流管理需求与当前实现模块的对应关系 |
-| [frontend.md](frontend.md) | 前端新人接入手册，覆盖 Vue3 工程、路由、权限、接口、通用管理页和开发检查清单 |
-| [mybatis.md](mybatis.md) | MyBatis Mapper XML 使用规范和 SQL 维护约定 |
-| [spring-ai.md](spring-ai.md) | Spring AI 当前接入状态、配置项、接口、权限、只读 SQL 网关、RAG 文档索引、Qdrant 长期记忆和本地验证说明 |
+| [frontend.md](frontend.md) | 前端新人接入手册 |
+| [mybatis.md](mybatis.md) | MyBatis Mapper XML 使用规范 |
+| [spring-ai.md](spring-ai.md) | Spring AI 接入状态、权限、只读 SQL、RAG 和 Qdrant 长期记忆说明 |
+
+## AI 模块混合架构迁移
+
+| 文档 | 用途 |
+| --- | --- |
+| [adr/0001-java-python-hybrid-architecture.md](adr/0001-java-python-hybrid-architecture.md) | 架构决策记录 — 为什么迁 Python、边界在哪、不引入什么 |
+| [python-ai-service.md](python-ai-service.md) | Python AI 服务开发指南 — 启动、测试、API 端点、OTel 配置 |
+| [ai-assistant-design.md](ai-assistant-design.md) | AI 助手整体设计 — 当前落地状态、权限审计、后续演进 |
 
 ## 业务与接口
 
