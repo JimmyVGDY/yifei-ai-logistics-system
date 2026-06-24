@@ -54,14 +54,14 @@ class KnowledgeRetriever:
         # 使用哈希向量作为简易 embedding（Ollama bge-m3 不可用时降级）
         vector = self._hash_vector(query)
 
-        results = qdrant_client.client.search(
+        results = qdrant_client.client.query_points(
             collection_name=COLLECTION_NAME,
-            query_vector=vector,
+            query=vector,
             limit=top_k,
         )
 
         items = []
-        for point in results:
+        for point in results.points:
             payload = point.payload or {}
             snippet = str(payload.get("text_preview", payload.get("content", "")))
             items.append(SearchResult(

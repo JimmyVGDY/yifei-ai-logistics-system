@@ -45,21 +45,20 @@ class MemoryMergeService:
 
         try:
             # 使用确定性哈希作为简易向量（bge-m3 不可用时的降级方案）
+            from qdrant_client.models import Filter, FieldCondition, MatchValue
             vector = self._hash_vector(question)
 
-            results = qdrant_client.client.search(
+            results = qdrant_client.client.query_points(
                 collection_name=COLLECTION_NAME,
-                query_vector=vector,
-                query_filter={
-                    "must": [
-                        {"key": "userId", "match": {"value": user_id}}
-                    ]
-                },
+                query=vector,
+                query_filter=Filter(must=[
+                    FieldCondition(key="userId", match=MatchValue(value=user_id))
+                ]),
                 limit=limit,
             )
 
             memories = []
-            for point in results:
+            for point in results.points:
                 payload = point.payload or {}
                 content = payload.get("content", payload.get("text", ""))
                 if not content:
