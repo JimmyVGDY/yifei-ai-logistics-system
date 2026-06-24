@@ -51,30 +51,36 @@ async def chat_stream(request: Request, body: ChatRequest):
 
 def _build_sse_response(request: Request, body: ChatRequest) -> StreamingResponse:
     async def event_generator() -> AsyncIterator[str]:
-        ctx = AgentContext(
-            question=body.question,
-            conversation_id=body.conversation_id or "",
-            user_context=body.user_context,
-            memory_context=body.memory_context,
-            rag_context=body.rag_context,
-            model_policy=body.model_policy,
-        )
+        try:
+            ctx = AgentContext(
+                question=body.question,
+                conversation_id=body.conversation_id or "",
+                user_context=body.user_context,
+                memory_context=body.memory_context,
+                rag_context=body.rag_context,
+                model_policy=body.model_policy,
+            )
 
-        if orchestrator is None:
-            yield _sse("error", {"code": "NOT_INITIALIZED", "message": "Agent 编排器未初始化"})
+            if orchestrator is None:
+                yield _sse("error", {"code": "NOT_INITIALIZED", "message": "Agent 编排器未初始化"})
+                yield _sse("done", {"conversationId": body.conversation_id or "", "answer": "",
+                                    "elapsedMs": 0, "citationCount": 0, "toolCallCount": 0})
+                return
+
+            import os
+            api_key = None
+            if body.model_policy == "API_ALLOWED":
+                api_key = body.user_context.get("apiKey") or os.getenv("SPRING_AI_OPENAI_API_KEY")
+            async for sse_event in orchestrator.run(ctx, api_key=api_key):
+                if await request.is_disconnected():
+                    logger.info("sse_client_disconnected")
+                    break
+                yield sse_event
+        except Exception as exc:
+            logger.error("event_generator_fatal", error=str(exc), exc_info=True)
+            yield _sse("error", {"code": "FATAL", "message": str(exc)[:500]})
             yield _sse("done", {"conversationId": body.conversation_id or "", "answer": "",
                                 "elapsedMs": 0, "citationCount": 0, "toolCallCount": 0})
-            return
-
-        import os
-        api_key = None
-        if body.model_policy == "API_ALLOWED":
-            api_key = body.user_context.get("apiKey") or os.getenv("SPRING_AI_OPENAI_API_KEY")
-        async for sse_event in orchestrator.run(ctx, api_key=api_key):
-            if await request.is_disconnected():
-                logger.info("sse_client_disconnected")
-                break
-            yield sse_event
 
     return StreamingResponse(
         event_generator(),

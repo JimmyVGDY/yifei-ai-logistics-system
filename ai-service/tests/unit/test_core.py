@@ -209,6 +209,63 @@ class TestAgentOrchestrator:
         assert len(results) == 1
         assert results[0].name == "query_business_module"
 
+    @pytest.mark.asyncio
+    async def test_execute_tool_preserves_structured_result(self, monkeypatch):
+        from ai_service.core.agent import AgentContext, AgentOrchestrator, ToolCall
+        from ai_service.core.prompt_engine import PromptEngine
+        import ai_service.core.agent as agent_module
+
+        async def fake_execute_tool(tool_name, arguments, user_context=None):
+            assert user_context["conversationId"] == "conv-1"
+            return {
+                "success": True,
+                "data": [{"订单号": "LO-001", "应付金额": 12.3}],
+                "columns": ["订单号", "应付金额"],
+                "totalCount": 12,
+                "returnedCount": 1,
+                "remainingCount": 11,
+                "hasMore": True,
+                "nextPageHint": "还有 11 条记录",
+                "cursorId": "cursor-1",
+                "summary": "命中 12 条记录",
+            }
+
+        monkeypatch.setattr(agent_module.java_client, "execute_tool", fake_execute_tool)
+        engine = PromptEngine(PROMPTS_DIR)
+        orch = AgentOrchestrator(None, engine)
+        ctx = AgentContext(
+            question="看一下这个月的费用",
+            conversation_id="conv-1",
+            user_context={"userId": "user-1"},
+            memory_context={},
+            rag_context="",
+        )
+
+        result = await orch._execute_tool(ToolCall("query_business_module", {"module": "fees"}), ctx)
+
+        assert result.success is True
+        assert result.columns == ["订单号", "应付金额"]
+        assert result.cursor_id == "cursor-1"
+        assert result.has_more is True
+        assert result.remaining_count == 11
+
+    def test_tool_result_sse_contains_structured_fields(self):
+        import json
+        from ai_service.core.agent import AgentOrchestrator
+
+        event = AgentOrchestrator._sse("tool_result", {
+            "rows": [{"订单号": "LO-001"}],
+            "columns": ["订单号"],
+            "cursorId": "cursor-1",
+            "hasMore": True,
+        })
+
+        assert "event: tool_result" in event
+        data = json.loads([line for line in event.splitlines() if line.startswith("data:")][0][5:].strip())
+        assert data["rows"][0]["订单号"] == "LO-001"
+        assert data["columns"] == ["订单号"]
+        assert data["cursorId"] == "cursor-1"
+
 
 class TestModelGatewayFunctionCalling:
     def test_tool_call_dataclass(self):
@@ -223,3 +280,49 @@ class TestModelGatewayFunctionCalling:
         resp = ModelResponse(content="", model="m", provider="p", tool_calls=[tc], finish_reason="tool_calls")
         assert len(resp.tool_calls) == 1
         assert resp.finish_reason == "tool_calls"
+
+    @pytest.mark.asyncio
+    async def test_non_streaming_tool_calls_parse_json_arguments(self, httpx_mock, tmp_path):
+        from ai_service.core.model_gateway import ModelGateway, ProviderRegistry
+
+        config_path = tmp_path / "providers.yml"
+        config_path.write_text("""
+providers:
+  - name: fake
+    enabled: true
+    api_base: https://fake.example/v1
+    models: [fake-chat]
+    timeout_seconds: 30
+fallback_chains:
+  chat: [fake-chat]
+""", encoding="utf-8")
+        registry = ProviderRegistry(config_path)
+        gateway = ModelGateway(registry)
+        await gateway.connect()
+        httpx_mock.add_response(
+            method="POST",
+            url="https://fake.example/v1/chat/completions",
+            json={
+                "choices": [{
+                    "finish_reason": "tool_calls",
+                    "message": {
+                        "content": "",
+                        "tool_calls": [{
+                            "id": "call_1",
+                            "function": {
+                                "name": "query_business_module",
+                                "arguments": "{\"module\":\"fees\"}",
+                            },
+                        }],
+                    },
+                }],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            },
+        )
+        try:
+            response = await gateway.chat("sys", "user", tools=[{"type": "function", "function": {"name": "x"}}])
+        finally:
+            await gateway.close()
+
+        assert response.tool_calls[0].name == "query_business_module"
+        assert response.tool_calls[0].arguments == {"module": "fees"}

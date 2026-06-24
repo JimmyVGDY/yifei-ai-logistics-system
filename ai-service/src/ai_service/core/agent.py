@@ -29,7 +29,12 @@ class ToolResult:
     name: str
     success: bool
     data: Any = None
+    columns: list[str] = field(default_factory=list)
     total_count: int = 0
+    returned_count: int = 0
+    remaining_count: int = 0
+    has_more: bool = False
+    next_page_hint: str = ""
     cursor_id: str = ""
     citation: dict = field(default_factory=dict)
     summary: str = ""
@@ -179,7 +184,16 @@ class AgentOrchestrator:
                         "toolName": tc.name,
                         "target": str(tc.arguments.get("module", tc.arguments.get("keyword", ""))),
                         "result": result.summary,
+                        "success": result.success,
+                        "rows": result.data if isinstance(result.data, list) else [],
+                        "data": result.data if isinstance(result.data, list) else [],
+                        "columns": result.columns,
                         "totalCount": result.total_count,
+                        "total": result.total_count,
+                        "returnedCount": result.returned_count,
+                        "remainingCount": result.remaining_count,
+                        "hasMore": result.has_more,
+                        "nextPageHint": result.next_page_hint,
                         "cursorId": result.cursor_id,
                         "citation": result.citation,
                         "toolCallCount": len(ctx.tool_results),
@@ -222,7 +236,7 @@ class AgentOrchestrator:
     async def _fetch_tools(self, ctx: AgentContext) -> list[dict]:
         """从 Java 拉取当前用户可用的工具列表。"""
         try:
-            tools = await java_client.fetch_tool_registry(user_context=ctx.user_context)
+            tools = await java_client.fetch_tool_registry(user_context=self._java_user_context(ctx))
             return tools
         except Exception:
             logger.warning("tool_registry_unavailable")
@@ -231,18 +245,25 @@ class AgentOrchestrator:
     async def _execute_tool(self, tc: ToolCall, ctx: AgentContext) -> ToolResult:
         """回调 Java 执行业务工具。"""
         try:
-            result = await java_client.execute_tool(tc.name, tc.arguments, user_context=ctx.user_context)
+            result = await java_client.execute_tool(tc.name, tc.arguments, user_context=self._java_user_context(ctx))
             # Java returns {"success": true/false, "data": [...], "totalCount": N, ...}
-            rows = result.get("data", [])
+            rows = result.get("rows", result.get("data", []))
             total = result.get("totalCount", len(rows))
             if isinstance(total, list):
                 total = len(total)
+            returned = result.get("returnedCount", len(rows) if isinstance(rows, list) else 0)
+            remaining = result.get("remainingCount", 0)
 
             return ToolResult(
                 name=tc.name,
                 success=result.get("success", False),
                 data=rows,
+                columns=result.get("columns", []),
                 total_count=int(total) if total else 0,
+                returned_count=int(returned) if returned else 0,
+                remaining_count=int(remaining) if remaining else 0,
+                has_more=result.get("hasMore", False) is True,
+                next_page_hint=result.get("nextPageHint", ""),
                 cursor_id=result.get("cursorId", ""),
                 citation=result.get("citation", {}),
                 summary=result.get("summary", f"返回 {total} 条数据"),
@@ -253,6 +274,12 @@ class AgentOrchestrator:
                 success=False,
                 summary=f"工具执行失败: {exc}",
             )
+
+    @staticmethod
+    def _java_user_context(ctx: AgentContext) -> dict:
+        user_context = dict(ctx.user_context or {})
+        user_context.setdefault("conversationId", ctx.conversation_id)
+        return user_context
 
     async def _call_llm_with_tools(
         self,

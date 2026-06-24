@@ -57,12 +57,17 @@ class JavaClient:
 
     @staticmethod
     def _build_internal_headers(user_context: dict[str, Any] = None) -> dict[str, str]:
-        """构建 X-Internal-User 头，仅传 userId + permissions（精简控制头大小 < 4KB）。"""
+        """构建 X-Internal-User 头，传递工具执行所需的最小用户与会话上下文。"""
         if not user_context:
             return {}
         import json as _json
         mini_ctx = {
             "userId": str(user_context.get("userId", "")),
+            "userCode": str(user_context.get("userCode", "")),
+            "roleCode": str(user_context.get("roleCode", "")),
+            "customerId": str(user_context.get("customerId", "")),
+            "loginSessionId": str(user_context.get("loginSessionId", "")),
+            "conversationId": str(user_context.get("conversationId", "")),
             "permissions": user_context.get("permissions", []),
         }
         return {"X-Internal-User": _json.dumps(mini_ctx, ensure_ascii=False)}

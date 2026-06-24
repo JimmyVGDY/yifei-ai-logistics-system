@@ -109,6 +109,7 @@ public class AiReadonlyQueryService {
     private final AiToolCallContext toolCallContext;
     private final ColumnPermissionResolver columnPermissionResolver;
     private final PermissionEvaluator permissionEvaluator;
+    private final AiQueryNormalizer queryNormalizer = new AiQueryNormalizer();
 
     public AiReadonlyQueryService(AiQueryIntentParser intentParser,
                                   AiGeneratedSqlQueryService generatedSqlQueryService,
@@ -220,21 +221,29 @@ public class AiReadonlyQueryService {
      * 模型传入的是模块中文名或模块编码，后端统一解析成白名单模块后再执行。
      */
     public AiReadonlyQueryResult queryModule(String moduleText, String keyword, String startTime, String endTime) {
-        SearchModule module = findModule(moduleText);
+        AiQueryNormalizer.NormalizedQuery normalized = queryNormalizer.normalize(moduleText, keyword, startTime, endTime,
+                String.join(" ", nullToEmpty(moduleText), nullToEmpty(keyword)));
+        SearchModule module = findModule(StringUtils.hasText(normalized.module()) ? normalized.module() : moduleText);
         if (module == null) {
             return simpleResult("业务数据查询", "业务模块", "未识别要查询的业务模块，请补充订单、客户、车辆、司机、异常、费用等查询范围。");
         }
-        return queryModule(module, cleanupKeyword(keyword), startTime, endTime, 1, STRUCTURED_RESULT_LIMIT, "业务数据查询",
+        return queryModule(module, normalized.keyword(), normalized.startTime(), normalized.endTime(), 1, STRUCTURED_RESULT_LIMIT, "业务数据查询",
                 toolCallContext.conversationId(), toolCallContext.userId(), toolCallContext.userCode());
     }
 
     public AiReadonlyQueryResult globalSearch(String keyword, String startTime, String endTime) {
-        return globalSearch(cleanupKeyword(keyword), startTime, endTime, null,
+        AiQueryNormalizer.NormalizedQuery normalized = queryNormalizer.normalize(null, keyword, startTime, endTime, keyword);
+        return globalSearch(cleanupKeyword(StringUtils.hasText(normalized.keyword()) ? normalized.keyword() : keyword),
+                normalized.startTime(), normalized.endTime(), null,
                 toolCallContext.conversationId(), toolCallContext.userId(), toolCallContext.userCode());
     }
 
     public AiReadonlyQueryResult joinedSearch(String sceneText, String keyword, String startTime, String endTime) {
-        return joinedSearch(sceneText, keyword, startTime, endTime,
+        AiQueryNormalizer.NormalizedQuery normalized = queryNormalizer.normalize(sceneText, keyword, startTime, endTime,
+                String.join(" ", nullToEmpty(sceneText), nullToEmpty(keyword)));
+        return joinedSearch(sceneText,
+                StringUtils.hasText(normalized.keyword()) ? normalized.keyword() : keyword,
+                normalized.startTime(), normalized.endTime(),
                 toolCallContext.conversationId(), toolCallContext.userId(), toolCallContext.userCode());
     }
 
@@ -351,6 +360,12 @@ public class AiReadonlyQueryService {
     private AiReadonlyQueryResult queryModule(SearchModule module, String keyword, String startTime, String endTime,
                                              int pageNo, int pageSize, String toolName,
                                              String conversationId, String userId, String userCode) {
+        AiQueryNormalizer.NormalizedQuery normalized = queryNormalizer.normalize(
+                module.module(), keyword, startTime, endTime, String.join(" ", module.moduleName(), nullToEmpty(keyword)));
+        keyword = normalized.keyword();
+        startTime = normalized.startTime();
+        endTime = normalized.endTime();
+
         if (!hasPermission(module.permission())) {
             log.info("AI 只读查询被权限拦截，module={}, permission={}", module.module(), module.permission());
             return simpleResult(toolName, module.moduleName(), PERMISSION_DENIED_MESSAGE);
@@ -668,6 +683,14 @@ public class AiReadonlyQueryService {
         if (!hasText(moduleText)) {
             return null;
         }
+        String normalizedModule = queryNormalizer.normalizeModule(moduleText);
+        if (hasText(normalizedModule)) {
+            for (SearchModule module : SEARCH_MODULES) {
+                if (module.module().equals(normalizedModule)) {
+                    return module;
+                }
+            }
+        }
         String text = normalizeForSearch(moduleText);
         String lower = text.toLowerCase(Locale.ROOT);
         for (SearchModule module : SEARCH_MODULES) {
@@ -679,6 +702,10 @@ public class AiReadonlyQueryService {
             }
         }
         return null;
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private static Map<String, List<String>> buildJoinedScenes() {

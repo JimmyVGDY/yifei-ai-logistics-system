@@ -3,6 +3,7 @@ package jimmy.ai.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jimmy.ai.model.AiToolExecuteRequest;
 import jimmy.ai.service.ToolExecutorService;
 import jimmy.ai.service.ToolRegistryService;
@@ -51,7 +52,11 @@ public class AiInternalController {
      * @return {"status": "ok"}
      */
     @GetMapping("/health")
-    public Map<String, Object> health() {
+    public Map<String, Object> health(HttpServletRequest request, HttpServletResponse response) {
+        if (!isLoopbackRequest(request)) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return errorResponse("AI 内部接口仅允许本机调用");
+        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("status", "ok");
         return result;
@@ -66,8 +71,12 @@ public class AiInternalController {
      * @return 工具定义列表
      */
     @GetMapping("/tools/registry")
-    public Map<String, Object> toolsRegistry(HttpServletRequest request) {
+    public Map<String, Object> toolsRegistry(HttpServletRequest request, HttpServletResponse response) {
         try {
+            if (!isLoopbackRequest(request)) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                return errorResponse("AI 内部接口仅允许本机调用");
+            }
             InternalUserContext context = parseInternalUser(request.getHeader(HEADER_INTERNAL_USER));
             if (context == null || !StringUtils.hasText(context.userId())) {
                 return errorResponse("缺少或无法解析 X-Internal-User 请求头");
@@ -96,8 +105,13 @@ public class AiInternalController {
      */
     @PostMapping("/tool/execute")
     public Map<String, Object> toolExecute(@RequestBody AiToolExecuteRequest requestBody,
-                                            HttpServletRequest request) {
+                                            HttpServletRequest request,
+                                            HttpServletResponse response) {
         try {
+            if (!isLoopbackRequest(request)) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                return errorResponse("AI 内部接口仅允许本机调用");
+            }
             InternalUserContext context = parseInternalUser(request.getHeader(HEADER_INTERNAL_USER));
             if (context == null || !StringUtils.hasText(context.userId())) {
                 return errorResponse("缺少或无法解析 X-Internal-User 请求头");
@@ -110,6 +124,11 @@ public class AiInternalController {
             return toolExecutorService.execute(
                     context.userId(),
                     context.permissions(),
+                    context.userCode(),
+                    context.roleCode(),
+                    context.customerId(),
+                    context.loginSessionId(),
+                    context.conversationId(),
                     requestBody.toolName(),
                     requestBody.arguments()
             );
@@ -122,7 +141,7 @@ public class AiInternalController {
     /**
      * 解析 X-Internal-User 请求头中的 JSON。
      * <p>
-     * 格式：{"userId": "...", "permissions": ["...", "..."]}
+     * 格式：{"userId": "...", "permissions": ["...", "..."], "conversationId": "..."}
      */
     private InternalUserContext parseInternalUser(String headerValue) {
         if (!StringUtils.hasText(headerValue)) {
@@ -132,11 +151,16 @@ public class AiInternalController {
         try {
             Map<String, Object> map = objectMapper.readValue(headerValue, new TypeReference<>() {});
             String userId = map.get("userId") != null ? String.valueOf(map.get("userId")) : null;
+            String userCode = map.get("userCode") != null ? String.valueOf(map.get("userCode")) : "";
+            String roleCode = map.get("roleCode") != null ? String.valueOf(map.get("roleCode")) : "";
+            String customerId = map.get("customerId") != null ? String.valueOf(map.get("customerId")) : "";
+            String loginSessionId = map.get("loginSessionId") != null ? String.valueOf(map.get("loginSessionId")) : "";
+            String conversationId = map.get("conversationId") != null ? String.valueOf(map.get("conversationId")) : "AI_INTERNAL";
             @SuppressWarnings("unchecked")
             List<String> permissions = map.get("permissions") instanceof List<?> list
                     ? list.stream().map(String::valueOf).toList()
                     : Collections.emptyList();
-            return new InternalUserContext(userId, permissions);
+            return new InternalUserContext(userId, userCode, roleCode, customerId, loginSessionId, conversationId, permissions);
         } catch (Exception e) {
             log.warn("解析 X-Internal-User 失败, headerValue={}, reason={}", headerValue, e.getMessage());
             return null;
@@ -150,6 +174,20 @@ public class AiInternalController {
         return result;
     }
 
-    private record InternalUserContext(String userId, List<String> permissions) {
+    private boolean isLoopbackRequest(HttpServletRequest request) {
+        String remoteAddr = request.getRemoteAddr();
+        return "127.0.0.1".equals(remoteAddr)
+                || "0:0:0:0:0:0:0:1".equals(remoteAddr)
+                || "::1".equals(remoteAddr)
+                || "localhost".equalsIgnoreCase(remoteAddr);
+    }
+
+    private record InternalUserContext(String userId,
+                                       String userCode,
+                                       String roleCode,
+                                       String customerId,
+                                       String loginSessionId,
+                                       String conversationId,
+                                       List<String> permissions) {
     }
 }

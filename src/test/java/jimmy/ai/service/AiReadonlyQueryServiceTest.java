@@ -13,6 +13,8 @@ import org.mockito.MockedStatic;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,6 +27,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import org.mockito.ArgumentCaptor;
 
 class AiReadonlyQueryServiceTest {
 
@@ -421,6 +424,104 @@ class AiReadonlyQueryServiceTest {
 
             assertThat(result.executed()).isTrue();
             assertThat(result.answerContext()).contains("待处理");
+        }
+    }
+
+    @Test
+    void shouldNormalizeThisMonthFeesToFeesModuleWithMonthRangeAndEmptyKeyword() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class)))
+                .thenReturn(new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("payable_fee", 100))), 1, 10, 1));
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+        String expectedStart = today.withDayOfMonth(1) + " 00:00:00";
+        String expectedEnd = today + " 23:59:59";
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("fee:query")).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("看一下这个月的费用");
+
+            assertThat(result.executed()).isTrue();
+            verify(requirementService).modulePage(eq("fees"), org.mockito.ArgumentMatchers.argThat(query ->
+                    (query.getKeyword() == null || query.getKeyword().isBlank())
+                            && expectedStart.equals(query.getStartTime())
+                            && expectedEnd.equals(query.getEndTime())));
+        }
+    }
+
+    @Test
+    void shouldNormalizeTodayOrdersToOrdersModuleWithTodayRange() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class)))
+                .thenReturn(new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("order_no", "LO-TODAY"))), 1, 10, 1));
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("order:query")).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("今天订单");
+
+            assertThat(result.executed()).isTrue();
+            verify(requirementService).modulePage(eq("orders"), org.mockito.ArgumentMatchers.argThat(query ->
+                    (query.getKeyword() == null || query.getKeyword().isBlank())
+                            && (today + " 00:00:00").equals(query.getStartTime())
+                            && (today + " 23:59:59").equals(query.getEndTime())));
+        }
+    }
+
+    @Test
+    void shouldNormalizeRecentSevenDaysPendingExceptionsToStatusKeyword() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenAnswer(invocation -> {
+            ModuleQueryDTO query = invocation.getArgument(1);
+            if ("待处理".equals(query.getKeyword())) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of("exception_statusLabel", "待处理"))), 1, 10, 1);
+            }
+            return new PageResult<>(List.of(), 1, 10, 0);
+        });
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("exception:query")).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("最近7天待处理异常");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.answerContext()).contains("待处理");
+            ArgumentCaptor<ModuleQueryDTO> queryCaptor = ArgumentCaptor.forClass(ModuleQueryDTO.class);
+            verify(requirementService).modulePage(eq("exceptions"), queryCaptor.capture());
+            ModuleQueryDTO query = queryCaptor.getValue();
+            assertThat(query.getKeyword()).isEqualTo("待处理");
+            assertThat(query.getStartTime()).isEqualTo(today.minusDays(6) + " 00:00:00");
+            assertThat(query.getEndTime()).isEqualTo(today + " 23:59:59");
+        }
+    }
+
+    @Test
+    void broadExceptionQueryShouldStayInExceptionModuleAndUseRecentThirtyDays() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class)))
+                .thenReturn(new PageResult<>(List.of(), 1, 10, 0));
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("exception:query")).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("异常");
+
+            assertThat(result.executed()).isTrue();
+            ArgumentCaptor<ModuleQueryDTO> queryCaptor = ArgumentCaptor.forClass(ModuleQueryDTO.class);
+            verify(requirementService).modulePage(eq("exceptions"), queryCaptor.capture());
+            ModuleQueryDTO query = queryCaptor.getValue();
+            assertThat(query.getKeyword()).isBlank();
+            assertThat(query.getStartTime()).isEqualTo(today.minusDays(29) + " 00:00:00");
+            assertThat(query.getEndTime()).isEqualTo(today + " 23:59:59");
+            org.mockito.Mockito.verify(requirementService, org.mockito.Mockito.never()).modulePage(eq("orders"), any(ModuleQueryDTO.class));
+            org.mockito.Mockito.verify(requirementService, org.mockito.Mockito.never()).modulePage(eq("fees"), any(ModuleQueryDTO.class));
         }
     }
 

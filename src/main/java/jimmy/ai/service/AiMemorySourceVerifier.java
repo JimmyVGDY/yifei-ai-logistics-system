@@ -33,6 +33,7 @@ public class AiMemorySourceVerifier {
             new PreferencePattern("详细", List.of("详细", "完整", "展开", "具体", "仔细", "全面")),
             new PreferencePattern("表格", List.of("表格", "表", "列表", "列出来")),
             new PreferencePattern("先给结论", List.of("先给结论", "先说结论", "结论先行", "总结", "先总结")),
+            new PreferencePattern("结论", List.of("先给结论", "先说结论", "先给出结论", "结论先行", "先总结")),
             new PreferencePattern("markdown", List.of("markdown", "md", "格式", "排版")),
             new PreferencePattern("异常", List.of("异常", "问题", "故障", "报错", "错误", "出问题")),
             new PreferencePattern("运输任务", List.of("运输任务", "任务", "调度", "运单")),
@@ -70,7 +71,11 @@ public class AiMemorySourceVerifier {
 
         int totalMatches = titleMatches + summaryMatches + patternMatches;
 
-        if (totalMatches >= 3) {
+        if (patternMatches >= 1 && containsAny(user, List.of("以后", "默认", "记住", "不要太长", "别啰嗦", "先给结论", "先说结论", "先给出结论"))) {
+            return VerificationResult.STRONG_MATCH;
+        }
+
+        if (totalMatches >= 2) {
             return VerificationResult.STRONG_MATCH;
         }
         if (totalMatches >= 1) {
@@ -120,6 +125,15 @@ public class AiMemorySourceVerifier {
 
     private String normalize(String value) {
         return value == null ? "" : value.toLowerCase(Locale.ROOT).trim();
+    }
+
+    private boolean containsAny(String value, List<String> words) {
+        for (String word : words) {
+            if (value.contains(word)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

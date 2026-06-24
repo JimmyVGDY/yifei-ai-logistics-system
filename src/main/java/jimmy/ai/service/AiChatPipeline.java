@@ -159,16 +159,16 @@ public class AiChatPipeline {
             conversationService.appendUserMessage(currentUserId(), currentUserCode(), conversationId, safeMessage);
             auditLogService.recordUserQuestion(conversationId, safeMessage);
 
+            if (org.springframework.util.StringUtils.hasText(request.cursorId())) {
+                return handleCursorContinuation(request.cursorId(), conversationId, safeMessage, citations, toolCalls,
+                        dataResults, start, streaming);
+            }
+
             // ── Python AI 服务接管 ──
             if (pythonEnabled && pythonClient.isEnabled()) {
                 log.info("AI 问答委托 Python AI 服务处理，conversationId={}, streaming={}", conversationId, streaming);
                 return delegateToPython(request, outputStream, conversationId, safeMessage,
                         citations, toolCalls, dataResults, start, streaming);
-            }
-
-            if (org.springframework.util.StringUtils.hasText(request.cursorId())) {
-                return handleCursorContinuation(request.cursorId(), conversationId, safeMessage, citations, toolCalls,
-                        dataResults, start, streaming);
             }
 
             AiConversationIntent conversationIntent = intentClassifier.classify(safeMessage, previousUserMessage);
@@ -357,6 +357,7 @@ public class AiChatPipeline {
         Map<String, Object> userCtx = new LinkedHashMap<>();
         userCtx.put("userId", currentUserId());
         userCtx.put("userCode", currentUserCode());
+        userCtx.put("conversationId", conversationId);
         // 权限：SSE 模式下从 SseChatContext 读（已从 HTTP 线程捕获），普通模式从 StpUtil 读
         List<String> permissions = SseChatContext.getPermissions();
         if (permissions == null || permissions.isEmpty()) {
@@ -372,6 +373,8 @@ public class AiChatPipeline {
             } catch (Exception ignore) {}
         }
         userCtx.put("roleCode", roleCode == null ? "" : roleCode);
+        userCtx.put("customerId", nullToBlank(SseChatContext.getCustomerId()));
+        userCtx.put("loginSessionId", nullToBlank(SseChatContext.getLoginSessionId()));
         pythonReq.put("userContext", userCtx);
 
         // 历史消息（从 MySQL 加载最近对话）

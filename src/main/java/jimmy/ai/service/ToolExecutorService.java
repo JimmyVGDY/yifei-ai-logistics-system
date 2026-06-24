@@ -44,6 +44,8 @@ public class ToolExecutorService {
     private final AiSensitiveDataMasker masker;
     private final AiAuditLogService auditLogService;
     private final UserContextResolver userContextResolver;
+    private final AiToolCallContext toolCallContext;
+    private final AiQueryNormalizer queryNormalizer = new AiQueryNormalizer();
 
     public ToolExecutorService(AiReadonlyQueryService readonlyQueryService,
                                 AiLogAnalysisService logAnalysisService,
@@ -52,7 +54,8 @@ public class ToolExecutorService {
                                 AiSqlSafetyValidator sqlSafetyValidator,
                                 AiSensitiveDataMasker masker,
                                 AiAuditLogService auditLogService,
-                                UserContextResolver userContextResolver) {
+                                UserContextResolver userContextResolver,
+                                AiToolCallContext toolCallContext) {
         this.readonlyQueryService = readonlyQueryService;
         this.logAnalysisService = logAnalysisService;
         this.generatedSqlQueryService = generatedSqlQueryService;
@@ -61,6 +64,7 @@ public class ToolExecutorService {
         this.masker = masker;
         this.auditLogService = auditLogService;
         this.userContextResolver = userContextResolver;
+        this.toolCallContext = toolCallContext;
     }
 
     /**
@@ -72,7 +76,9 @@ public class ToolExecutorService {
      * @param arguments   工具参数
      * @return 标准化的执行结果 Map
      */
-    public Map<String, Object> execute(String userId, List<String> permissions, String toolName, Map<String, Object> arguments) {
+    public Map<String, Object> execute(String userId, List<String> permissions, String userCode,
+                                       String roleCode, String customerId, String loginSessionId,
+                                       String conversationId, String toolName, Map<String, Object> arguments) {
         if (!StringUtils.hasText(userId)) {
             return errorResult("未提供用户标识，无法执行工具调用");
         }
@@ -85,6 +91,12 @@ public class ToolExecutorService {
 
         try {
             SseChatContext.setLoginIdAndPermissions(userId, safePermissions);
+            SseChatContext.setUserCode(userCode);
+            SseChatContext.setRoleCode(roleCode);
+            SseChatContext.setCustomerId(customerId);
+            SseChatContext.setLoginSessionId(loginSessionId);
+            toolCallContext.begin();
+            toolCallContext.setConversation(conversationId, userId, userCode);
             log.debug("执行工具调用 toolName={}, userId={}", toolName, maskUserId(userId));
         } catch (Exception e) {
             log.warn("设置用户上下文失败 userId={}", maskUserId(userId));
@@ -130,8 +142,13 @@ public class ToolExecutorService {
             log.error("工具执行异常 toolName={} userId={}", toolName, maskUserId(userId), e);
             return errorResult("工具执行失败：" + e.getMessage());
         } finally {
+            toolCallContext.snapshotAndClear();
             SseChatContext.clear();
         }
+    }
+
+    public Map<String, Object> execute(String userId, List<String> permissions, String toolName, Map<String, Object> arguments) {
+        return execute(userId, permissions, "", "", "", "", "AI_INTERNAL", toolName, arguments);
     }
 
     // ---- 各工具执行方法 ----
@@ -141,22 +158,18 @@ public class ToolExecutorService {
         String keyword = stringArg(args, "keyword");
         String startTime = stringArg(args, "startTime");
         String endTime = stringArg(args, "endTime");
+        AiQueryNormalizer.NormalizedQuery normalized = queryNormalizer.normalize(module, keyword, startTime, endTime,
+                String.join(" ", nullToEmpty(module), nullToEmpty(keyword)));
 
-        if (!StringUtils.hasText(module)) {
+        if (!StringUtils.hasText(normalized.module())) {
             return errorResult("缺少必填参数 module");
         }
-        // keyword 可选：没有关键词时查模块全部数据，有日期范围则按范围过滤
-        String safeKeyword = StringUtils.hasText(keyword) ? keyword : "";
-        String safeStart = StringUtils.hasText(startTime) ? startTime : "";
-        String safeEnd = StringUtils.hasText(endTime) ? endTime : "";
-        // 既无关键词也无时间范围 → 默认最近 30 天
-        if (!StringUtils.hasText(safeKeyword) && !StringUtils.hasText(safeStart)) {
-            java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"));
-            safeStart = today.minusDays(30).toString() + " 00:00:00";
-            safeEnd = today.toString() + " 23:59:59";
-        }
-        AiReadonlyQueryResult result = readonlyQueryService.queryModule(module, safeKeyword, safeStart, safeEnd);
-        return wrapQueryResult(result, module);
+        AiReadonlyQueryResult result = readonlyQueryService.queryModule(
+                normalized.module(),
+                StringUtils.hasText(normalized.keyword()) ? normalized.keyword() : "",
+                normalized.startTime(),
+                normalized.endTime());
+        return wrapQueryResult(result, normalized.module());
     }
 
     private Map<String, Object> executeGlobalFuzzySearch(Map<String, Object> args) {
@@ -168,7 +181,11 @@ public class ToolExecutorService {
             return errorResult("缺少必填参数 keyword");
         }
 
-        AiReadonlyQueryResult result = readonlyQueryService.globalSearch(keyword, startTime, endTime);
+        AiQueryNormalizer.NormalizedQuery normalized = queryNormalizer.normalize(null, keyword, startTime, endTime, keyword);
+        AiReadonlyQueryResult result = readonlyQueryService.globalSearch(
+                StringUtils.hasText(normalized.keyword()) ? normalized.keyword() : keyword,
+                normalized.startTime(),
+                normalized.endTime());
         return wrapQueryResult(result, "全局模糊搜索");
     }
 
@@ -185,7 +202,12 @@ public class ToolExecutorService {
             return errorResult("缺少必填参数 keyword");
         }
 
-        AiReadonlyQueryResult result = readonlyQueryService.joinedSearch(scene, keyword, startTime, endTime);
+        AiQueryNormalizer.NormalizedQuery normalized = queryNormalizer.normalize(scene, keyword, startTime, endTime,
+                String.join(" ", nullToEmpty(scene), nullToEmpty(keyword)));
+        AiReadonlyQueryResult result = readonlyQueryService.joinedSearch(scene,
+                StringUtils.hasText(normalized.keyword()) ? normalized.keyword() : keyword,
+                normalized.startTime(),
+                normalized.endTime());
         return wrapQueryResult(result, "业务联合查询");
     }
 
@@ -335,8 +357,11 @@ public class ToolExecutorService {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("success", true);
         map.put("data", result.rows() != null ? maskRows(result.rows()) : Collections.emptyList());
+        map.put("rows", result.rows() != null ? maskRows(result.rows()) : Collections.emptyList());
+        map.put("columns", result.columns() != null ? result.columns() : Collections.emptyList());
         map.put("totalCount", result.total() != null ? result.total() : 0);
         map.put("returnedCount", result.returnedCount() != null ? result.returnedCount() : 0);
+        map.put("remainingCount", result.remainingCount() != null ? result.remainingCount() : 0);
         map.put("cursorId", masker.mask(result.cursorId()));
         map.put("hasMore", result.hasMore() != null && result.hasMore());
         map.put("nextPageHint", masker.mask(result.nextPageHint()));
@@ -349,6 +374,10 @@ public class ToolExecutorService {
 
         map.put("summary", masker.mask(result.answerContext()));
         return map;
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private List<Map<String, Object>> maskRows(List<Map<String, Object>> rows) {

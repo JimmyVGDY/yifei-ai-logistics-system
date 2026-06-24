@@ -107,15 +107,15 @@ public class AiMemoryConfidenceEngine {
         double llmConfidenceInverse = 1.0 - Math.max(0.0, Math.min(1.0, llmConfidence));
 
         // 维度3：来源不匹配度 (0~1) —— 未通过来源验证则满分
-        double sourceMismatchScore = sourceMatched ? 0.0 : (isLlmExtracted ? 0.7 : 0.3);
+        double sourceMismatchScore = sourceMatched ? 0.0 : (isLlmExtracted ? 1.0 : 0.45);
 
         // 维度4：缺乏显式偏好信号 (0~1)
         double noExplicitSignalScore = hasExplicitPreference(userLower) ? 0.0 : 0.4;
 
         // 加权求和
         double risk = uncertaintyScore * 0.35
-                + llmConfidenceInverse * 0.30
-                + sourceMismatchScore * 0.25
+                + llmConfidenceInverse * 0.20
+                + sourceMismatchScore * 0.35
                 + noExplicitSignalScore * 0.10;
 
         return clamp(risk, 0.0, 1.0);

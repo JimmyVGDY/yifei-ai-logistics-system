@@ -28,6 +28,7 @@ public class AiBusinessQueryTools {
     private final AiGeneratedSqlQueryService generatedSqlQueryService;
     private final AiToolCallContext toolCallContext;
     private final AiQueryIntentParser intentParser;
+    private final AiQueryNormalizer queryNormalizer = new AiQueryNormalizer();
 
     public AiBusinessQueryTools(AiReadonlyQueryService readonlyQueryService,
                                 AiGeneratedSqlQueryService generatedSqlQueryService,
@@ -48,10 +49,12 @@ public class AiBusinessQueryTools {
         String target = nullToEmpty(module);
         toolCallContext.incrementAndCheck();
         toolCallContext.notifyToolStart("业务数据查询", target);
-        String[] safeRange = normalizeRelativeTimeRange(startTime, endTime);
-        AiReadonlyQueryResult result = readonlyQueryService.queryModule(module, keyword, safeRange[0], safeRange[1]);
+        AiQueryNormalizer.NormalizedQuery normalized = queryNormalizer.normalize(
+                module, keyword, startTime, endTime, toolCallContext.originalQuestion());
+        AiReadonlyQueryResult result = readonlyQueryService.queryModule(
+                normalized.module(), nullToEmpty(normalized.keyword()), normalized.startTime(), normalized.endTime());
         toolCallContext.record(result);
-        toolCallContext.notifyToolResult("业务数据查询", target, result);
+        toolCallContext.notifyToolResult("业务数据查询", nullToEmpty(normalized.module()), result);
         return result.answerContext();
     }
 
@@ -62,8 +65,10 @@ public class AiBusinessQueryTools {
             @ToolParam(description = "结束时间，格式 yyyy-MM-dd HH:mm:ss；没有时间范围时传空字符串") String endTime) {
         toolCallContext.incrementAndCheck();
         toolCallContext.notifyToolStart("全场景模糊搜索", "业务模块");
-        String[] safeRange = normalizeRelativeTimeRange(startTime, endTime);
-        AiReadonlyQueryResult result = readonlyQueryService.globalSearch(keyword, safeRange[0], safeRange[1]);
+        AiQueryNormalizer.NormalizedQuery normalized = queryNormalizer.normalize(
+                null, keyword, startTime, endTime, toolCallContext.originalQuestion());
+        AiReadonlyQueryResult result = readonlyQueryService.globalSearch(
+                nullToEmpty(normalized.keyword()), normalized.startTime(), normalized.endTime());
         toolCallContext.record(result);
         toolCallContext.notifyToolResult("全场景模糊搜索", "业务模块", result);
         return result.answerContext();
@@ -78,8 +83,10 @@ public class AiBusinessQueryTools {
         String target = nullToEmpty(scene);
         toolCallContext.incrementAndCheck();
         toolCallContext.notifyToolStart("业务联合查询", target);
-        String[] safeRange = normalizeRelativeTimeRange(startTime, endTime);
-        AiReadonlyQueryResult result = readonlyQueryService.joinedSearch(scene, keyword, safeRange[0], safeRange[1]);
+        AiQueryNormalizer.NormalizedQuery normalized = queryNormalizer.normalize(
+                scene, keyword, startTime, endTime, toolCallContext.originalQuestion());
+        AiReadonlyQueryResult result = readonlyQueryService.joinedSearch(
+                scene, nullToEmpty(normalized.keyword()), normalized.startTime(), normalized.endTime());
         toolCallContext.record(result);
         toolCallContext.notifyToolResult("业务联合查询", target, result);
         return result.answerContext();

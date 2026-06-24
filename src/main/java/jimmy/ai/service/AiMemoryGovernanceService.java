@@ -95,7 +95,8 @@ public class AiMemoryGovernanceService {
         ScopeDecision scope = inferScope(type, text, toolCalls);
         String conflictGroup = inferConflictGroup(type, text, scope);
         int priority = inferPriority(type, explicit, scope.memoryScope());
-        String status = inferInitialStatus(candidate.confidence(), explicit, type, text, risk, strongSourceMatch, isLlmExtracted);
+        String status = inferInitialStatus(candidate.confidence(), explicit, type, text, risk,
+                sourceMatched, strongSourceMatch, isLlmExtracted);
         String memoryKey = buildMemoryKey(type, conflictGroup, summary);
         String policyJson = buildPolicyJson(type, scope, conflictGroup, priority, explicit, risk, isLlmExtracted);
 
@@ -133,7 +134,15 @@ public class AiMemoryGovernanceService {
      */
     private String inferInitialStatus(double confidence, boolean explicit, String type,
                                        String text, double hallucinationRisk,
-                                       boolean strongSourceMatch, boolean isLlmExtracted) {
+                                       boolean sourceMatched, boolean strongSourceMatch, boolean isLlmExtracted) {
+        // LLM 提炼出的偏好类记忆如果没有用户原话支撑，先隔离，避免把模型猜测写成长期偏好。
+        if (isLlmExtracted
+                && !sourceMatched
+                && !explicit
+                && ("ANSWER_STYLE".equals(type) || "QUERY_HABIT".equals(type) || "FAVORITE_MODULE".equals(type))) {
+            return STATUS_HALLUCINATION;
+        }
+
         // 高幻觉风险 → 隔离，无论其他信号多强
         if (hallucinationRisk >= HALLUCINATION_RISK_THRESHOLD) {
             return STATUS_HALLUCINATION;

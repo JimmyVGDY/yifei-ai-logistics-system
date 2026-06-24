@@ -91,15 +91,16 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
                 target: data.target || '',
                 result: data.result || ''
               })
-              if (Array.isArray(data.rows) && data.rows.length) {
+              const rows = Array.isArray(data.rows) ? data.rows : (Array.isArray(data.data) ? data.data : [])
+              if (rows.length) {
                 dataResults.push({
                   toolName: data.toolName || '业务数据查询',
                   target: data.target || '',
                   summary: data.result || '',
                   columns: Array.isArray(data.columns) ? data.columns : [],
-                  rows: data.rows,
+                  rows,
                   cursorId: data.cursorId || '',
-                  total: data.total,
+                  total: data.total ?? data.totalCount,
                   returnedCount: data.returnedCount,
                   remainingCount: data.remainingCount,
                   hasMore: data.hasMore === true,

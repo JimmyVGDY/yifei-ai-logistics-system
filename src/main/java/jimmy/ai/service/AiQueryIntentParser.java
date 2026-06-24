@@ -72,6 +72,9 @@ public class AiQueryIntentParser {
     private static final Pattern FOLLOW_UP_STATUS_PATTERN =
             Pattern.compile("(?:只要|只看|筛选|查|查询|显示|列出)?\\s*(待处理|处理中|已处理|已关闭|待调度|运输中|已完成|已取消|待支付|已支付|未收款|已收款|待接单|已接单)(?:的)?");
 
+    private static final Pattern MODULE_STATUS_PATTERN =
+            Pattern.compile("(待处理|处理中|已处理|已关闭|待调度|运输中|已完成|已取消|待支付|已支付|未收款|已收款|待接单|已接单|已付款|未付款)");
+
     /**
      * 技术 ID，例如 traceId、operationId、loginSessionId。
      * 不能无脑兜底识别，否则客户名、公司名里的英文也可能被误判成 ID。
@@ -141,6 +144,7 @@ public class AiQueryIntentParser {
             "全局查找", "全局搜索", "全局查询", "全局",
             "所有的", "全部的", "所有", "全部", "全量", "任意", "不限",
             "今天", "今日", "昨天", "最近7天", "近7天", "最近30天", "近30天",
+            "这个月", "本月", "上个月", "上月",
             "一个", "这个", "那个", "某个",
             "订单", "订单号", "运单", "运单号", "客户", "客户名称", "客户名",
             "司机", "司机名", "车辆", "车牌", "车牌号", "状态", "任务", "运输任务", "配送任务",
@@ -265,6 +269,9 @@ public class AiQueryIntentParser {
 
         for (ModuleRule rule : moduleRules) {
             if (rule.matches(text, lower)) {
+                if (!StringUtils.hasText(keyword)) {
+                    keyword = parseModuleStatusKeyword(text);
+                }
                 return buildIntent(rule, keyword, timeRange);
             }
         }
@@ -507,7 +514,7 @@ public class AiQueryIntentParser {
         // 如果没有更好的片段，再从后往前取一个可用片段。
         for (int i = parts.length - 1; i >= 0; i--) {
             String cleaned = cleanupKeyword(parts[i]);
-            if (StringUtils.hasText(cleaned)) {
+            if (StringUtils.hasText(cleaned) && (!isWeakKeyword(cleaned) || isStandaloneStatusKeyword(cleaned))) {
                 return cleaned;
             }
         }
@@ -563,6 +570,15 @@ public class AiQueryIntentParser {
         );
 
         return weakWords.contains(keyword);
+    }
+
+    private boolean isStandaloneStatusKeyword(String keyword) {
+        return List.of(
+                "待处理", "处理中", "已处理", "已关闭",
+                "待调度", "运输中", "已完成", "已取消",
+                "待支付", "已支付", "待接单", "已接单",
+                "未收款", "已收款"
+        ).contains(keyword);
     }
 
     private AiQueryIntent buildIntent(ModuleRule rule, String keyword, TimeRange timeRange) {
@@ -680,6 +696,15 @@ public class AiQueryIntentParser {
             return range(today.minusDays(29), today);
         }
 
+        if (text.contains("这个月") || text.contains("本月")) {
+            return range(today.withDayOfMonth(1), today);
+        }
+
+        if (text.contains("上个月") || text.contains("上月")) {
+            LocalDate lastMonth = today.minusMonths(1);
+            return range(lastMonth.withDayOfMonth(1), lastMonth.withDayOfMonth(lastMonth.lengthOfMonth()));
+        }
+
         Matcher matcher = DATE_PATTERN.matcher(text);
         if (!matcher.find()) {
             return new TimeRange(null, null);
@@ -746,6 +771,14 @@ public class AiQueryIntentParser {
             }
         }
         return false;
+    }
+
+    private String parseModuleStatusKeyword(String text) {
+        Matcher matcher = MODULE_STATUS_PATTERN.matcher(text);
+        if (matcher.find()) {
+            return cleanupKeyword(matcher.group(1));
+        }
+        return null;
     }
 
     private record TimeRange(String startTime, String endTime) {
