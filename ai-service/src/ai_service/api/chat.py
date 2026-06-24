@@ -1,12 +1,11 @@
-"""AI 问答与 SSE 流式端点。"""
+"""AI Chat API：Java BFF 调用的 Python Agent SSE 接口。"""
 
-import json
 from typing import AsyncIterator, Optional
 
 import structlog
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from ai_service.core.agent import AgentContext, AgentOrchestrator
 
@@ -14,8 +13,6 @@ logger = structlog.get_logger()
 
 
 class ChatRequest(BaseModel):
-    model_config = {"populate_by_name": True}  # 允许 camelCase 和 snake_case 双向兼容
-
     question: str
     conversation_id: str = Field(default="", alias="conversationId")
     history: list[dict] = Field(default_factory=list)
@@ -58,6 +55,7 @@ def _build_sse_response(request: Request, body: ChatRequest) -> StreamingRespons
                 user_context=body.user_context,
                 memory_context=body.memory_context,
                 rag_context=body.rag_context,
+                history=body.history,
                 model_policy=body.model_policy,
             )
 
@@ -90,4 +88,5 @@ def _build_sse_response(request: Request, body: ChatRequest) -> StreamingRespons
 
 
 def _sse(event: str, data: dict) -> str:
+    import json
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
