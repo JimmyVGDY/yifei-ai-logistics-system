@@ -1,8 +1,60 @@
 import http from './http'
 import { getAuthToken } from '../stores/auth-store'
 
+let activeStreamConversationId = ''
+const transientHistories = new Map()
+const MAX_CLIENT_HISTORY = 8
+const MAX_HISTORY_CONTENT_LENGTH = 1000
+
 export function chatWithAi(payload) {
   return http.post('/ai/chat', payload)
+}
+
+function createClientConversationId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function resolveStreamConversationId(conversationId) {
+  if (conversationId) {
+    activeStreamConversationId = conversationId
+    return conversationId
+  }
+  if (!activeStreamConversationId) {
+    activeStreamConversationId = createClientConversationId()
+  }
+  return activeStreamConversationId
+}
+
+function normalizeHistoryContent(content) {
+  const text = String(content || '').trim()
+  if (!text) return ''
+  return text.length > MAX_HISTORY_CONTENT_LENGTH ? text.slice(0, MAX_HISTORY_CONTENT_LENGTH) : text
+}
+
+function appendTransientHistory(conversationId, role, content) {
+  if (!conversationId || !['user', 'assistant'].includes(role)) return
+  const safeContent = normalizeHistoryContent(content)
+  if (!safeContent) return
+  const history = transientHistories.get(conversationId) || []
+  const last = history[history.length - 1]
+  if (!last || last.role !== role || last.content !== safeContent) {
+    history.push({ role, content: safeContent })
+  }
+  while (history.length > MAX_CLIENT_HISTORY) {
+    history.shift()
+  }
+  transientHistories.set(conversationId, history)
+}
+
+function clientHistoryFor(conversationId) {
+  const history = transientHistories.get(conversationId) || []
+  return history.slice(-MAX_CLIENT_HISTORY).map(item => ({
+    role: item.role,
+    content: item.content
+  }))
 }
 
 /**
@@ -25,6 +77,8 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
   const { tokenName, tokenValue } = getAuthToken()
   const baseURL = import.meta.env.VITE_API_BASE || '/api'
   const url = `${baseURL}/ai/chat/stream`
+  const effectiveConversationId = resolveStreamConversationId(conversationId)
+  const clientHistory = clientHistoryFor(effectiveConversationId)
 
   const promise = (async () => {
     const headers = {
@@ -35,10 +89,19 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
       headers[tokenName] = tokenValue
     }
 
+    // 先记录当前用户消息到前端临时历史，保证即使本轮 SSE 失败，下一轮追问仍能带上上下文。
+    appendTransientHistory(effectiveConversationId, 'user', message)
+
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ message, conversationId, pageContext, cursorId }),
+      body: JSON.stringify({
+        message,
+        conversationId: effectiveConversationId,
+        pageContext,
+        cursorId,
+        clientHistory
+      }),
       signal: controller.signal
     })
 
@@ -61,7 +124,7 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
         const data = JSON.parse(evData)
         if (evName === 'done') {
           result = {
-            conversationId: data.conversationId || conversationId || '',
+            conversationId: data.conversationId || effectiveConversationId,
             answer: data.answer || '',
             citations: Array.isArray(data.citations) ? data.citations : [],
             toolCalls,
@@ -137,11 +200,20 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
       processBuffer(lines)
     }
 
-    if (streamError) {
+    if (!result && streamError) {
       throw new Error(streamError)
     }
     if (!result) {
       throw new Error('SSE 连接意外关闭，未收到最终结果')
+    }
+    if (streamError && !result.answer) {
+      result.answer = streamError
+    }
+    if (result.conversationId) {
+      activeStreamConversationId = result.conversationId
+    }
+    if (result.answer) {
+      appendTransientHistory(result.conversationId || effectiveConversationId, 'assistant', result.answer)
     }
     return result
   })()
