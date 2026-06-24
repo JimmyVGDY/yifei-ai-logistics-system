@@ -1,6 +1,6 @@
 # 物流管理系统 AI 助手设计文档
 
-> **⚠️ 迁移中 — 见 [ADR 0001](adr/0001-java-python-hybrid-architecture.md)**：AI 模块正在从 Java Spring AI 迁移到 Python FastAPI。本文描述业务需求、用户场景和总体架构（保持不变），但后端实现已拆分为 Java（Tool Executor + 记忆治理 + 会话 + 安全）和 Python（模型网关 + Agent + RAG + 记忆智能）。具体配置和使用方式见 [Spring AI 接入说明](spring-ai.md)（迁移前的 Java 实现）和 [Python AI 服务开发指南](python-ai-service.md)（新 Python 实现）。
+> **⚠️ 迁移中 — 见 [ADR 0001](adr/0001-java-python-hybrid-architecture.md)**：AI 模块正在从 Java Spring AI 迁移到 Python FastAPI。核心链路已打通（app.ai.python.enabled=true 时自动委托 Python），记忆和 RAG 已迁移到 Python，前端 SE 流式 token 已支持。遗留：Java 旧代码暂保留作为默认路径。本文描述业务需求、用户场景和总体架构（保持不变），但后端实现已拆分为 Java（Tool Executor + 记忆治理 + 会话 + 安全）和 Python（模型网关 + Agent + RAG + 记忆智能）。具体配置和使用方式见 [Spring AI 接入说明](spring-ai.md)（迁移前的 Java 实现）和 [Python AI 服务开发指南](python-ai-service.md)（新 Python 实现）。
 
 ## 1. 设计目标
 
