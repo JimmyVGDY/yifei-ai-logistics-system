@@ -48,6 +48,8 @@ class AgentContext:
     user_context: dict
     memory_context: dict
     rag_context: str
+    # Java BFF 传入的短期会话历史，来源可以是 MySQL，也可以是前端 SSE 失败时的 clientHistory 兜底。
+    history: list[dict] = field(default_factory=list)
     model_policy: str = "API_ALLOWED"
 
     # Runtime state
@@ -120,10 +122,10 @@ class AgentOrchestrator:
         })
 
         # Build conversation messages
-        messages = [
-            {"role": "system", "content": rendered.system_prompt},
-            {"role": "user", "content": rendered.user_prompt},
-        ]
+        # 历史消息必须放在当前问题之前，否则“没了？”“继续”“那个客户呢？”这类追问无法接上上文。
+        messages = [{"role": "system", "content": rendered.system_prompt}]
+        messages.extend(self._normalized_history(ctx))
+        messages.append({"role": "user", "content": rendered.user_prompt})
 
         # Step 3: Agent loop
         full_answer = ""  # 跨轮累积全部文本，确保 done.answer 完整
@@ -292,6 +294,30 @@ class AgentOrchestrator:
         user_context = dict(ctx.user_context or {})
         user_context.setdefault("conversationId", ctx.conversation_id)
         return user_context
+
+    @staticmethod
+    def _normalized_history(ctx: AgentContext) -> list[dict]:
+        """将 Java/MySQL/前端兜底历史转换为 OpenAI messages。"""
+        result: list[dict] = []
+        history = ctx.history or []
+        for item in history[-8:]:
+            if not isinstance(item, dict):
+                continue
+            role = str(item.get("role", "")).strip().lower()
+            content = str(item.get("content", "")).strip()
+            if not content:
+                continue
+            if len(content) > 2000:
+                content = content[:2000]
+            if role in ("user", "assistant"):
+                result.append({"role": role, "content": content})
+            else:
+                # 兼容 Java 当前传入的“纯文本历史摘要”格式：{"content": "用户：...\nAI助手：..."}
+                result.append({
+                    "role": "user",
+                    "content": "以下是上文会话记录，仅用于理解当前追问，不要在回答中复述：\n" + content,
+                })
+        return result[-8:]
 
     async def _call_llm_with_tools(
         self,
