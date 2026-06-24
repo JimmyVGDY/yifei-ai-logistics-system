@@ -37,6 +37,7 @@
 - 日志安全：userId/IP 脱敏、手机号/邮箱/身份证号清洗、敏感参数过滤、异常消息安全化。
 - Excel 导出和客户资料导入。
 - Spring AI 只读助手，支持系统文档问答、短期会话、操作日志排障分析、普通白名单业务查询和受控临时 SELECT 统计查询；具备多层次幻觉防护（回答幻觉检测+记忆幻觉多维度风险评估），整个检测→判断→修复过程对用户无感；未配置模型密钥时应用仍可启动并返回本地兜底提示。
+- AI 模块正在迁移至 Python FastAPI（Java+Python 混合架构），详见 [ADR 0001](docs/adr/0001-java-python-hybrid-architecture.md) 和 [Python AI 服务开发指南](docs/python-ai-service.md)。
 
 ## 快速开始
 
@@ -153,6 +154,8 @@ src/main/resources/data.sql
 - [链路追踪与会话审计标识说明](docs/trace-context-audit.md)
 - [Spring AI 接入说明](docs/spring-ai.md) — 当前 AI 接口、Nacos 配置、只读业务查询和临时 SQL 安全边界
 - [AI 助手设计文档](docs/ai-assistant-design.md) — AI 助手整体架构、权限审计和后续演进路线
+- [ADR 0001 — Java+Python 混合架构](docs/adr/0001-java-python-hybrid-architecture.md) — AI 迁移架构决策
+- [Python AI 服务开发指南](docs/python-ai-service.md) — Python 服务启动、测试、API 端点
 
 ## 常用接口
 
