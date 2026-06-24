@@ -68,6 +68,7 @@ class TestPromptEngine:
         engine = PromptEngine(PROMPTS_DIR)
         result = engine.render("assistant-chat", {
             "question": "查订单",
+            "today": "2025-03-24",
             "permissions": "[]",
             "memories": "",
             "rag_context": "",

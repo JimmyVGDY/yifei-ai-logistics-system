@@ -54,7 +54,9 @@ class MemoryExtractor:
 
     async def _extract_with_llm(self, text: str) -> ExtractionResult:
         rendered = self.engine.render("memory-extract", {
-            "conversation_text": text,
+            "user_message": text,
+            "assistant_message": "",
+            "tool_targets": "",
         })
         response = await self.gateway.chat(
             system_prompt=rendered.system_prompt,

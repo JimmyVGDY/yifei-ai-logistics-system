@@ -1,46 +1,32 @@
-# 长期记忆提炼模板（轻量）
+# 长期记忆提炼模板（来自原 Java DefaultAiPromptTemplates.AI_MEMORY_EXTRACT）
 model: deepseek-v4-flash
 temperature: 0.1
-max_tokens: 1024
-required_variables: [conversation_text]
-optional_variables: [existing_memories]
+max_tokens: 512
+required_variables: [user_message, assistant_message]
+optional_variables: [tool_targets]
 output_schema:
   type: object
   properties:
-    worth_remembering:
+    hasMemory:
       type: boolean
-      description: 这段对话是否暴露了用户的长期偏好、习惯或格式要求
-    candidates:
-      type: array
-      items:
-        type: object
-        properties:
-          content:
-            type: string
-          memory_type:
-            type: string
-            enum: [QUERY_PREFERENCE, FORMAT_PREFERENCE, MODULE_PREFERENCE, TROUBLESHOOTING_PREFERENCE, CUSTOMER_FOCUS]
-          scope:
-            type: string
-            enum: [GLOBAL, MODULE]
-          confidence:
-            type: number
-            minimum: 0
-            maximum: 1
-  required: [worth_remembering]
+    memoryType:
+      type: string
+      enum: [ANSWER_STYLE, QUERY_HABIT, FAVORITE_MODULE]
+    memoryTitle:
+      type: string
+    memorySummary:
+      type: string
+    confidence:
+      type: number
+  required: [hasMemory]
 system: |
-  你负责从用户与 AI 助手的对话中提炼长期记忆。
-
-  必须提炼的情况（worth_remembering=true）：
-  - 用户明确说了"以后都这样""我主要查""先给结论"等长期偏好
-  - 用户反复使用相同的查询模式
-
-  不提炼的情况（worth_remembering=false）：
-  - 只是一次性的业务查询（"查订单123"）
-  - 临时纠偏（"这次只要运输任务相关的"）
-  - 模糊推断或低置信度猜测
-  - 没有明确的长期偏好表达
-
-  只输出 JSON。
+  你是用户行为分析助手。分析以下对话片段，判断用户是否表达了值得长期记忆的偏好或习惯。
+  仅当用户明确表达长期偏好、回答格式偏好、持续业务关注或持续模块兴趣时返回 hasMemory=true。
+  普通一次性业务查询、系统功能询问、问候、日志排障和纯数据统计查询都返回 hasMemory=false。
+  输出严格 JSON，不要解释、代码块标记或多余文本：
+  {"hasMemory":true,"memoryType":"ANSWER_STYLE","memoryTitle":"简洁标题","memorySummary":"脱敏后的偏好描述","confidence":0.85}
+  memoryType 只能是 ANSWER_STYLE、QUERY_HABIT、FAVORITE_MODULE 之一。
 user: |
-  {{conversation_text}}
+  用户问题：{{user_message}}
+  AI 调用的工具或模块：{{tool_targets}}
+  AI 回答摘要：{{assistant_message}}

@@ -78,14 +78,17 @@ class AgentOrchestrator:
         max_iterations = settings.max_agent_iterations
 
         # Step 1: 加载工具注册表
-        tools = await self._fetch_tools()
+        tools = await self._fetch_tools(ctx)
 
         # Step 2: 渲染主对话 prompt
+        from datetime import date as date_type
+        today_str = date_type.today().strftime("%Y-%m-%d")
         rendered = self.prompt_engine.render("assistant-chat", {
             "question": ctx.question,
             "permissions": json.dumps(ctx.user_context.get("permissions", []), ensure_ascii=False),
             "memories": json.dumps(ctx.memory_context, ensure_ascii=False),
             "rag_context": ctx.rag_context,
+            "today": today_str,
         })
 
         # Build conversation messages
@@ -145,7 +148,7 @@ class AgentOrchestrator:
                         "elapsedMs": elapsed_ms,
                     })
 
-                    result = await self._execute_tool(tc)
+                    result = await self._execute_tool(tc, ctx)
                     ctx.tool_results.append(result)
 
                     yield self._sse("tool_result", {
@@ -192,19 +195,19 @@ class AgentOrchestrator:
             "toolCallCount": len(ctx.tool_results),
         })
 
-    async def _fetch_tools(self) -> list[dict]:
+    async def _fetch_tools(self, ctx: AgentContext) -> list[dict]:
         """从 Java 拉取当前用户可用的工具列表。"""
         try:
-            tools = await java_client.fetch_tool_registry()
+            tools = await java_client.fetch_tool_registry(user_context=ctx.user_context)
             return tools
         except Exception:
             logger.warning("tool_registry_unavailable")
             return []
 
-    async def _execute_tool(self, tc: ToolCall) -> ToolResult:
+    async def _execute_tool(self, tc: ToolCall, ctx: AgentContext) -> ToolResult:
         """回调 Java 执行业务工具。"""
         try:
-            result = await java_client.execute_tool(tc.name, tc.arguments)
+            result = await java_client.execute_tool(tc.name, tc.arguments, user_context=ctx.user_context)
             # Java returns {"success": true/false, "data": [...], "totalCount": N, ...}
             rows = result.get("data", [])
             total = result.get("totalCount", len(rows))

@@ -33,26 +33,36 @@ class JavaClient:
 
     # ── Tool Executor ──
 
-    async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    async def execute_tool(self, tool_name: str, arguments: dict[str, Any],
+                           user_context: dict[str, Any] = None) -> dict[str, Any]:
         """回调 Java /ai/internal/tool/execute 执行业务查询。
 
         Java 返回：Map 直接是工具执行结果（含 success/data/totalCount/cursorId/citation 等字段）。
         """
+        headers = {}
+        if user_context:
+            import json as _json
+            headers["X-Internal-User"] = _json.dumps(user_context, ensure_ascii=False)
         resp = await self.client.post(
             "/ai/internal/tool/execute",
             json={"toolName": tool_name, "arguments": arguments},
+            headers=headers,
         )
         resp.raise_for_status()
-        return resp.json()  # Java AiInternalController 直接返回执行结果 Map
+        return resp.json()
 
     # ── Tool Registry ──
 
-    async def fetch_tool_registry(self) -> list[dict[str, Any]]:
+    async def fetch_tool_registry(self, user_context: dict[str, Any] = None) -> list[dict[str, Any]]:
         """拉取当前用户可用的工具列表（含 name、description、parameters Schema）。
 
         Java 返回格式：{"success": true, "tools": [...], "count": N}
         """
-        resp = await self.client.get("/ai/internal/tools/registry")
+        headers = {}
+        if user_context:
+            import json as _json
+            headers["X-Internal-User"] = _json.dumps(user_context, ensure_ascii=False)
+        resp = await self.client.get("/ai/internal/tools/registry", headers=headers)
         resp.raise_for_status()
         body = resp.json()
         return body.get("tools", [])
