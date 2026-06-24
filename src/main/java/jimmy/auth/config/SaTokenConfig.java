@@ -86,7 +86,8 @@ public class SaTokenConfig implements WebMvcConfigurer {
                         "/auth/login",
                         "/auth/captcha",
                         "/auth/login-conflicts/*/status",
-                        "/actuator/health"
+                        "/actuator/health",
+                        "/ai/internal/**"          // Python AI 服务内部回调，走 X-Internal-User 头
                 );
         registry.addInterceptor(operationLogInterceptor)
                 .addPathPatterns(
