@@ -19,6 +19,21 @@ uv run uvicorn ai_service.main:app --host 127.0.0.1 --port 8001 --reload
 uv run pytest tests/unit/ -v
 ```
 
+## Docker Compose AI
+
+Use the optional compose override when Python AI Service and Qdrant are required:
+
+```bash
+cp .env.example .env
+# Edit .env and set AI_INTERNAL_SHARED_SECRET first.
+docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d
+```
+
+- `ai-service` calls Java through the Docker network at `app:8080`.
+- Java and Python internal calls must use `X-Internal-Secret`.
+- `ai-service` and `qdrant` host ports bind to `127.0.0.1` by default.
+- Use only `docker-compose.yml` when AI services are not required.
+
 ## 项目结构
 
 ```
