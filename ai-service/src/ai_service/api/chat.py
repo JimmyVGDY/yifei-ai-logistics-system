@@ -62,7 +62,9 @@ async def chat_stream(request: Request, body: ChatRequest):
                     break
                 yield sse_event
         except Exception as exc:
-            yield _sse("error", {"code": "INTERNAL_ERROR", "message": str(exc)})
+            yield _sse("error", {"code": "INTERNAL_ERROR", "message": str(exc)[:500]})
+            yield _sse("done", {"conversationId": body.conversation_id or "", "answer": "",
+                                "elapsedMs": 0, "citationCount": 0, "toolCallCount": 0})
 
     return StreamingResponse(
         event_generator(),
