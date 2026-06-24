@@ -91,112 +91,100 @@ class IntentClassifier:
 
 
 class GroundingGuard:
-    """回答幻觉检查 —— 验证 AI 回答是否有数据支撑。
+    """回答幻觉检查 —— 纯规则匹配，不调 LLM（对齐原 Java AiGroundingGuard）。
 
-    检查规则：
-    1. 回答中的每个业务数据声明必须有工具返回结果或引用来源支撑
-    2. 检测分页数据虚假声称"完整列出"
-    3. 无数据支撑的声明 → SUSPICIOUS；严肃的数据造假 → UNSAFE
-
-    当 ModelGateway 不可用时，默认返回 SAFE（不阻塞正常流程）。
+    不做用户可见的提示，只返回修复指令：
+    - 没有证据却声称查到数据 → discard，管线用兜底回答替代
+    - 只有分页数据却声称完整列出 → repaired，静默替换完整性措辞
+    - 正常回答 → pass_through，原样放行
     """
 
-    def __init__(self, gateway: ModelGateway, engine: PromptEngine):
-        self._gateway = gateway
-        self._engine = engine
+    DATA_CLAIM_KEYWORDS = [
+        "已查询", "查询结果", "系统中有", "共有", "命中", "记录",
+        "数据库", "已找到", "查询到", "查到",
+    ]
+    NEGATION_PREFIXES = [
+        "没有查到", "未找到", "不存在相关", "无相关记录", "未查询到",
+        "没有查询到", "没有找到",
+    ]
+    FULL_CLAIM_KEYWORDS = [
+        "完整列出", "全部列出", "所有记录", "不要省略", "全部数据", "完整明细",
+    ]
+    REPLACEMENTS = {
+        "完整列出": "列出",
+        "全部列出": "列出",
+        "所有记录": "查询到的记录",
+        "全部数据": "当前数据",
+        "完整明细": "明细",
+    }
 
-    async def check(
-        self,
-        answer_text: str,
-        tool_results: list[Any],
-        citations: list[Any],
-    ) -> dict[str, Any]:
-        """检查回答的幻觉风险。
+    def check(self, answer: str,
+              tool_results: list = None,
+              citations: list = None,
+              data_results: list = None) -> dict:
+        """校验回答的证据支撑，返回修复指令。"""
+        if not answer or not answer.strip():
+            return {"action": "pass_through", "answer": answer, "issues": []}
 
-        Args:
-            answer_text:  AI 生成的回答文本。
-            tool_results: 工具调用返回的原始结果列表。
-            citations:   回答中引用的数据来源列表。
+        has_evidence = self._has_evidence(citations, tool_results, data_results)
+        has_partial = self._has_partial_data(data_results)
+        is_data_claim = self._looks_like_data_claim(answer)
+        is_full_claim = self._claims_full_result(answer)
 
-        Returns:
-            dict with keys: has_ungrounded_claim, has_pagination_misrepresentation, risk_level, issues
-            - has_ungrounded_claim:          是否包含没有数据支撑的声明
-            - has_pagination_misrepresentation: 是否只有分页数据却声称完整列出
-            - risk_level:                    SAFE / SUSPICIOUS / UNSAFE
-            - issues:                        具体问题列表 [{claim, reason}, ...]
-        """
-        # ── 空输入保护 ──
-        if not answer_text or not answer_text.strip():
-            logger.debug("grounding_empty_input")
-            return {
-                "has_ungrounded_claim": False,
-                "has_pagination_misrepresentation": False,
-                "risk_level": _DEFAULT_RISK_LEVEL,
-                "issues": [],
-            }
+        issues = []
+        result = answer
 
-        # ── 模板缺失保护 ──
-        if self._engine.get_meta("grounding-check") is None:
-            logger.warning("template_missing", code="grounding-check")
-            return {
-                "has_ungrounded_claim": False,
-                "has_pagination_misrepresentation": False,
-                "risk_level": _DEFAULT_RISK_LEVEL,
-                "issues": [],
-            }
+        # 无证据但声称查到数据 → discard
+        if not has_evidence and is_data_claim:
+            return {"action": "discard", "answer": answer,
+                    "issues": ["UNSUPPORTED_DATA_CLAIM"]}
 
-        # ── 序列化输入，限制长度防止 token 溢出 ──
-        variables: dict[str, Any] = {
-            "answer_text": answer_text[:8000],
-            "tool_results": json.dumps(tool_results, ensure_ascii=False, default=str)[:4000],
-            "citations": json.dumps(citations, ensure_ascii=False, default=str)[:2000],
-        }
+        # 仅分页数据却声称完整列出 → repaired
+        if has_partial and is_full_claim:
+            issues.append("PARTIAL_DATA_AS_FULL")
+            result = self._tone_down_completeness(answer)
 
-        # ── 渲染 Prompt ──
-        try:
-            rendered = self._engine.render("grounding-check", variables)
-        except Exception as exc:
-            logger.warning("grounding_render_failed", error=str(exc)[:200])
-            return {
-                "has_ungrounded_claim": False,
-                "has_pagination_misrepresentation": False,
-                "risk_level": _DEFAULT_RISK_LEVEL,
-                "issues": [],
-            }
+        if not issues:
+            return {"action": "pass_through", "answer": result, "issues": []}
+        return {"action": "repaired", "answer": result, "issues": issues}
 
-        # ── 调用网关 ──
-        try:
-            response = await self._gateway.chat(
-                system_prompt=rendered.system_prompt,
-                user_prompt=rendered.user_prompt,
-                task_type="grounding-check",
-                temperature=rendered.temperature,
-                max_tokens=rendered.max_tokens,
-            )
-        except Exception as exc:
-            logger.warning("grounding_gateway_failed", error=str(exc)[:200])
-            return {
-                "has_ungrounded_claim": False,
-                "has_pagination_misrepresentation": False,
-                "risk_level": _DEFAULT_RISK_LEVEL,
-                "issues": [],
-            }
+    def _has_evidence(self, citations, tool_results, data_results) -> bool:
+        if citations and len(citations) > 0:
+            return True
+        for tr in (tool_results or []):
+            if isinstance(tr, dict) and tr.get("success"):
+                return True
+        for dr in (data_results or []):
+            if isinstance(dr, dict) and dr.get("rows") and len(dr["rows"]) > 0:
+                return True
+        return False
 
-        # ── 解析 JSON 输出 ──
-        try:
-            parsed = json.loads(response.content)
-        except json.JSONDecodeError as exc:
-            logger.warning("grounding_parse_failed", error=str(exc)[:200], raw=response.content[:300])
-            return {
-                "has_ungrounded_claim": False,
-                "has_pagination_misrepresentation": False,
-                "risk_level": _DEFAULT_RISK_LEVEL,
-                "issues": [],
-            }
+    def _has_partial_data(self, data_results) -> bool:
+        for dr in (data_results or []):
+            if not isinstance(dr, dict):
+                continue
+            if dr.get("hasMore"):
+                return True
+            total = dr.get("total", 0)
+            returned = dr.get("returnedCount", 0)
+            if total > 0 and returned > 0 and returned < total:
+                return True
+        return False
 
-        return {
-            "has_ungrounded_claim": parsed.get("has_ungrounded_claim", False),
-            "has_pagination_misrepresentation": parsed.get("has_pagination_misrepresentation", False),
-            "risk_level": parsed.get("risk_level", _DEFAULT_RISK_LEVEL),
-            "issues": parsed.get("issues", []),
-        }
+    def _looks_like_data_claim(self, answer: str) -> bool:
+        for neg in self.NEGATION_PREFIXES:
+            if neg in answer:
+                return False
+        for kw in self.DATA_CLAIM_KEYWORDS:
+            if kw in answer:
+                return True
+        return False
+
+    def _claims_full_result(self, answer: str) -> bool:
+        return any(kw in answer for kw in self.FULL_CLAIM_KEYWORDS)
+
+    def _tone_down_completeness(self, answer: str) -> str:
+        result = answer
+        for old, new in self.REPLACEMENTS.items():
+            result = result.replace(old, new)
+        return result

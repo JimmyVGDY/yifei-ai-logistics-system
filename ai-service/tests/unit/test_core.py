@@ -127,25 +127,45 @@ class TestIntentClassifier:
 
 
 class TestGroundingGuard:
-    def test_check_no_gateway(self):
-        """幻觉检查在 ModelGateway 不可用时返回安全默认值。"""
+    def test_pass_through_normal(self):
+        """正常回答 pass_through。"""
         from ai_service.core.intent import GroundingGuard
-        from ai_service.core.prompt_engine import PromptEngine
-        engine = PromptEngine(PROMPTS_DIR)
-        guard = GroundingGuard(None, engine)
-        import asyncio
-        result = asyncio.run(guard.check("answer", [], []))
-        assert result["risk_level"] == "SAFE"
-        assert result["has_ungrounded_claim"] is False
+        guard = GroundingGuard()
+        result = guard.check("你好，有什么可以帮你", citations=[{"source": "doc"}])
+        assert result["action"] == "pass_through"
 
-    def test_check_empty_answer(self):
+    def test_discard_unsupported_claim(self):
+        """无证据声称查到数据 → discard。"""
         from ai_service.core.intent import GroundingGuard
-        from ai_service.core.prompt_engine import PromptEngine
-        engine = PromptEngine(PROMPTS_DIR)
-        guard = GroundingGuard(None, engine)
-        import asyncio
-        result = asyncio.run(guard.check("", [], []))
-        assert result["risk_level"] == "SAFE"
+        guard = GroundingGuard()
+        result = guard.check("查询结果已找到 10 条记录", citations=[], tool_results=[])
+        assert result["action"] == "discard"
+        assert "UNSUPPORTED_DATA_CLAIM" in result["issues"]
+
+    def test_repaired_partial_as_full(self):
+        """仅分页数据却声称完整列出 → repaired。"""
+        from ai_service.core.intent import GroundingGuard
+        guard = GroundingGuard()
+        result = guard.check(
+            "完整列出所有记录如下...",
+            citations=[{"source": "db"}],
+            data_results=[{"total": 30, "returnedCount": 10, "hasMore": True}],
+        )
+        assert result["action"] == "repaired"
+        assert "完整列出" not in result["answer"]
+
+    def test_negation_not_data_claim(self):
+        """否定句不判为数据声称。"""
+        from ai_service.core.intent import GroundingGuard
+        guard = GroundingGuard()
+        result = guard.check("没有查到相关记录", citations=[], tool_results=[])
+        assert result["action"] == "pass_through"
+
+    def test_empty_answer(self):
+        from ai_service.core.intent import GroundingGuard
+        guard = GroundingGuard()
+        result = guard.check("")
+        assert result["action"] == "pass_through"
 
 
 class TestAgentOrchestrator:
