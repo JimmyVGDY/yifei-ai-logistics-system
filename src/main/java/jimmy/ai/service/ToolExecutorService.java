@@ -145,11 +145,10 @@ public class ToolExecutorService {
         if (!StringUtils.hasText(module)) {
             return errorResult("缺少必填参数 module");
         }
-        if (!StringUtils.hasText(keyword)) {
-            return errorResult("缺少必填参数 keyword");
-        }
+        // keyword 可选：用户说"看一下这个月的费用"时没有具体关键词，查全部
 
-        AiReadonlyQueryResult result = readonlyQueryService.queryModule(module, keyword, startTime, endTime);
+        AiReadonlyQueryResult result = readonlyQueryService.queryModule(module,
+                StringUtils.hasText(keyword) ? keyword : "", startTime, endTime);
         return wrapQueryResult(result, module);
     }
 

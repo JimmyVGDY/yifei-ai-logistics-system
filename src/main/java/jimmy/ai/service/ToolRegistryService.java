@@ -63,7 +63,7 @@ public class ToolRegistryService {
         Map<String, Object> parameters = new LinkedHashMap<>();
         parameters.put("type", "object");
         parameters.put("properties", properties);
-        parameters.put("required", List.of("module", "keyword"));
+        parameters.put("required", List.of("module"));  // keyword 可选
 
         tool.put("parameters", parameters);
         return tool;
