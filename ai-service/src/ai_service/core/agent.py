@@ -292,11 +292,7 @@ class AgentOrchestrator:
         temperature: float,
         api_key: Optional[str] = None,
     ) -> AsyncIterator[str | ToolCall]:
-        """调用 LLM（流式），使用 OpenAI 标准 function calling。"""
-        system = messages[0]["content"] if messages else ""
-        user = messages[-1]["content"] if messages else ""
-
-        # Convert tools to OpenAI format
+        """调用 LLM（流式），使用完整 messages + OpenAI 标准 function calling。"""
         openai_tools = None
         if tools:
             openai_tools = []
@@ -310,10 +306,8 @@ class AgentOrchestrator:
                     }
                 })
 
-        # Stream from model with standard function calling
-        async for delta in self.gateway.chat_stream(
-            system_prompt=system,
-            user_prompt=user,
+        async for delta in self.gateway.chat_stream_messages(
+            messages=messages,
             task_type="chat",
             api_key=api_key,
             temperature=temperature,

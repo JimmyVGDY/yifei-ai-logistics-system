@@ -463,6 +463,7 @@ const streamMaxToolCalls = ref(8)
 const streamElapsed = ref(0)
 const streamToolLog = ref([])
 const pendingCursorId = ref('')
+const currentStreamingMessageIndex = ref(-1)
 let streamElapsedTimer = null
 let streamAbort = null
 const markdown = new MarkdownIt({
@@ -525,6 +526,7 @@ async function sendMessage() {
   startElapsedTimer()
   // 预推空消息作为流式写入目标
   const assistantMsgIndex = messages.value.length
+  currentStreamingMessageIndex.value = assistantMsgIndex
   messages.value.push({ role: 'assistant', content: '', _streaming: true })
   await scrollToBottom()
 
@@ -558,6 +560,7 @@ async function sendMessage() {
     chatLoading.value = false
     streamProgress.value = null
     streamAbort = null
+    currentStreamingMessageIndex.value = -1
     stopElapsedTimer()
     await scrollToBottom()
   }
@@ -632,9 +635,17 @@ function handleStreamEvent(event) {
       }
       break
     case 'token':
-      // 流式 token 到达，保持 loading 状态直到 done 再展示完整回答
       streamingTokens.value = true
       streamProgress.value = 'streaming'
+      // 实时追加 delta 文本到当前 assistant 消息气泡
+      if (typeof event.delta === 'string' && event.delta.length > 0) {
+        const index = currentStreamingMessageIndex.value
+        const msg = messages.value[index]
+        if (msg && msg.role === 'assistant' && msg._streaming) {
+          msg.content += event.delta
+        }
+      }
+      scrollToBottom()
       break
     case 'done':
       streamProgress.value = 'done'

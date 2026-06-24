@@ -179,6 +179,42 @@ class ModelGateway:
 
         yield "抱歉，AI 服务暂时不可用，请稍后重试。"
 
+    async def chat_stream_messages(
+        self,
+        messages: list[dict],
+        task_type: str = "chat",
+        api_key: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        tools: Optional[list[dict]] = None,
+    ) -> AsyncIterator[str]:
+        """使用完整 OpenAI messages 调用模型（支持多轮 Tool Calling 上下文）。"""
+        chain = self.registry.fallback_chains.get(task_type, [])
+        if not chain:
+            chain = self.registry.fallback_chains.get("chat", [])
+
+        last_error = None
+        for model_name in chain:
+            config = self.registry.build_model_config(
+                model_name,
+                api_key=api_key,
+                temperature=temperature or 0.3,
+                max_tokens=max_tokens or 4096,
+            )
+            if config is None:
+                continue
+
+            try:
+                async for delta in self._call_stream_messages(config, messages, tools):
+                    yield delta
+                return
+            except Exception as exc:
+                last_error = exc
+                logger.warning("model_fallback_stream", model=model_name, error=str(exc)[:200])
+                continue
+
+        yield "抱歉，AI 服务暂时不可用，请稍后重试。"
+
     async def _call(self, config: ModelConfig, system: str, user: str,
                     tools: Optional[list[dict]] = None) -> ModelResponse:
         """HTTP call to OpenAI-compatible API. Supports function calling via tools param."""
@@ -311,6 +347,75 @@ class ModelGateway:
                         yield content
 
                     # finish_reason: tool_calls → yield parsed tool calls
+                    if finish == "tool_calls" and tool_call_buffer:
+                        for idx in sorted(tool_call_buffer.keys()):
+                            buf = tool_call_buffer[idx]
+                            try:
+                                args = json_mod.loads(buf["arguments"]) if buf["arguments"] else {}
+                            except json_mod.JSONDecodeError:
+                                args = {}
+                            yield json_mod.dumps({"tool_call": {"name": buf["name"], "arguments": args}})
+                except (json_mod.JSONDecodeError, KeyError, IndexError):
+                    continue
+
+    async def _call_stream_messages(
+        self, config: ModelConfig, messages: list[dict],
+        tools: Optional[list[dict]] = None,
+    ) -> AsyncIterator[str]:
+        """使用完整 messages 数组调用模型（支持 system/user/assistant/tool 多轮上下文）。"""
+        assert self._client is not None
+        payload = {
+            "model": config.model_name,
+            "messages": messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+        headers = {"Content-Type": "application/json"}
+        if config.api_key:
+            headers["Authorization"] = f"Bearer {config.api_key}"
+
+        import json as json_mod
+        tool_call_buffer: dict[str, dict] = {}
+        async with self._client.stream(
+            "POST", f"{config.api_base}/chat/completions",
+            json=payload, headers=headers, timeout=config.timeout_seconds,
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                data_str = line[6:]
+                if data_str == "[DONE]":
+                    break
+                try:
+                    chunk = json_mod.loads(data_str)
+                    choices = chunk.get("choices", [])
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta", {})
+                    finish = choices[0].get("finish_reason")
+                    tc_deltas = delta.get("tool_calls")
+                    if tc_deltas:
+                        for tc_d in tc_deltas:
+                            idx = tc_d.get("index", 0)
+                            if idx not in tool_call_buffer:
+                                tool_call_buffer[idx] = {"id": "", "name": "", "arguments": ""}
+                            buf = tool_call_buffer[idx]
+                            if tc_d.get("id"):
+                                buf["id"] = tc_d["id"]
+                            fn = tc_d.get("function", {})
+                            if fn.get("name"):
+                                buf["name"] += fn["name"]
+                            if fn.get("arguments"):
+                                buf["arguments"] += fn["arguments"]
+                    content = delta.get("content", "")
+                    if content:
+                        yield content
                     if finish == "tool_calls" and tool_call_buffer:
                         for idx in sorted(tool_call_buffer.keys()):
                             buf = tool_call_buffer[idx]
