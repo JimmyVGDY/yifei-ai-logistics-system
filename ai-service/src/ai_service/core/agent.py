@@ -80,7 +80,30 @@ class AgentOrchestrator:
         # Step 1: 加载工具注册表
         tools = await self._fetch_tools(ctx)
 
-        # Step 2: 渲染主对话 prompt
+        # Step 2: 规则闸门 — 意图分类（对齐 Java AiConversationIntentClassifier）
+        from ai_service.core.intent import IntentClassifier
+        classifier = IntentClassifier()
+        intent_result = classifier.classify(ctx.question)
+        intent = intent_result["intent"]
+
+        if intent in ("CORRECTION", "CLARIFY"):
+            # 直接回复，不走 LLM
+            answer = intent_result.get("direct_answer", "请补充更多信息。")
+            yield self._sse("thinking", {"message": "理解问题"})
+            for ch in answer:
+                yield self._sse("token", {"delta": ch})
+            yield self._sse("done", {
+                "conversationId": ctx.conversation_id,
+                "answer": answer,
+                "elapsedMs": int((time.monotonic() - ctx.start_time) * 1000),
+                "citationCount": 0, "toolCallCount": 0,
+            })
+            return
+
+        # CORRECTION/CLARIFY 之外 → Chat/Continuation/Business 走 LLM
+        use_tools = intent != "CHAT"
+
+        # Step 3: 渲染主对话 prompt
         from datetime import date as date_type
         today_str = date_type.today().strftime("%Y-%m-%d")
         rendered = self.prompt_engine.render("assistant-chat", {
@@ -112,8 +135,9 @@ class AgentOrchestrator:
             tool_calls_in_round = []
 
             try:
+                active_tools = tools if use_tools else None
                 async for delta in self._call_llm_with_tools(
-                    messages, tools, rendered.model, rendered.temperature, api_key,
+                    messages, active_tools, rendered.model, rendered.temperature, api_key,
                 ):
                     if isinstance(delta, ToolCall):
                         tool_calls_in_round.append(delta)

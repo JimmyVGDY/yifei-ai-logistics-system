@@ -104,26 +104,40 @@ class TestPromptEngine:
 
 
 class TestIntentClassifier:
-    def test_classify_no_gateway(self):
-        """意图分类器在 ModelGateway 不可用时返回默认值。"""
+    def test_classify_business_query(self):
+        """行为动词触发业务查询。"""
         from ai_service.core.intent import IntentClassifier
-        from ai_service.core.prompt_engine import PromptEngine
-        engine = PromptEngine(PROMPTS_DIR)
-        classifier = IntentClassifier(None, engine)
-        # 同步调用 classify（是 async 方法但内部有降级路径）
-        import asyncio
-        result = asyncio.run(classifier.classify("查一下订单"))
-        assert result["intent"] == "CHAT"  # default when gateway unavailable
+        classifier = IntentClassifier()
+        result = classifier.classify("查一下订单")
+        assert result["intent"] == "BUSINESS_QUERY"
 
-    def test_classify_empty_question(self):
+    def test_classify_correction(self):
+        """纠偏关键词触发 CORRECTION。"""
         from ai_service.core.intent import IntentClassifier
-        from ai_service.core.prompt_engine import PromptEngine
-        engine = PromptEngine(PROMPTS_DIR)
-        classifier = IntentClassifier(None, engine)
-        import asyncio
-        result = asyncio.run(classifier.classify(""))
+        classifier = IntentClassifier()
+        result = classifier.classify("记住了吗，以后只查运输任务")
+        assert result["intent"] == "CORRECTION"
+        assert "运输任务" in result["direct_answer"]
+
+    def test_classify_chat(self):
+        """聊天/系统问答触发 CHAT。"""
+        from ai_service.core.intent import IntentClassifier
+        classifier = IntentClassifier()
+        result = classifier.classify("你好，你能做什么")
         assert result["intent"] == "CHAT"
-        assert result["confidence"] == 0.0
+
+    def test_classify_clarify_ambiguous(self):
+        """歧义术语无上下文触发 CLARIFY。"""
+        from ai_service.core.intent import IntentClassifier
+        classifier = IntentClassifier()
+        result = classifier.classify("异常任务")
+        assert result["intent"] == "CLARIFY"
+
+    def test_classify_empty(self):
+        from ai_service.core.intent import IntentClassifier
+        classifier = IntentClassifier()
+        result = classifier.classify("")
+        assert result["intent"] == "CHAT"
 
 
 class TestGroundingGuard:

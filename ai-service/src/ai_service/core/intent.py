@@ -1,93 +1,110 @@
-"""意图分类与幻觉检查 —— 轻量 LLM 调用，结构化输出。"""
-
-import json
-from typing import Any, Optional
+"""意图分类与幻觉检查 —— 纯规则匹配（对齐原 Java AiConversationIntentClassifier + AiGroundingGuard）"""
 
 import structlog
 
-from ai_service.core.model_gateway import ModelGateway
-from ai_service.core.prompt_engine import PromptEngine
-
 logger = structlog.get_logger()
-
-# ── 默认回退值 ──
-_DEFAULT_INTENT = "CHAT"
-_DEFAULT_RISK_LEVEL = "SAFE"
 
 
 class IntentClassifier:
-    """轻量 LLM 意图分类器，调用 intent-classify 模板获取结构化意图。
+    """对话意图分类器 —— 关键词匹配，不调 LLM。
 
-    当 ModelGateway 不可用或模板缺失时返回安全默认值，
-    不会向调用方抛出异常。
+    对齐原 Java AiConversationIntentClassifier：
+    区分"用户在聊天/纠偏/限定范围"和"用户真的要查业务数据"。
     """
 
-    def __init__(self, gateway: ModelGateway, engine: PromptEngine):
-        self._gateway = gateway
-        self._engine = engine
+    CONTROL_WORDS = {
+        "记住", "记住了吗", "以后", "下次",
+        "不要再", "不是让你", "你理解错", "不要同时", "别同时",
+    }
+    CORRECTION_WORDS = {
+        "记住", "以后", "下次", "我说的是", "我的意思", "不是让你",
+        "你理解错", "不要同时", "别同时", "记住了吗", "明白了吗", "懂了吗", "听懂了吗",
+    }
+    CHAT_WORDS = {
+        "你是谁", "能做什么", "怎么用", "说明一下", "解释一下",
+        "你好", "谢谢",
+    }
+    QUERY_WORDS = {
+        "查", "查询", "搜索", "看看", "看一下", "统计", "汇总", "分析", "列出", "给我看",
+    }
+    AMBIGUOUS_TERMS = {"异常任务", "任务异常", "异常订单", "异常运单"}
+    CONTINUATION_WORDS = {
+        "只要", "只看", "剩下", "剩余", "继续", "下一页",
+        "待处理", "运输中", "已完成",
+    }
 
-    async def classify(self, question: str, history: Optional[list[str]] = None) -> dict[str, Any]:
-        """分类用户意图。
+    def __init__(self):
+        pass
 
-        Args:
-            question: 用户输入的问题文本。
-            history:  最近 N 轮对话历史（可选，最多取最后 5 轮）。
+    def classify(self, question: str, previous_message: str = "") -> dict:
+        """分类用户意图。返回 {intent, direct_answer, reason}。"""
+        text = self._normalize(question)
+        if not text:
+            return {"intent": "CHAT", "direct_answer": "", "reason": "empty"}
 
-        Returns:
-            dict with keys: intent, confidence, modules, reason
-            - intent:     意图类型枚举值
-            - confidence: 置信度 0.0-1.0
-            - modules:    涉及的模块列表
-            - reason:     分类理由
-        """
-        # ── 空输入保护 ──
-        if not question or not question.strip():
-            logger.debug("intent_empty_input")
-            return {"intent": _DEFAULT_INTENT, "confidence": 0.0, "modules": [], "reason": "empty_input"}
+        # 1. 纠偏/偏好
+        if self._is_control_preference(text):
+            scope = self._detect_scope(text)
+            return {
+                "intent": "CORRECTION",
+                "direct_answer": f"明白了，后续我会优先按『{scope}』理解你的查询范围。"
+                                 f"等你说具体查询条件时，我再按这个范围执行只读查询。",
+                "reason": "用户纠正 AI 行为或限定范围",
+            }
 
-        # ── 模板缺失保护 ──
-        if self._engine.get_meta("intent-classify") is None:
-            logger.warning("template_missing", code="intent-classify")
-            return {"intent": _DEFAULT_INTENT, "confidence": 0.0, "modules": [], "reason": "template_missing"}
+        # 2. 普通聊天
+        if self._is_chat(text):
+            return {"intent": "CHAT", "direct_answer": "", "reason": "聊天/系统问答"}
 
-        # ── 构建变量 ──
-        variables: dict[str, Any] = {"question": question}
-        if history:
-            variables["history"] = "\n".join(history[-5:])
+        # 3. 上下文续查
+        if previous_message and self._is_continuation(text):
+            return {"intent": "CONTINUATION", "direct_answer": "", "reason": "继承上轮查询状态"}
 
-        # ── 渲染 Prompt ──
-        try:
-            rendered = self._engine.render("intent-classify", variables)
-        except Exception as exc:
-            logger.warning("intent_render_failed", error=str(exc)[:200])
-            return {"intent": _DEFAULT_INTENT, "confidence": 0.0, "modules": [], "reason": "render_failed"}
+        # 4. 歧义澄清
+        if not previous_message and text in self.AMBIGUOUS_TERMS:
+            return {
+                "intent": "CLARIFY",
+                "direct_answer": "你是想查运输任务中的异常任务、异常管理中的异常记录，"
+                                 "还是订单/运单的异常状态？请补充一个范围。",
+                "reason": "业务对象存在歧义",
+            }
 
-        # ── 调用网关 ──
-        try:
-            response = await self._gateway.chat(
-                system_prompt=rendered.system_prompt,
-                user_prompt=rendered.user_prompt,
-                task_type="intent-classify",
-                temperature=rendered.temperature,
-                max_tokens=rendered.max_tokens,
-            )
-        except Exception as exc:
-            logger.warning("intent_gateway_failed", error=str(exc)[:200])
-            return {"intent": _DEFAULT_INTENT, "confidence": 0.0, "modules": [], "reason": "gateway_failed"}
+        # 5. 业务查询
+        return {"intent": "BUSINESS_QUERY", "direct_answer": "", "reason": "业务查询"}
 
-        # ── 解析 JSON 输出 ──
-        try:
-            parsed = json.loads(response.content)
-        except json.JSONDecodeError as exc:
-            logger.warning("intent_parse_failed", error=str(exc)[:200], raw=response.content[:300])
-            return {"intent": _DEFAULT_INTENT, "confidence": 0.0, "modules": [], "reason": "parse_failed"}
+    def _is_control_preference(self, text: str) -> bool:
+        has_control = any(w in text for w in self.CONTROL_WORDS)
+        if not has_control:
+            return False
+        # 只查/只看 但不带纠偏词 → 仍是查询
+        if any(w in text for w in ("只查", "只看")):
+            explicit = any(w in text for w in self.CORRECTION_WORDS)
+            return explicit or not self._has_query_action(text)
+        return any(w in text for w in self.CORRECTION_WORDS)
 
-        return {
-            "intent": parsed.get("intent", _DEFAULT_INTENT),
-            "confidence": float(parsed.get("confidence", 0.0)),
-            "modules": parsed.get("modules", []),
-            "reason": parsed.get("reason", ""),
-        }
+    def _is_chat(self, text: str) -> bool:
+        return any(w in text for w in self.CHAT_WORDS)
+
+    def _is_continuation(self, text: str) -> bool:
+        return any(w in text for w in self.CONTINUATION_WORDS)
+
+    def _has_query_action(self, text: str) -> bool:
+        return any(w in text for w in self.QUERY_WORDS)
+
+    def _detect_scope(self, text: str) -> str:
+        if "运输任务" in text: return "运输任务模块"
+        if "异常管理" in text: return "异常管理模块"
+        if "订单" in text: return "订单管理模块"
+        if "运单" in text: return "运单中心"
+        return "你刚刚限定的范围"
+
+    @staticmethod
+    def _normalize(message: str) -> str:
+        if not message:
+            return ""
+        return message.replace('　', ' ') \
+            .replace('​', '').replace('‌', '').replace('‍', '').replace('﻿', '') \
+            .replace(' ', '').strip()
 
 
 class GroundingGuard:
