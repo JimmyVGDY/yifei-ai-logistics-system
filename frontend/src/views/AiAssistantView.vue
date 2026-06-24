@@ -553,7 +553,12 @@ async function sendMessage() {
   } catch (err) {
     if (err.name !== 'AbortError') {
       const errorMsg = err.message || '系统响应超时，请稍后重试'
-      messages.value.push({ role: 'assistant', content: errorMsg })
+      if (messages.value[assistantMsgIndex]) {
+        messages.value[assistantMsgIndex].content = errorMsg
+        messages.value[assistantMsgIndex]._streaming = false
+      } else {
+        messages.value.push({ role: 'assistant', content: errorMsg })
+      }
       ElMessage.error(errorMsg)
     }
   } finally {

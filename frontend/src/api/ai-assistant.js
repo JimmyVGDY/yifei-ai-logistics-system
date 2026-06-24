@@ -1,4 +1,5 @@
 import http from './http'
+import { createSseParser } from './sse-parser'
 import { getAuthToken } from '../stores/auth-store'
 
 let activeStreamConversationId = ''
@@ -112,7 +113,6 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
-    let buffer = ''
     let result = null
     let streamError = null
     const toolCalls = []
@@ -164,40 +164,17 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
       }
     }
 
-    const processBuffer = (lines) => {
-      let evName = ''
-      let evData = ''
-      for (const line of lines) {
-        if (line.startsWith('event:')) {
-          evName = line.slice(6).trim()
-        } else if (line.startsWith('data:')) {
-          evData = line.slice(5).trim()
-        } else if (line === '' && evName && evData) {
-          parseSseEvent(evName, evData)
-          evName = ''
-          evData = ''
-        }
-      }
-      return { evName, evData }
-    }
+    const parser = createSseParser(({ event, data }) => parseSseEvent(event, data))
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) {
-        // 根因修复：流结束时处理 buffer 中剩余数据
-        // done 事件的 data 行可能被 TCP 分帧卡在 buffer 里
-        if (buffer.trim()) {
-          const finalLines = buffer.split('\n')
-          const { evName, evData } = processBuffer(finalLines)
-          parseSseEvent(evName, evData)
-        }
+        parser.feed(decoder.decode())
+        parser.close()
         break
       }
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-      processBuffer(lines)
+      parser.feed(decoder.decode(value, { stream: true }))
     }
 
     if (!result && streamError) {
