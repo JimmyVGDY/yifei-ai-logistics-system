@@ -309,14 +309,27 @@ public class AiChatPipeline {
             String traceId = traceContextSupport.currentOrNewTraceId();
 
             if (streaming) {
-                // SSE 代理透传
-                proxyPythonSse(outputStream, pythonRequest, traceId);
-                return new AiChatResponse(conversationId, "", citations, toolCalls, dataResults,
+                // SSE 代理透传，同时提取 answer 用于持久化
+                StringBuilder answerBuf = new StringBuilder();
+                proxyPythonSse(outputStream, pythonRequest, traceId, answerBuf);
+                // 持久化 AI 回答到 MySQL（和原 Java 路径 saveConversation 行为一致）
+                String assistantAnswer = answerBuf.length() > 0 ? answerBuf.toString() : "";
+                if (!assistantAnswer.isEmpty()) {
+                    conversationService.appendAssistantMessage(currentUserId(), currentUserCode(),
+                            conversationId, assistantAnswer, List.of(), List.of(), "");
+                    auditLogService.recordResponse(conversationId, safeMessage,
+                            "AI 回答已通过 Python AI 服务生成", System.currentTimeMillis() - start);
+                }
+                return new AiChatResponse(conversationId, assistantAnswer, citations, toolCalls, dataResults,
                         traceId, traceContextSupport.currentOrNewOperationId());
             } else {
                 // 同步调用，缓冲响应
                 StringBuilder answer = new StringBuilder();
                 proxyPythonSseToBuffer(outputStream, pythonRequest, answer);
+                if (answer.length() > 0) {
+                    conversationService.appendAssistantMessage(currentUserId(), currentUserCode(),
+                            conversationId, answer.toString(), List.of(), List.of(), "");
+                }
                 return new AiChatResponse(conversationId, answer.toString(), citations, toolCalls, dataResults,
                         traceId, traceContextSupport.currentOrNewOperationId());
             }
@@ -397,16 +410,18 @@ public class AiChatPipeline {
     /**
      * SSE 代理透传：Java 调用 Python /chat/stream，逐事件转发到前端 OutputStream。
      */
-    private void proxyPythonSse(OutputStream outputStream, Map<String, Object> pythonRequest, String traceId) throws IOException {
+    private void proxyPythonSse(OutputStream outputStream, Map<String, Object> pythonRequest,
+                                 String traceId, StringBuilder answerBuf) throws IOException {
         try {
-            proxyPythonSseInternal(outputStream, pythonRequest, traceId);
+            proxyPythonSseInternal(outputStream, pythonRequest, traceId, answerBuf);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Python SSE 调用被中断", e);
         }
     }
 
-    private void proxyPythonSseInternal(OutputStream outputStream, Map<String, Object> pythonRequest, String traceId) throws IOException, InterruptedException {
+    private void proxyPythonSseInternal(OutputStream outputStream, Map<String, Object> pythonRequest,
+                                         String traceId, StringBuilder answerBuf) throws IOException, InterruptedException {
         com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
         String jsonBody = objectMapper.writeValueAsString(pythonRequest);
 
@@ -433,10 +448,33 @@ public class AiChatPipeline {
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
             String line;
+            String lastEvent = "";
             while ((line = reader.readLine()) != null) {
                 // 逐行透传 SSE 事件
                 outputStream.write((line + "\n").getBytes(StandardCharsets.UTF_8));
                 outputStream.flush();
+                // 提取 token delta 用于持久化到 MySQL
+                if (line.startsWith("event:")) {
+                    lastEvent = line.substring(6).trim();
+                } else if (line.startsWith("data:") && "token".equals(lastEvent)) {
+                    try {
+                        String data = line.substring(5).trim();
+                        Map<String, ?> event = objectMapper.readValue(data, Map.class);
+                        Object delta = event.get("delta");
+                        if (delta instanceof String s) {
+                            answerBuf.append(s);
+                        }
+                    } catch (Exception ignored) { /* skip parse errors */ }
+                } else if (line.startsWith("data:") && "done".equals(lastEvent)) {
+                    try {
+                        String data = line.substring(5).trim();
+                        Map<String, ?> event = objectMapper.readValue(data, Map.class);
+                        Object answer = event.get("answer");
+                        if (answer instanceof String s && !s.isEmpty() && answerBuf.length() == 0) {
+                            answerBuf.append(s);  // 兜底：token 为空时用 done.answer
+                        }
+                    } catch (Exception ignored) { /* skip */ }
+                }
             }
         }
     }
