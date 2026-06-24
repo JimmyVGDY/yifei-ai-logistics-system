@@ -63,7 +63,7 @@ class JavaClient:
         import json as _json
         mini_ctx = {
             "userId": str(user_context.get("userId", "")),
-            "permissions": user_context.get("permissions", [])[:50],  # 最多50条权限
+            "permissions": user_context.get("permissions", []),
         }
         return {"X-Internal-User": _json.dumps(mini_ctx, ensure_ascii=False)}
 
