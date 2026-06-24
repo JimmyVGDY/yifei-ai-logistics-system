@@ -19,8 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import jimmy.ai.model.AiQueryCursor;
-
 /**
  * 工具执行服务 —— 根据工具名称和参数执行对应的只读查询工具。
  * <p>
@@ -39,8 +37,6 @@ public class ToolExecutorService {
     private final AiReadonlyQueryService readonlyQueryService;
     private final AiLogAnalysisService logAnalysisService;
     private final AiGeneratedSqlQueryService generatedSqlQueryService;
-    private final AiQueryCursorService queryCursorService;
-    private final AiSqlSafetyValidator sqlSafetyValidator;
     private final AiSensitiveDataMasker masker;
     private final AiAuditLogService auditLogService;
     private final UserContextResolver userContextResolver;
@@ -48,19 +44,15 @@ public class ToolExecutorService {
     private final AiQueryNormalizer queryNormalizer = new AiQueryNormalizer();
 
     public ToolExecutorService(AiReadonlyQueryService readonlyQueryService,
-                                AiLogAnalysisService logAnalysisService,
-                                AiGeneratedSqlQueryService generatedSqlQueryService,
-                                AiQueryCursorService queryCursorService,
-                                AiSqlSafetyValidator sqlSafetyValidator,
-                                AiSensitiveDataMasker masker,
+                                 AiLogAnalysisService logAnalysisService,
+                                 AiGeneratedSqlQueryService generatedSqlQueryService,
+                                 AiSensitiveDataMasker masker,
                                 AiAuditLogService auditLogService,
                                 UserContextResolver userContextResolver,
                                 AiToolCallContext toolCallContext) {
         this.readonlyQueryService = readonlyQueryService;
         this.logAnalysisService = logAnalysisService;
         this.generatedSqlQueryService = generatedSqlQueryService;
-        this.queryCursorService = queryCursorService;
-        this.sqlSafetyValidator = sqlSafetyValidator;
         this.masker = masker;
         this.auditLogService = auditLogService;
         this.userContextResolver = userContextResolver;
@@ -119,13 +111,16 @@ public class ToolExecutorService {
                     result = executeQueryDashboard();
                     break;
                 case "query_log_analysis":
-                    result = executeQueryLogAnalysis(safeArgs);
+                    result = safePermissions.contains("ai:log:analyze")
+                            ? executeQueryLogAnalysis(safeArgs)
+                            : errorResult("当前账号无权使用日志分析工具");
                     break;
                 case "execute_readonly_sql":
-                    result = executeReadonlySql(userId, safeArgs);
+                case "readonly_sql_analysis":
+                    result = executeReadonlySqlAnalysis(safeArgs);
                     break;
                 case "continue_cursor":
-                    result = executeContinueCursor(userId, safeArgs);
+                    result = executeContinueCursor(userId, conversationId, safeArgs);
                     break;
                 default:
                     result = errorResult("不支持的工具：" + toolName);
@@ -134,13 +129,14 @@ public class ToolExecutorService {
 
             String resultSummary = result.containsKey("success") ? String.valueOf(result.get("success")) : "unknown";
             String toolTarget = extractTarget(toolName, safeArgs);
-            auditLogService.recordToolCall(INTERNAL_CONVERSATION_ID, toolName, toolTarget,
+            auditLogService.recordToolCall(StringUtils.hasText(conversationId) ? conversationId : INTERNAL_CONVERSATION_ID,
+                    toolName, toolTarget,
                     "工具调用：" + toolName, resultSummary);
 
             return result;
         } catch (Exception e) {
             log.error("工具执行异常 toolName={} userId={}", toolName, maskUserId(userId), e);
-            return errorResult("工具执行失败：" + e.getMessage());
+            return errorResult("工具执行失败，请稍后重试或缩小查询范围");
         } finally {
             toolCallContext.snapshotAndClear();
             SseChatContext.clear();
@@ -278,73 +274,53 @@ public class ToolExecutorService {
         return result;
     }
 
-    private Map<String, Object> executeReadonlySql(String userId, Map<String, Object> args) {
-        String sql = stringArg(args, "sql");
+    private Map<String, Object> executeReadonlySqlAnalysis(Map<String, Object> args) {
+        String question = stringArg(args, "question");
+        if (!StringUtils.hasText(question)) {
+            question = stringArg(args, "sql");
+        }
 
-        if (!StringUtils.hasText(sql)) {
-            return errorResult("缺少必填参数 sql");
+        if (!StringUtils.hasText(question)) {
+            return errorResult("缺少必填参数 question");
         }
 
         try {
-            AiSqlSafetyValidator.ValidatedSql validatedSql = sqlSafetyValidator.validate(sql);
-            AiGeneratedSqlQueryResult queryResult = generatedSqlQueryService.query(sql);
+            AiGeneratedSqlQueryResult queryResult = generatedSqlQueryService.query(question);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("success", queryResult.executed());
             result.put("data", queryResult.records() != null ? maskRows(queryResult.records()) : Collections.emptyList());
+            result.put("rows", queryResult.records() != null ? maskRows(queryResult.records()) : Collections.emptyList());
             result.put("totalCount", queryResult.records() != null ? queryResult.records().size() : 0);
             result.put("returnedCount", queryResult.records() != null ? queryResult.records().size() : 0);
             result.put("message", masker.mask(queryResult.message()));
+            result.put("summary", masker.mask(queryResult.message()));
             result.put("citation", Map.of(
                     "source", "临时只读 SQL 查询",
-                    "module", String.join(",", validatedSql.tables()),
+                    "module", "generated_sql",
                     "permissionChecked", true
             ));
             return result;
-        } catch (IllegalArgumentException e) {
-            return errorResult("SQL 安全校验失败：" + e.getMessage());
         } catch (Exception e) {
-            log.warn("SQL 执行失败 userId={} reason={}", maskUserId(userId), e.getMessage());
-            return errorResult("SQL 执行失败：" + e.getMessage());
+            log.warn("临时 SQL 分析失败 reason={}", e.getMessage());
+            return errorResult("临时 SQL 分析失败，请换一种描述后重试");
         }
     }
 
-    private Map<String, Object> executeContinueCursor(String userId, Map<String, Object> args) {
+    private Map<String, Object> executeContinueCursor(String userId, String conversationId, Map<String, Object> args) {
         String cursorId = stringArg(args, "cursorId");
-        Object offsetObj = args.get("offset");
-        int offset = offsetObj instanceof Number n ? n.intValue() : 0;
 
         if (!StringUtils.hasText(cursorId)) {
             return errorResult("缺少必填参数 cursorId");
         }
 
         try {
-            String internalConvId = "AI_INTERNAL";
+            String cursorConversationId = StringUtils.hasText(conversationId) ? conversationId : INTERNAL_CONVERSATION_ID;
             String currentUserId = userContextResolver.currentUserId();
             String currentUserCode = userContextResolver.currentUserCode();
-            Optional<AiQueryCursor> cursorOpt = queryCursorService.continueCursor(
-                    cursorId, internalConvId, currentUserId, currentUserCode, offset);
-            if (cursorOpt.isEmpty()) {
-                return errorResult("游标不存在或已过期，请重新发起查询");
-            }
-            AiQueryCursor cursor = cursorOpt.get();
-            Map<String, Object> map = new LinkedHashMap<>();
-            map.put("success", true);
-            map.put("cursorId", cursorId);
-            map.put("keyword", masker.mask(cursor.getKeyword()));
-            map.put("moduleName", masker.mask(cursor.getModuleName()));
-            map.put("page", cursor.getPage());
-            map.put("pageSize", cursor.getPageSize());
-            map.put("totalCount", cursor.getTotal());
-            map.put("returnedCount", cursor.getReturnedCount());
-            map.put("hasMore", cursor.getTotal() != null && cursor.getReturnedCount() != null
-                    && cursor.getTotal() > cursor.getReturnedCount());
-            map.put("citation", Map.of(
-                    "source", "查询游标续查",
-                    "module", cursor.getModuleName() != null ? cursor.getModuleName() : "",
-                    "permissionChecked", "inherit"
-            ));
-            return map;
+            AiReadonlyQueryResult result = readonlyQueryService.queryCursor(
+                    cursorId, cursorConversationId, currentUserId, currentUserCode);
+            return wrapQueryResult(result, "查询游标续查");
         } catch (Exception e) {
             log.warn("游标继续查询失败 cursorId={} userId={}", cursorId, maskUserId(userId), e);
             return errorResult("游标查询失败，该查询结果可能已过期，请重新发起查询");
@@ -355,7 +331,7 @@ public class ToolExecutorService {
 
     private Map<String, Object> wrapQueryResult(AiReadonlyQueryResult result, String moduleName) {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put("success", true);
+        map.put("success", result.executed());
         map.put("data", result.rows() != null ? maskRows(result.rows()) : Collections.emptyList());
         map.put("rows", result.rows() != null ? maskRows(result.rows()) : Collections.emptyList());
         map.put("columns", result.columns() != null ? result.columns() : Collections.emptyList());
@@ -415,9 +391,13 @@ public class ToolExecutorService {
 
     private Map<String, Object> errorResult(String message) {
         Map<String, Object> map = new LinkedHashMap<>();
+        String safeMessage = masker.mask(message);
         map.put("success", false);
-        map.put("error", masker.mask(message));
+        map.put("error", safeMessage);
+        map.put("message", safeMessage);
+        map.put("summary", safeMessage);
         map.put("data", Collections.emptyList());
+        map.put("rows", Collections.emptyList());
         map.put("totalCount", 0);
         map.put("returnedCount", 0);
         return map;
@@ -444,7 +424,8 @@ public class ToolExecutorService {
             case "joined_business_query": return stringArg(args, "scene");
             case "query_dashboard": return "运营看板";
             case "query_log_analysis": return "日志分析";
-            case "execute_readonly_sql": return "临时SQL";
+            case "execute_readonly_sql":
+            case "readonly_sql_analysis": return "临时SQL";
             case "continue_cursor": return "继续翻页";
             default: return toolName;
         }

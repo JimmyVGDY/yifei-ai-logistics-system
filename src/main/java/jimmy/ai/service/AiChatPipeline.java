@@ -361,9 +361,11 @@ public class AiChatPipeline {
         // 权限：SSE 模式下从 SseChatContext 读（已从 HTTP 线程捕获），普通模式从 StpUtil 读
         List<String> permissions = SseChatContext.getPermissions();
         if (permissions == null || permissions.isEmpty()) {
-            permissions = SseChatContext.getLoginId() != null
-                    ? StpUtil.getPermissionList()
-                    : List.of();
+            try {
+                permissions = StpUtil.getLoginIdDefaultNull() != null ? StpUtil.getPermissionList() : List.of();
+            } catch (RuntimeException exception) {
+                permissions = List.of();
+            }
         }
         userCtx.put("permissions", permissions);
         String roleCode = SseChatContext.getRoleCode();
@@ -459,7 +461,6 @@ public class AiChatPipeline {
                 outputStream.flush();
                 if (line.startsWith("event:")) {
                     lastEvent = line.substring(6).trim();
-                    if ("done".equals(lastEvent)) doneReceived = true;
                 } else if (line.startsWith("data:") && "token".equals(lastEvent)) {
                     try {
                         Map<String, ?> event = objectMapper.readValue(line.substring(5).trim(), Map.class);
@@ -473,6 +474,7 @@ public class AiChatPipeline {
                         if (answer instanceof String s && !s.isEmpty() && answerBuf.length() == 0) {
                             answerBuf.append(s);
                         }
+                        doneReceived = true;
                     } catch (Exception ignored) {}
                 }
             }

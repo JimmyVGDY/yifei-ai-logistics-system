@@ -34,12 +34,15 @@ public class ToolRegistryService {
      */
     public List<Map<String, Object>> buildRegistry(String userId, List<String> permissions) {
         List<Map<String, Object>> tools = new ArrayList<>();
+        List<String> safePermissions = permissions == null ? List.of() : permissions;
 
         tools.add(buildQueryBusinessModule());
         tools.add(buildGlobalFuzzySearch());
         tools.add(buildJoinedBusinessQuery());
         tools.add(buildQueryDashboard());
-        tools.add(buildQueryLogAnalysis());
+        if (safePermissions.contains("ai:log:analyze")) {
+            tools.add(buildQueryLogAnalysis());
+        }
         tools.add(buildExecuteReadonlySql());
         tools.add(buildContinueCursor());
 
@@ -149,15 +152,15 @@ public class ToolRegistryService {
     private Map<String, Object> buildExecuteReadonlySql() {
         Map<String, Object> tool = new LinkedHashMap<>();
         tool.put("name", "execute_readonly_sql");
-        tool.put("description", "执行一条经过安全校验的 SELECT 只读 SQL 查询，用于复杂统计、多表关联等无法通过标准模块查询满足的场景。SQL 必须只包含 SELECT 语句，禁止写操作。系统会自动校验表名白名单、字段权限和语句安全性。");
+        tool.put("description", "根据用户的自然语言统计/关联分析问题生成并执行临时只读 SQL。只用于复杂统计、多表关联、排名、汇总等标准模块查询无法满足的场景。不要直接传 SQL，传用户原始问题；系统会生成候选 SELECT 并做表白名单、字段权限和语句安全校验。");
 
         Map<String, Object> properties = new LinkedHashMap<>();
-        addStringProp(properties, "sql", "经过校验的 SELECT 只读 SQL 语句。仅支持单条 SELECT，禁止 INSERT/UPDATE/DELETE/DROP 等写操作，表名和字段必须在系统白名单内");
+        addStringProp(properties, "question", "用户原始统计或关联分析问题，例如：统计本月各客户订单数量排名、按异常类型汇总近7天异常数");
 
         Map<String, Object> parameters = new LinkedHashMap<>();
         parameters.put("type", "object");
         parameters.put("properties", properties);
-        parameters.put("required", List.of("sql"));
+        parameters.put("required", List.of("question"));
 
         tool.put("parameters", parameters);
         return tool;
