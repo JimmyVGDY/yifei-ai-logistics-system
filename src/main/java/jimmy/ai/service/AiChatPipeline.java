@@ -344,8 +344,21 @@ public class AiChatPipeline {
         Map<String, Object> userCtx = new LinkedHashMap<>();
         userCtx.put("userId", currentUserId());
         userCtx.put("userCode", currentUserCode());
-        userCtx.put("permissions", StpUtil.getPermissionList());
-        userCtx.put("roleCode", SseChatContext.getRoleCode());
+        // 权限：SSE 模式下从 SseChatContext 读（已从 HTTP 线程捕获），普通模式从 StpUtil 读
+        List<String> permissions = SseChatContext.getPermissions();
+        if (permissions == null || permissions.isEmpty()) {
+            permissions = SseChatContext.getLoginId() != null
+                    ? StpUtil.getPermissionList()
+                    : List.of();
+        }
+        userCtx.put("permissions", permissions);
+        String roleCode = SseChatContext.getRoleCode();
+        if ((roleCode == null || roleCode.isEmpty()) && StpUtil.getLoginIdDefaultNull() != null) {
+            try {
+                roleCode = String.valueOf(StpUtil.getSession().get("roleCode", ""));
+            } catch (Exception ignore) {}
+        }
+        userCtx.put("roleCode", roleCode == null ? "" : roleCode);
         pythonReq.put("userContext", userCtx);
 
         // 历史消息（从 MySQL 加载最近对话）
