@@ -52,18 +52,18 @@ public class ToolRegistryService {
     private Map<String, Object> buildQueryBusinessModule() {
         Map<String, Object> tool = new LinkedHashMap<>();
         tool.put("name", "query_business_module");
-        tool.put("description", "查询单个物流业务模块的数据（如订单、运单、客户、调度、任务、轨迹、司机、车辆、异常、费用、用户、角色、文件、操作日志）。适用于用户明确指定了查询范围的场景。");
+        tool.put("description", "查询单个物流业务模块的数据。用户说的业务名就是 module (如费用=fees 订单=orders 运单=waybills 异常=anomalies)。用户说的具体查询条件(人名/单号/车牌等)才是 keyword；用户只是要看某模块的整体数据时 keyword 留空。用户说的时间范围(今天/本周/这个月/上个月等)要计算成 startTime/endTime 传入，格式 yyyy-MM-dd HH:mm:ss。");
 
         Map<String, Object> properties = new LinkedHashMap<>();
-        addStringProp(properties, "module", "要查询的业务模块名称或编码。可选值：" + String.join("、", ALL_MODULES));
-        addStringProp(properties, "keyword", "搜索关键词，如客户名称、订单号、运单号、司机姓名、车牌号、地址、状态等");
-        addStringProp(properties, "startTime", "查询开始时间，格式 yyyy-MM-dd HH:mm:ss");
-        addStringProp(properties, "endTime", "查询结束时间，格式 yyyy-MM-dd HH:mm:ss");
+        addStringProp(properties, "module", "模块名称，如 fees / orders / waybills / customers / anomalies / dispatch / tasks / tracking / drivers / vehicles");
+        addStringProp(properties, "keyword", "具体搜索条件（人名、单号、车牌、地址等），仅查看模块整体数据时留空字符串");
+        addStringProp(properties, "startTime", "开始时间 yyyy-MM-dd HH:mm:ss, 用户说这个月就传本月1日 00:00:00");
+        addStringProp(properties, "endTime", "结束时间 yyyy-MM-dd HH:mm:ss, 用户说这个月就传今天 23:59:59");
 
         Map<String, Object> parameters = new LinkedHashMap<>();
         parameters.put("type", "object");
         parameters.put("properties", properties);
-        parameters.put("required", List.of("module"));  // keyword 可选
+        parameters.put("required", List.of("module"));  // keyword 可选，无 keyword 时查模块全部
 
         tool.put("parameters", parameters);
         return tool;

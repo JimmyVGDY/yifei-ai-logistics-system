@@ -145,10 +145,17 @@ public class ToolExecutorService {
         if (!StringUtils.hasText(module)) {
             return errorResult("缺少必填参数 module");
         }
-        // keyword 可选：用户说"看一下这个月的费用"时没有具体关键词，查全部
-
-        AiReadonlyQueryResult result = readonlyQueryService.queryModule(module,
-                StringUtils.hasText(keyword) ? keyword : "", startTime, endTime);
+        // keyword 可选：没有关键词时查模块全部数据，有日期范围则按范围过滤
+        String safeKeyword = StringUtils.hasText(keyword) ? keyword : "";
+        String safeStart = StringUtils.hasText(startTime) ? startTime : "";
+        String safeEnd = StringUtils.hasText(endTime) ? endTime : "";
+        // 既无关键词也无时间范围 → 默认最近 30 天
+        if (!StringUtils.hasText(safeKeyword) && !StringUtils.hasText(safeStart)) {
+            java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"));
+            safeStart = today.minusDays(30).toString() + " 00:00:00";
+            safeEnd = today.toString() + " 23:59:59";
+        }
+        AiReadonlyQueryResult result = readonlyQueryService.queryModule(module, safeKeyword, safeStart, safeEnd);
         return wrapQueryResult(result, module);
     }
 
