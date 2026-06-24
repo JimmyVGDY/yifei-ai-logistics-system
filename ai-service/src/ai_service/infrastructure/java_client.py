@@ -35,14 +35,8 @@ class JavaClient:
 
     async def execute_tool(self, tool_name: str, arguments: dict[str, Any],
                            user_context: dict[str, Any] = None) -> dict[str, Any]:
-        """回调 Java /ai/internal/tool/execute 执行业务查询。
-
-        Java 返回：Map 直接是工具执行结果（含 success/data/totalCount/cursorId/citation 等字段）。
-        """
-        headers = {}
-        if user_context:
-            import json as _json
-            headers["X-Internal-User"] = _json.dumps(user_context, ensure_ascii=False)
+        """回调 Java /ai/internal/tool/execute 执行业务查询。"""
+        headers = self._build_internal_headers(user_context)
         resp = await self.client.post(
             "/ai/internal/tool/execute",
             json={"toolName": tool_name, "arguments": arguments},
@@ -54,18 +48,24 @@ class JavaClient:
     # ── Tool Registry ──
 
     async def fetch_tool_registry(self, user_context: dict[str, Any] = None) -> list[dict[str, Any]]:
-        """拉取当前用户可用的工具列表（含 name、description、parameters Schema）。
-
-        Java 返回格式：{"success": true, "tools": [...], "count": N}
-        """
-        headers = {}
-        if user_context:
-            import json as _json
-            headers["X-Internal-User"] = _json.dumps(user_context, ensure_ascii=False)
+        """拉取当前用户可用的工具列表。"""
+        headers = self._build_internal_headers(user_context)
         resp = await self.client.get("/ai/internal/tools/registry", headers=headers)
         resp.raise_for_status()
         body = resp.json()
         return body.get("tools", [])
+
+    @staticmethod
+    def _build_internal_headers(user_context: dict[str, Any] = None) -> dict[str, str]:
+        """构建 X-Internal-User 头，仅传 userId + permissions（精简控制头大小 < 4KB）。"""
+        if not user_context:
+            return {}
+        import json as _json
+        mini_ctx = {
+            "userId": str(user_context.get("userId", "")),
+            "permissions": user_context.get("permissions", [])[:50],  # 最多50条权限
+        }
+        return {"X-Internal-User": _json.dumps(mini_ctx, ensure_ascii=False)}
 
 
 java_client = JavaClient()

@@ -1,5 +1,6 @@
 server:
   port: ${SERVER_PORT:8080}
+  max-http-request-header-size: 16KB       # Python X-Internal-User 头含权限列表可能较大
 
 spring:
   servlet:
