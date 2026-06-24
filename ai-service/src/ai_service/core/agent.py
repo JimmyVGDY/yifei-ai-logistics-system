@@ -105,33 +105,36 @@ class AgentOrchestrator:
             })
 
             # Call LLM with tool definitions
-            answer = ""
+            full_answer = ""
             tool_calls_in_round = []
 
             try:
                 async for delta in self._call_llm_with_tools(
                     messages, tools, rendered.model, rendered.temperature, api_key,
                 ):
-                    # delta could be a text token or a parsed tool_call
                     if isinstance(delta, ToolCall):
                         tool_calls_in_round.append(delta)
                     elif isinstance(delta, str):
-                        answer += delta
+                        full_answer += delta
                         yield self._sse("token", {"delta": delta})
             except Exception as exc:
                 yield self._sse("error", {
                     "code": "LLM_ERROR",
                     "message": f"模型调用失败: {exc}",
+                    "elapsedMs": int((time.monotonic() - ctx.start_time) * 1000),
                 })
                 return
 
             # If LLM wants to call tools, execute them
             if tool_calls_in_round:
                 for tc in tool_calls_in_round:
+                    elapsed_ms = int((time.monotonic() - ctx.start_time) * 1000)
                     yield self._sse("tool_start", {
                         "toolName": tc.name,
-                        "arguments": tc.arguments,
-                        "iteration": ctx.iteration,
+                        "target": str(tc.arguments.get("module", tc.arguments.get("keyword", ""))),
+                        "toolCallCount": len(ctx.tool_results) + 1,
+                        "maxToolCalls": max_iterations,
+                        "elapsedMs": elapsed_ms,
                     })
 
                     result = await self._execute_tool(tc)
@@ -139,12 +142,14 @@ class AgentOrchestrator:
 
                     yield self._sse("tool_result", {
                         "toolName": tc.name,
-                        "success": result.success,
-                        "summary": result.summary,
+                        "target": str(tc.arguments.get("module", tc.arguments.get("keyword", ""))),
+                        "result": result.summary,
                         "totalCount": result.total_count,
                         "cursorId": result.cursor_id,
                         "citation": result.citation,
-                        "iteration": ctx.iteration,
+                        "toolCallCount": len(ctx.tool_results),
+                        "maxToolCalls": max_iterations,
+                        "elapsedMs": elapsed_ms,
                     })
 
                     # Append tool result to messages for next LLM round
@@ -167,13 +172,14 @@ class AgentOrchestrator:
             # No tool calls = final answer
             break
 
-        # Done event
+        # Done event — 字段名对齐前端 AiAssistantView.vue 的期望
         total_ms = (time.monotonic() - ctx.start_time) * 1000
         yield self._sse("done", {
             "conversationId": ctx.conversation_id,
-            "toolCalls": len(ctx.tool_results),
-            "iterations": ctx.iteration,
-            "durationMs": int(total_ms),
+            "answer": full_answer,
+            "elapsedMs": int(total_ms),
+            "citationCount": len(ctx.tool_results),
+            "toolCallCount": len(ctx.tool_results),
         })
 
     async def _fetch_tools(self) -> list[dict]:
