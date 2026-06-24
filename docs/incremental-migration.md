@@ -166,14 +166,6 @@ source scripts/sql/20260622_incremental_ai_memory_governance.sql;
 
 该脚本可重复执行。
 
-## 相关文档
-
-- [项目文档索引](README.md)
-- [物流数据库说明](logistics-database.md)
-- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
-- [配置说明](configuration.md)
-- [Spring AI 接入说明](spring-ai.md)
-
 ### `20260621_incremental_ai_prompt_template.sql`
 
 该脚本用于启用 AI Prompt 模板治理和模板级 token 追踪：
@@ -220,3 +212,13 @@ source scripts/sql/20260622_incremental_ai_memory_governance.sql;
 相关代码改动：
 - `AiTokenUsageService` 的费用计算从单一单价改为输入/输出分开计价 + 缓存折扣。DeepSeek v4-flash 缓存命中 ¥0.02/M vs 未命中 ¥1.00/M。
 - `AiModelGateway` 通过 `Usage.getNativeUsage()` → `OpenAiApi.Usage.promptTokensDetails().cachedTokens()` 提取缓存命中数。
+
+## 相关文档
+
+- [项目文档索引](README.md)
+- [物流数据库说明](logistics-database.md)
+- [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
+- [配置说明](configuration.md)
+- [Spring AI 接入说明](spring-ai.md)
+- [Python AI 服务开发指南](python-ai-service.md)
+- [ADR 0001 — Java+Python 混合架构](adr/0001-java-python-hybrid-architecture.md)

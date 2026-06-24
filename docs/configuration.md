@@ -173,9 +173,23 @@ POST /auth/logout
 
 `/auth/login` 和 `/actuator/health` 会放行，其余接口默认要求登录。
 
-## Spring AI 助手
+## Spring AI 助手（迁移中 → Python）
 
-AI 助手接口统一由后端代理调用模型，前端不会接触模型密钥。当前只开放只读问答、日志排障、白名单业务查询、受控临时 SELECT 查询和账号级长期记忆管理：
+> AI 模块正在从 Java Spring AI 迁移到 Python FastAPI。当 `app.ai.python.enabled=true` 时，AI 请求自动委托 Python 服务处理。详见 [ADR 0001](adr/0001-java-python-hybrid-architecture.md) 和 [Python AI 服务开发指南](python-ai-service.md)。
+
+### Java ↔ Python 通信配置
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `APP_AI_PYTHON_ENABLED` | `false` | 启用 Python AI 服务代理 |
+| `APP_AI_PYTHON_BASE_URL` | `http://127.0.0.1:8001` | Python 服务地址 |
+| `APP_AI_PYTHON_TIMEOUT_SECONDS` | `180` | Python 调用超时（秒） |
+
+Python 侧环境变量见 [Python AI 服务开发指南](python-ai-service.md)。
+
+### Spring AI 接口（Java 实现，迁移前的默认路径）
+
+AI 助手接口统一由后端代理调用模型，前端不会接触模型密钥：
 
 ```text
 POST /ai/chat

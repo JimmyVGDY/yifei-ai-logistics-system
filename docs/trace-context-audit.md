@@ -21,7 +21,7 @@ source scripts/sql/20260602_incremental_operation_log_login_session.sql;
 - 结构化 JSON 日志通过 MDC 输出 `traceId`、`operationId`、`loginSessionId`、`userId`、`userCode`、`roleCode` 等字段。
 - 订单 RabbitMQ 事件会携带 `traceId`、`operationId`、`loginSessionId`、`userId`、`userCode`、`usernameMasked`、`roleCode`。
 - 消费端恢复消息中的 MDC 上下文后再执行业务，处理完成后清理 MDC，避免上下文污染下一条消息。
-- AI SSE 流式问答（`POST /ai/chat/stream`、`POST /ai/agent/stream`）运行在 Spring MVC 异步线程中，不能直接依赖 Sa-Token 和 MDC 的请求线程 `ThreadLocal`。Controller 会预捕获 `loginId`、权限列表、角色、客户范围、用户编号、`usernameMasked` 和 `loginSessionId`，通过 `SseChatContext` 传递给异步执行线程，并在 `finally` 块中清理。下游只读工具、临时 SQL 校验、长期记忆和 AI 审计日志必须优先读取这份快照，而非直接调用 `StpUtil`。
+- AI SSE 流式问答（`POST /ai/chat/stream`）运行在 Spring MVC 异步线程中，不能直接依赖 Sa-Token 和 MDC 的请求线程 `ThreadLocal`。Controller 会预捕获 `loginId`、权限列表、角色、客户范围、用户编号、`usernameMasked` 和 `loginSessionId`，通过 `SseChatContext` 传递给异步执行线程，并在 `finally` 块中清理。下游只读工具、临时 SQL 校验、长期记忆和 AI 审计日志必须优先读取这份快照，而非直接调用 `StpUtil`。Python AI 服务通过 HTTP Header 接收用户上下文，不直接访问 Sa-Token。
 - XXL-Job 每次任务执行生成独立 `jobRunId`，同时设置 `traceId`，并使用 `operationId=jobRunId`，`userId/userCode=system`，`roleCode=SYSTEM`。
 
 ## 查询建议

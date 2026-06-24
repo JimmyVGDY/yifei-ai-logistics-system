@@ -7,6 +7,7 @@
 - **JDK 21**（推荐 Temurin 21 / Zulu 21 / Corretto 21）
 - **Maven 3.9.x**（最低 3.9+）
 - **Node.js 18 LTS**（最低 16+，仅前端开发需要）
+- **Python 3.12+**（AI 功能需要，需安装 `uv` 包管理器：`pip install uv`）
 - **Git**（需要能访问 Gitee 仓库）
 - 本机已安装并启动以下中间件（Windows 环境路径见下文）
 

@@ -534,9 +534,6 @@ where created_at >= date_sub(now(), interval 30 day)
 group by model_name, purpose
 order by cost_usd desc;
 ```
-  "memoryEnabled": true,
-  "answerStyle": "先给结论，再列关键依据"
-}
 ```
 
 预期结果：

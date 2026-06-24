@@ -8,7 +8,7 @@
 - Spring Boot 升级为 3.5.14。
 - Spring Cloud 升级为 2025.0.2。
 - Spring Cloud Alibaba 升级为 2025.0.0.0。
-- Spring AI BOM 接入 1.1.7，当前只用于只读 AI 助手和日志排障。
+- Spring AI BOM 接入 1.1.7，当前只用于只读 AI 助手和日志排障。AI 模块正在迁移至 Python FastAPI（详见 [ADR 0001](adr/0001-java-python-hybrid-architecture.md)），Spring AI 在 `app.ai.python.enabled=false` 时作为默认路径保留。
 - Sa-Token 切换为 Boot3 starter，保留现有登录、会话、权限和按钮控制逻辑。
 - MyBatis Spring Boot Starter 升级为 3.0.4，继续使用 Mapper 接口 + XML 维护 SQL。
 - Servlet、Validation、PostConstruct 相关包迁移到 Jakarta 命名空间。

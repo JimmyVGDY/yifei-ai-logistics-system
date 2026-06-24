@@ -226,6 +226,16 @@ log.info("订单创建，客户手机={}, 地址={}", phone, address);
 | `operationId` | 单次操作唯一 ID，用于操作日志审计 |
 | `MDC` | Mapped Diagnostic Context，SLF4J 的日志上下文 |
 
+## Python 编码规范
+
+> Python 代码在 `ai-service/` 目录下，负责 AI 推理（模型网关、Agent 编排、RAG、记忆智能）。详见 [Python AI 服务开发指南](python-ai-service.md)。
+
+- 遵循 **PEP 8**，行宽 ≤ 120 字符（`pyproject.toml` 中 `ruff` 配置）。
+- 所有异步函数使用 `async def` + `await`，HTTP 客户端用 `httpx.AsyncClient(trust_env=False)`。
+- 日志使用 `structlog.get_logger()`，关键操作打 `info`，调试信息打 `debug`。
+- 模型返回必须通过 `PromptEngine.render()` 校验必填变量，禁止直接把用户输入拼进 Prompt。
+- 单元测试使用 `pytest` + `pytest-asyncio`，`uv run pytest tests/unit/ -v` 运行。
+
 ## 相关文档
 
 - [项目文档索引](README.md) — 所有文档入口

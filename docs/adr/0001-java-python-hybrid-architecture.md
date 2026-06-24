@@ -23,3 +23,12 @@ status: accepted
 **Qdrant 归 Python 独占**：避免向量维度变更时双端同步、Embedding 调用重复、连接池竞争。Java 通过 HTTP API 调用 Python 的 `/internal/memory/*` 和 `/internal/rag/*` 间接操作 Qdrant。
 
 **Prompt 模板用 Git 文件管理**：不在 MySQL 存储模板。模板放 Python 侧 `prompts/` 目录，与代码同步版本化。安全性更好（不进数据库备份链路、不走 binlog），Git 原生支持回滚和变更审核。
+
+## 相关文档
+
+- [项目文档索引](../README.md)
+- [Python AI 服务开发指南](../python-ai-service.md)
+- [架构说明](../architecture.md)
+- [AI 助手设计](../ai-assistant-design.md)
+- [Spring AI 接入说明](../spring-ai.md)
+- [CONTEXT-MAP](../../CONTEXT-MAP.md)

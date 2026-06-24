@@ -227,7 +227,25 @@ GET  http://127.0.0.1:8080/actuator/health
 GET  http://127.0.0.1:8080/actuator/prometheus
 ```
 
-AI 助手未配置模型密钥时仍可启动，接口会返回本地文档检索和明确的配置提示。需要真实模型回答时设置 `SPRING_AI_OPENAI_API_KEY` 等变量，详见 [Spring AI 接入说明](spring-ai.md)。
+### Python AI 服务
+
+> AI 模块已迁移至 Python FastAPI 服务。开发时需先启动 Python 服务，再启动 Java。
+
+```bash
+# 1. 安装依赖（仅首次）
+cd ai-service
+uv sync
+
+# 2. 设置 API Key（从 Nacos spring-ai.yml 获取）
+set SPRING_AI_OPENAI_API_KEY=sk-***
+
+# 3. 启动（PyCharm 或命令行）
+uv run uvicorn ai_service.main:app --host 127.0.0.1 --port 8001 --reload
+```
+
+Java 侧通过 `app.ai.python.enabled=true` 启用 Python AI 服务代理。详见 [Python AI 服务开发指南](python-ai-service.md) 和 [ADR 0001](adr/0001-java-python-hybrid-architecture.md)。
+
+AI 助手未配置模型密钥时仍可启动，接口会返回本地文档检索和明确的配置提示。需要真实模型回答时设置 `SPRING_AI_OPENAI_API_KEY` 等变量，详见 [Spring AI 接入说明](spring-ai.md)（迁移前的 Java 实现）。
 
 AI 长期记忆和 RAG 文档检索使用 Qdrant 做向量召回，本地脚本如下：
 

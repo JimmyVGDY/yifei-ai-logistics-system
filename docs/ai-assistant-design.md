@@ -155,26 +155,30 @@ controller
 └── AiAssistantController
 
 service
-├── AiAssistantService
-├── AiChatPipeline
-├── AiKnowledgeService
-├── AiDocumentIndexer
-├── AiDocumentChunker
-├── AiBusinessQueryTools
-├── AiToolCallContext
-├── AiIntentPlanner
-├── AiReadonlyQueryService
-├── AiQueryCursorService
-├── AiGeneratedSqlQueryService
-├── AiReadableSchemaRegistry
-├── AiSqlSafetyValidator
-├── AiLogAnalysisService
-├── AiConversationService
-├── AiMemoryService
-├── AiQdrantMemoryClient
-├── AiMemoryVectorEncoder
-├── AiSensitiveDataMasker
-└── AiModelGateway
+├── AiAssistantService                     # 门面（保留 Java）
+├── AiChatPipeline                        # 编排管线（含 pythonEnabled 分支）
+├── AiKnowledgeService                    # → Python KnowledgeRetriever
+├── AiDocumentIndexer                     # → Python DocumentIndexer（待迁移）
+├── AiDocumentChunker                     # → Python DocumentChunker（待迁移）
+├── AiBusinessQueryTools                  # 工具集（保留 Java，ToolExecutor 封装）
+├── AiToolCallContext                     # SSE 推送上下文（保留 Java）
+├── AiIntentPlanner                       # 意图规划（保留 Java，规则匹配）
+├── AiReadonlyQueryService               # 只读查询（保留 Java）
+├── AiQueryCursorService                 # 查询游标（保留 Java）
+├── AiGeneratedSqlQueryService           # 临时 SQL（保留 Java）
+├── AiReadableSchemaRegistry             # 可读 schema（保留 Java）
+├── AiSqlSafetyValidator                 # SQL 安全（保留 Java）
+├── AiLogAnalysisService                 # 日志排障（保留 Java）
+├── AiConversationService                # 会话管理（保留 Java）
+├── AiMemoryService                      # 记忆治理（保留 Java）
+├── AiQdrantMemoryClient                 # → Python qdrant_client
+├── AiMemoryVectorEncoder                # → Python MemoryVectorEncoder
+├── AiSensitiveDataMasker                # 脱敏（保留 Java）
+├── AiModelGateway                        # → Python ModelGateway
+├── AiGroundingGuard                      # → Python GroundingGuard（规则匹配）
+├── AiConversationIntentClassifier       # → Python IntentClassifier（规则匹配）
+├── AiMemoryGovernanceService            # 记忆治理（保留 Java）
+└── AiUserProfileCompiler                # 画像编译（保留 Java）
 
 model
 ├── AiChatRequest

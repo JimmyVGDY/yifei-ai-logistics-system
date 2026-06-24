@@ -135,7 +135,8 @@ frontend/
 │       ├── DashboardView.vue        # 运营看板
 │       ├── ModuleListView.vue       # 通用管理页
 │       ├── PermissionConfigView.vue # 权限配置页
-│       └── ResourcesView.vue        # 资源中心
+│       ├── ResourcesView.vue        # 资源中心
+│       └── AiAssistantView.vue      # AI 助手（SSE 流式对话）
 ```
 
 整体架构说明见 [项目结构说明](architecture.md)。
