@@ -138,12 +138,21 @@ class AgentOrchestrator:
 
             # Call LLM with tool definitions
             tool_calls_in_round = []
+            last_output_time = time.monotonic()
 
             try:
                 active_tools = tools if use_tools else None
                 async for delta in self._call_llm_with_tools(
                     messages, active_tools, rendered.model, rendered.temperature, api_key,
                 ):
+                    now = time.monotonic()
+                    # 超过 10 秒无输出 → 插入心跳
+                    if now - last_output_time > 10:
+                        yield self._sse("heartbeat", {
+                            "message": "AI 仍在处理，请稍候",
+                            "elapsedMs": int((now - ctx.start_time) * 1000),
+                        })
+                    last_output_time = now
                     if isinstance(delta, ToolCall):
                         tool_calls_in_round.append(delta)
                     elif isinstance(delta, str):

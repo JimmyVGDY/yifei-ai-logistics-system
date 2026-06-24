@@ -311,7 +311,7 @@ public class AiChatPipeline {
             if (streaming) {
                 // SSE 代理透传，同时提取 answer 用于持久化
                 StringBuilder answerBuf = new StringBuilder();
-                proxyPythonSse(outputStream, pythonRequest, traceId, answerBuf);
+                proxyPythonSse(outputStream, pythonRequest, traceId, conversationId, answerBuf);
                 // 持久化 AI 回答到 MySQL（和原 Java 路径 saveConversation 行为一致）
                 String assistantAnswer = answerBuf.length() > 0 ? answerBuf.toString() : "";
                 if (!assistantAnswer.isEmpty()) {
@@ -414,9 +414,9 @@ public class AiChatPipeline {
      * SSE 代理透传：Java 调用 Python /chat/stream，逐事件转发到前端 OutputStream。
      */
     private void proxyPythonSse(OutputStream outputStream, Map<String, Object> pythonRequest,
-                                 String traceId, StringBuilder answerBuf) throws IOException {
+                                 String traceId, String conversationId, StringBuilder answerBuf) throws IOException {
         try {
-            proxyPythonSseInternal(outputStream, pythonRequest, traceId, answerBuf);
+            proxyPythonSseInternal(outputStream, pythonRequest, traceId, conversationId, answerBuf);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Python SSE 调用被中断", e);
@@ -424,7 +424,8 @@ public class AiChatPipeline {
     }
 
     private void proxyPythonSseInternal(OutputStream outputStream, Map<String, Object> pythonRequest,
-                                         String traceId, StringBuilder answerBuf) throws IOException, InterruptedException {
+                                         String traceId, String conversationId,
+                                         StringBuilder answerBuf) throws IOException, InterruptedException {
         com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
         String jsonBody = objectMapper.writeValueAsString(pythonRequest);
         boolean doneReceived = false;
@@ -479,7 +480,8 @@ public class AiChatPipeline {
             // 兜底保证：即使 Python 没发 done，Java 补发一个给前端
             if (!doneReceived) {
                 String fallbackJson = objectMapper.writeValueAsString(Map.of(
-                        "conversationId", "", "answer", answerBuf.length() > 0 ? answerBuf.toString() : "AI 服务返回异常，请稍后重试",
+                        "conversationId", conversationId != null ? conversationId : "",
+                        "answer", answerBuf.length() > 0 ? answerBuf.toString() : "AI 服务返回异常，请稍后重试",
                         "elapsedMs", 0, "citationCount", 0, "toolCallCount", 0));
                 outputStream.write(("event: done\ndata: " + fallbackJson + "\n\n").getBytes(StandardCharsets.UTF_8));
             }
