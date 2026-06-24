@@ -1,6 +1,7 @@
 package jimmy.ai.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.ai.client.PythonClient;
 import jimmy.ai.model.AiChatRequest;
 import jimmy.ai.model.AiChatResponse;
 import jimmy.ai.model.AiCitation;
@@ -25,7 +26,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -63,6 +73,8 @@ public class AiChatPipeline {
     private final AiToolOutputValidator toolOutputValidator;
     private final AiGroundingGuard groundingGuard;
     private final long heartbeatSeconds;
+    private final PythonClient pythonClient;
+    private final boolean pythonEnabled;
 
     public AiChatPipeline(AiKnowledgeService knowledgeService,
                           AiReadonlyQueryService readonlyQueryService,
@@ -80,6 +92,8 @@ public class AiChatPipeline {
                           AiPromptTemplateService promptTemplateService,
                           AiToolOutputValidator toolOutputValidator,
                           AiGroundingGuard groundingGuard,
+                          PythonClient pythonClient,
+                          @Value("${app.ai.python.enabled:false}") boolean pythonEnabled,
                           @Value("${app.ai.sse.heartbeat-seconds:10}") long heartbeatSeconds) {
         this.knowledgeService = knowledgeService;
         this.readonlyQueryService = readonlyQueryService;
@@ -97,6 +111,8 @@ public class AiChatPipeline {
         this.promptTemplateService = promptTemplateService;
         this.toolOutputValidator = toolOutputValidator;
         this.groundingGuard = groundingGuard;
+        this.pythonClient = pythonClient;
+        this.pythonEnabled = pythonEnabled;
         this.heartbeatSeconds = Math.max(1, heartbeatSeconds);
     }
 
@@ -142,6 +158,13 @@ public class AiChatPipeline {
             previousUserMessage = latestUserMessage(currentConversation);
             conversationService.appendUserMessage(currentUserId(), currentUserCode(), conversationId, safeMessage);
             auditLogService.recordUserQuestion(conversationId, safeMessage);
+
+            // ── Python AI 服务接管 ──
+            if (pythonEnabled && pythonClient.isEnabled()) {
+                log.info("AI 问答委托 Python AI 服务处理，conversationId={}, streaming={}", conversationId, streaming);
+                return delegateToPython(request, outputStream, conversationId, safeMessage,
+                        citations, toolCalls, dataResults, start, streaming);
+            }
 
             if (org.springframework.util.StringUtils.hasText(request.cursorId())) {
                 return handleCursorContinuation(request.cursorId(), conversationId, safeMessage, citations, toolCalls,
@@ -268,6 +291,195 @@ public class AiChatPipeline {
                         traceContextSupport.currentOrNewTraceId(), traceContextSupport.currentOrNewOperationId());
             }
             throw exception;
+        }
+    }
+
+    /**
+     * 将 AI 问答委托给 Python AI 服务处理。
+     * <p>
+     * SSE 模式：Java 作为透明代理，逐行转发 Python SSE 事件到前端 OutputStream。
+     * 非 SSE 模式：调用 Python，缓冲完整响应后构造 AiChatResponse 返回。
+     */
+    private AiChatResponse delegateToPython(AiChatRequest request, OutputStream outputStream,
+                                             String conversationId, String safeMessage,
+                                             List<AiCitation> citations, List<AiToolCall> toolCalls,
+                                             List<AiDataResult> dataResults, long start, boolean streaming) {
+        try {
+            Map<String, Object> pythonRequest = buildPythonRequest(request, conversationId, safeMessage);
+            String traceId = traceContextSupport.currentOrNewTraceId();
+
+            if (streaming) {
+                // SSE 代理透传
+                proxyPythonSse(outputStream, pythonRequest, traceId);
+                return new AiChatResponse(conversationId, "", citations, toolCalls, dataResults,
+                        traceId, traceContextSupport.currentOrNewOperationId());
+            } else {
+                // 同步调用，缓冲响应
+                StringBuilder answer = new StringBuilder();
+                proxyPythonSseToBuffer(outputStream, pythonRequest, answer);
+                return new AiChatResponse(conversationId, answer.toString(), citations, toolCalls, dataResults,
+                        traceId, traceContextSupport.currentOrNewOperationId());
+            }
+        } catch (Exception e) {
+            log.error("Python AI 服务调用失败，conversationId={}, reason={}", conversationId, e.getMessage());
+            if (streaming) {
+                toolCallContext.notifyError("AI 服务暂时不可用，已自动降级：" + e.getMessage());
+            }
+            return new AiChatResponse(conversationId,
+                    "AI 服务暂时不可用，已自动降级：" + e.getMessage(),
+                    citations, toolCalls, dataResults,
+                    traceContextSupport.currentOrNewTraceId(), traceContextSupport.currentOrNewOperationId());
+        }
+    }
+
+    /**
+     * 构建发往 Python AI 服务的请求体。
+     */
+    private Map<String, Object> buildPythonRequest(AiChatRequest request, String conversationId, String safeMessage) {
+        Map<String, Object> pythonReq = new LinkedHashMap<>();
+        pythonReq.put("question", safeMessage);
+        pythonReq.put("conversationId", conversationId);
+
+        // 用户上下文（权限 + 标识）
+        Map<String, Object> userCtx = new LinkedHashMap<>();
+        userCtx.put("userId", currentUserId());
+        userCtx.put("userCode", currentUserCode());
+        userCtx.put("permissions", StpUtil.getPermissionList());
+        userCtx.put("roleCode", SseChatContext.getRoleCode());
+        pythonReq.put("userContext", userCtx);
+
+        // 历史消息（从 MySQL 加载最近对话）
+        String historyText = conversationHistory(conversationId);
+        List<Map<String, String>> historyList = new ArrayList<>();
+        if (org.springframework.util.StringUtils.hasText(historyText)) {
+            Map<String, String> entry = new LinkedHashMap<>();
+            entry.put("content", historyText);
+            historyList.add(entry);
+        }
+        pythonReq.put("history", historyList);
+
+        // 长期记忆上下文
+        AiMemoryRecallResult memoryRecall = memoryService.recall(safeMessage, conversationId);
+        if (memoryRecall.hitCount() > 0) {
+            Map<String, Object> memoryCtx = new LinkedHashMap<>();
+            memoryCtx.put("context", memoryRecall.context());
+            memoryCtx.put("hitCount", memoryRecall.hitCount());
+            pythonReq.put("memoryContext", memoryCtx);
+        }
+
+        // RAG 知识库上下文
+        List<AiCitation> knowledgeCitations = knowledgeService.search(safeMessage);
+        if (!knowledgeCitations.isEmpty()) {
+            StringBuilder kb = new StringBuilder();
+            for (AiCitation c : knowledgeCitations) {
+                kb.append(c.title()).append(": ").append(c.snippet()).append("\n");
+            }
+            pythonReq.put("ragContext", kb.toString());
+        }
+
+        pythonReq.put("modelPolicy", "API_ALLOWED");
+        return pythonReq;
+    }
+
+    /**
+     * SSE 代理透传：Java 调用 Python /chat/stream，逐事件转发到前端 OutputStream。
+     */
+    private void proxyPythonSse(OutputStream outputStream, Map<String, Object> pythonRequest, String traceId) throws IOException {
+        try {
+            proxyPythonSseInternal(outputStream, pythonRequest, traceId);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Python SSE 调用被中断", e);
+        }
+    }
+
+    private void proxyPythonSseInternal(OutputStream outputStream, Map<String, Object> pythonRequest, String traceId) throws IOException, InterruptedException {
+        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        String jsonBody = objectMapper.writeValueAsString(pythonRequest);
+
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(pythonClient.getBaseUrl() + "/chat/stream"))
+                .header("Content-Type", "application/json")
+                .header("Accept", "text/event-stream")
+                .header("X-Trace-Id", traceId)
+                .timeout(Duration.ofSeconds(180))
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<java.io.InputStream> response = httpClient.send(httpRequest,
+                HttpResponse.BodyHandlers.ofInputStream());
+
+        if (response.statusCode() >= 400) {
+            throw new IOException("Python 服务返回 " + response.statusCode());
+        }
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                // 逐行透传 SSE 事件
+                outputStream.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+                outputStream.flush();
+            }
+        }
+    }
+
+    /**
+     * 同步调用 Python，将 token 文本缓冲到 StringBuilder。
+     */
+    private void proxyPythonSseToBuffer(OutputStream ignored, Map<String, Object> pythonRequest,
+                                        StringBuilder answerBuf) throws IOException {
+        try {
+            proxyPythonSseToBufferInternal(ignored, pythonRequest, answerBuf);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Python 同步调用被中断", e);
+        }
+    }
+
+    private void proxyPythonSseToBufferInternal(OutputStream ignored, Map<String, Object> pythonRequest,
+                                                StringBuilder answerBuf) throws IOException, InterruptedException {
+        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        String jsonBody = objectMapper.writeValueAsString(pythonRequest);
+
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(pythonClient.getBaseUrl() + "/chat/stream"))
+                .header("Content-Type", "application/json")
+                .header("Accept", "text/event-stream")
+                .timeout(Duration.ofSeconds(180))
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<java.io.InputStream> response = httpClient.send(httpRequest,
+                HttpResponse.BodyHandlers.ofInputStream());
+
+        if (response.statusCode() >= 400) {
+            throw new IOException("Python 服务返回 " + response.statusCode());
+        }
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith("data:")) {
+                    String data = line.substring(5).trim();
+                    try {
+                        Map<String, ?> event = objectMapper.readValue(data, Map.class);
+                        Object delta = event.get("delta");
+                        if (delta instanceof String s) {
+                            answerBuf.append(s);
+                        }
+                    } catch (Exception ignored2) {
+                        // skip non-token events
+                    }
+                }
+            }
         }
     }
 

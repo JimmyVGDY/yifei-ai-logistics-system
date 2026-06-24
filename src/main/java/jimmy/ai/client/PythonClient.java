@@ -20,6 +20,7 @@ import java.util.Map;
 public class PythonClient {
 
     private final RestClient restClient;
+    private final String baseUrl;
     private final boolean enabled;
 
     public PythonClient(@Value("${app.ai.python.base-url:http://127.0.0.1:8001}") String baseUrl,
@@ -27,6 +28,7 @@ public class PythonClient {
                         @Value("${app.ai.python.timeout-seconds:180}") int timeoutSeconds,
                         RestClient.Builder builder) {
         this.enabled = enabled;
+        this.baseUrl = baseUrl;
         this.restClient = builder
                 .baseUrl(baseUrl)
                 .defaultHeader("Content-Type", "application/json")
@@ -35,6 +37,10 @@ public class PythonClient {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public String getBaseUrl() {
+        return baseUrl;
     }
 
     // ── 健康检查 ──
