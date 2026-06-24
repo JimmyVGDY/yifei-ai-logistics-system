@@ -14,13 +14,15 @@ logger = structlog.get_logger()
 
 
 class ChatRequest(BaseModel):
+    model_config = {"populate_by_name": True}  # 允许 camelCase 和 snake_case 双向兼容
+
     question: str
-    conversation_id: str = ""
+    conversation_id: str = Field(default="", alias="conversationId")
     history: list[dict] = Field(default_factory=list)
-    user_context: dict = Field(default_factory=dict)
-    memory_context: dict = Field(default_factory=dict)
-    rag_context: str = ""
-    model_policy: str = "API_ALLOWED"
+    user_context: dict = Field(default_factory=dict, alias="userContext")
+    memory_context: dict = Field(default_factory=dict, alias="memoryContext")
+    rag_context: str = Field(default="", alias="ragContext")
+    model_policy: str = Field(default="API_ALLOWED", alias="modelPolicy")
 
 
 router = APIRouter()
