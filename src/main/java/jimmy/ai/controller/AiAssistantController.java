@@ -114,7 +114,7 @@ public class AiAssistantController {
                     .contentType(MediaType.TEXT_EVENT_STREAM)
                     .body(disabled);
         }
-        return streamResponse(new AiChatRequest(message, conversationId, pageContext, null));
+        return streamResponse(new AiChatRequest(message, conversationId, pageContext, null, null));
     }
 
     private ResponseEntity<StreamingResponseBody> streamResponse(AiChatRequest request) {
