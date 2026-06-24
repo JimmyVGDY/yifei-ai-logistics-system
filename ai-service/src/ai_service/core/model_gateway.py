@@ -26,6 +26,13 @@ class ModelConfig:
 
 
 @dataclass
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict
+
+
+@dataclass
 class ModelResponse:
     content: str
     model: str
@@ -33,6 +40,12 @@ class ModelResponse:
     input_tokens: int = 0
     output_tokens: int = 0
     duration_ms: float = 0
+    tool_calls: list[ToolCall] = None
+    finish_reason: str = "stop"
+
+    def __post_init__(self):
+        if self.tool_calls is None:
+            self.tool_calls = []
 
 
 class ProviderRegistry:
@@ -100,8 +113,9 @@ class ModelGateway:
         api_key: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        tools: Optional[list[dict]] = None,
     ) -> ModelResponse:
-        """同步调用 LLM，自动走降级链。"""
+        """同步调用 LLM，自动走降级链。支持 function calling。"""
         chain = self.registry.fallback_chains.get(task_type, [])
         if not chain:
             chain = self.registry.fallback_chains.get("chat", [])
@@ -119,7 +133,7 @@ class ModelGateway:
                 continue
 
             try:
-                return await self._call(config, system_prompt, user_prompt)
+                return await self._call(config, system_prompt, user_prompt, tools)
             except Exception as exc:
                 last_error = exc
                 logger.warning("model_fallback", model=model_name, error=str(exc)[:200])
@@ -135,8 +149,9 @@ class ModelGateway:
         api_key: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        tools: Optional[list[dict]] = None,
     ) -> AsyncIterator[str]:
-        """流式调用 LLM，yield delta tokens。自动降级链。"""
+        """流式调用 LLM，yield delta tokens。支持 function calling。"""
         chain = self.registry.fallback_chains.get(task_type, [])
         if not chain:
             chain = self.registry.fallback_chains.get("chat", [])
@@ -153,20 +168,19 @@ class ModelGateway:
                 continue
 
             try:
-                async for delta in self._call_stream(config, system_prompt, user_prompt):
+                async for delta in self._call_stream(config, system_prompt, user_prompt, tools):
                     yield delta
-                return  # stream succeeded
+                return
             except Exception as exc:
                 last_error = exc
                 logger.warning("model_fallback_stream", model=model_name, error=str(exc)[:200])
                 continue
 
-        # All models failed — yield a user-friendly fallback message
-        fallback = "抱歉，AI 服务暂时不可用，请稍后重试。"
-        yield fallback
+        yield "抱歉，AI 服务暂时不可用，请稍后重试。"
 
-    async def _call(self, config: ModelConfig, system: str, user: str) -> ModelResponse:
-        """Actual HTTP call to OpenAI-compatible API."""
+    async def _call(self, config: ModelConfig, system: str, user: str,
+                    tools: Optional[list[dict]] = None) -> ModelResponse:
+        """HTTP call to OpenAI-compatible API. Supports function calling via tools param."""
         assert self._client is not None
         payload = {
             "model": config.model_name,
@@ -178,6 +192,9 @@ class ModelGateway:
             "max_tokens": config.max_tokens,
             "stream": False,
         }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
         headers = {"Content-Type": "application/json"}
         if config.api_key:
             headers["Authorization"] = f"Bearer {config.api_key}"
@@ -194,8 +211,25 @@ class ModelGateway:
         duration_ms = (time.monotonic() - t0) * 1000
 
         choice = body["choices"][0]
-        content = choice["message"]["content"]
+        finish = choice.get("finish_reason", "stop")
+        msg = choice["message"]
+        content = msg.get("content") or ""
         usage = body.get("usage", {})
+
+        # 解析 function calling 返回的 tool_calls
+        raw_tool_calls = msg.get("tool_calls") or []
+        tool_calls = []
+        for tc in raw_tool_calls:
+            fn = tc.get("function", {})
+            try:
+                args = json.loads(fn.get("arguments", "{}"))
+            except json.JSONDecodeError:
+                args = {}
+            tool_calls.append(ToolCall(
+                id=tc.get("id", ""),
+                name=fn.get("name", ""),
+                arguments=args,
+            ))
 
         return ModelResponse(
             content=content,
@@ -204,10 +238,13 @@ class ModelGateway:
             input_tokens=usage.get("prompt_tokens", 0),
             output_tokens=usage.get("completion_tokens", 0),
             duration_ms=duration_ms,
+            tool_calls=tool_calls,
+            finish_reason=finish or "stop",
         )
 
-    async def _call_stream(self, config: ModelConfig, system: str, user: str) -> AsyncIterator[str]:
-        """Streaming HTTP call. Yields delta text chunks."""
+    async def _call_stream(self, config: ModelConfig, system: str, user: str,
+                           tools: Optional[list[dict]] = None) -> AsyncIterator[str]:
+        """Streaming HTTP call. Yields delta text OR tool_call JSON events."""
         assert self._client is not None
         payload = {
             "model": config.model_name,
@@ -220,10 +257,15 @@ class ModelGateway:
             "stream": True,
             "stream_options": {"include_usage": True},
         }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
         headers = {"Content-Type": "application/json"}
         if config.api_key:
             headers["Authorization"] = f"Bearer {config.api_key}"
 
+        import json as json_mod
+        tool_call_buffer: dict[str, dict] = {}  # idx → {id, name, arguments_str}
         async with self._client.stream(
             "POST",
             f"{config.api_base}/chat/completions",
@@ -238,16 +280,45 @@ class ModelGateway:
                 data_str = line[6:]
                 if data_str == "[DONE]":
                     break
-                import json
                 try:
-                    chunk = json.loads(data_str)
+                    chunk = json_mod.loads(data_str)
                     choices = chunk.get("choices", [])
-                    if choices:
-                        delta = choices[0].get("delta", {})
-                        content = delta.get("content", "")
-                        if content:
-                            yield content
-                except (json.JSONDecodeError, KeyError, IndexError):
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta", {})
+                    finish = choices[0].get("finish_reason")
+
+                    # function calling: accumulate tool_call fragments
+                    tc_deltas = delta.get("tool_calls")
+                    if tc_deltas:
+                        for tc_d in tc_deltas:
+                            idx = tc_d.get("index", 0)
+                            if idx not in tool_call_buffer:
+                                tool_call_buffer[idx] = {"id": "", "name": "", "arguments": ""}
+                            buf = tool_call_buffer[idx]
+                            if tc_d.get("id"):
+                                buf["id"] = tc_d["id"]
+                            fn = tc_d.get("function", {})
+                            if fn.get("name"):
+                                buf["name"] += fn["name"]
+                            if fn.get("arguments"):
+                                buf["arguments"] += fn["arguments"]
+
+                    # text delta
+                    content = delta.get("content", "")
+                    if content:
+                        yield content
+
+                    # finish_reason: tool_calls → yield parsed tool calls
+                    if finish == "tool_calls" and tool_call_buffer:
+                        for idx in sorted(tool_call_buffer.keys()):
+                            buf = tool_call_buffer[idx]
+                            try:
+                                args = json_mod.loads(buf["arguments"]) if buf["arguments"] else {}
+                            except json_mod.JSONDecodeError:
+                                args = {}
+                            yield json_mod.dumps({"tool_call": {"name": buf["name"], "arguments": args}})
+                except (json_mod.JSONDecodeError, KeyError, IndexError):
                     continue
 
 

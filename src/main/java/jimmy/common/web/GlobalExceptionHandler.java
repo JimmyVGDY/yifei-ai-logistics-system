@@ -3,6 +3,7 @@ package jimmy.common.web;
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
 import cn.dev33.satoken.exception.SaTokenException;
+import jakarta.servlet.http.HttpServletRequest;
 import jimmy.common.model.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -26,8 +27,8 @@ public class GlobalExceptionHandler {
     // 未登录统一返回 401，前端拦截后会清理 token 并跳转到登录页。
     @ExceptionHandler(NotLoginException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public ApiResponse<Void> handleNotLogin(NotLoginException exception) {
-        log.info("接口访问未登录，reason={}", exception.getMessage());
+    public ApiResponse<Void> handleNotLogin(NotLoginException exception, HttpServletRequest request) {
+        log.info("接口访问未登录，uri={}, reason={}", request.getRequestURI(), exception.getMessage());
         return ApiResponse.failure(401, "请先登录后再访问");
     }
 

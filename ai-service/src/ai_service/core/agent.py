@@ -160,15 +160,17 @@ class AgentOrchestrator:
                         "elapsedMs": elapsed_ms,
                     })
 
-                    # Append tool result to messages for next LLM round
+                    # Append tool result to messages for next LLM round (OpenAI standard format)
+                    tc_id = f"call_{ctx.iteration}_{len(ctx.tool_results)}"
                     messages.append({
                         "role": "assistant",
                         "content": None,
-                        "tool_calls": [{"function": {"name": tc.name, "arguments": json.dumps(tc.arguments, ensure_ascii=False)}}],
+                        "tool_calls": [{"id": tc_id, "type": "function",
+                                        "function": {"name": tc.name, "arguments": json.dumps(tc.arguments, ensure_ascii=False)}}],
                     })
                     messages.append({
                         "role": "tool",
-                        "tool_call_id": tc.name,
+                        "tool_call_id": tc_id,
                         "content": json.dumps({
                             "success": result.success,
                             "data_summary": result.summary,
@@ -233,91 +235,48 @@ class AgentOrchestrator:
         temperature: float,
         api_key: Optional[str] = None,
     ) -> AsyncIterator[str | ToolCall]:
-        """调用 LLM（流式），同时解析可能出现的 tool_calls。
-
-        This is a simplified implementation. A production version would use
-        OpenAI-compatible function calling format. For now, we do a simple
-        text-based approach: the LLM outputs a special format for tool calls.
-        """
-        # For now, use chat_stream from gateway
+        """调用 LLM（流式），使用 OpenAI 标准 function calling。"""
         system = messages[0]["content"] if messages else ""
         user = messages[-1]["content"] if messages else ""
 
-        # Build tool descriptions for the prompt
-        tool_descriptions = ""
+        # Convert tools to OpenAI format
+        openai_tools = None
         if tools:
-            tool_descriptions = "\n\n## 可用工具\n"
-            for tool in tools:
-                name = tool.get("name", "")
-                desc = tool.get("description", "")
-                params = tool.get("parameters", {})
-                tool_descriptions += f"\n- **{name}**: {desc}\n"
-                tool_descriptions += f"  参数: {json.dumps(params, ensure_ascii=False)}\n"
+            openai_tools = []
+            for t in tools:
+                openai_tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": t.get("name", ""),
+                        "description": t.get("description", ""),
+                        "parameters": t.get("parameters", {}),
+                    }
+                })
 
-        enhanced_system = system + tool_descriptions + """
-
-## 工具调用格式
-如果需要查询业务数据，请严格使用以下 JSON 格式：
-```
-{"tool_call": {"name": "工具名", "arguments": {"参数名": "参数值"}}}
-```
-如果不需要工具，直接以自然语言回答。
-"""
-
-        # Stream from model
-        buffer = ""
+        # Stream from model with standard function calling
         async for delta in self.gateway.chat_stream(
-            system_prompt=enhanced_system,
+            system_prompt=system,
             user_prompt=user,
             task_type="chat",
             api_key=api_key,
             temperature=temperature,
+            tools=openai_tools,
         ):
-            buffer += delta
-            yield delta
-
-        # Check buffer for tool call JSON
-        tool_calls = self._parse_tool_calls_from_text(buffer)
-        for tc in tool_calls:
-            yield tc  # Yield ToolCall objects for the orchestrator loop
-
-    def _parse_tool_calls_from_text(self, text: str) -> list[ToolCall]:
-        """从 LLM 响应文本中提取 tool_call JSON（支持嵌套对象）。"""
-        results = []
-        prefix = '{"tool_call":'
-        idx = 0
-        while True:
-            pos = text.find(prefix, idx)
-            if pos == -1:
-                break
-            # 用括号匹配找到完整 JSON 对象
-            start = pos
-            depth = 0
-            end = -1
-            for i in range(pos, len(text)):
-                ch = text[i]
-                if ch == '{':
-                    depth += 1
-                elif ch == '}':
-                    depth -= 1
-                    if depth == 0:
-                        end = i + 1
-                        break
-            if end == -1:
-                break
-            candidate = text[start:end]
-            try:
-                obj = json.loads(candidate)
-                tc_data = obj.get("tool_call", {})
-                if "name" in tc_data:
-                    results.append(ToolCall(
-                        name=tc_data["name"],
-                        arguments=tc_data.get("arguments", {}),
-                    ))
-            except (json.JSONDecodeError, KeyError):
-                pass
-            idx = end
-        return results
+            # delta could be text or a JSON-encoded tool_call event from model_gateway
+            if isinstance(delta, str):
+                if delta.startswith('{"tool_call":'):
+                    try:
+                        obj = json.loads(delta)
+                        tc_data = obj.get("tool_call", {})
+                        if "name" in tc_data:
+                            yield ToolCall(
+                                name=tc_data["name"],
+                                arguments=tc_data.get("arguments", {}),
+                            )
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+                else:
+                    yield delta
 
     @staticmethod
     def _sse(event: str, data: dict) -> str:
