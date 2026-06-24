@@ -479,7 +479,9 @@ public class AiChatPipeline {
                     } catch (Exception ignored) { /* skip */ }
                 }
             }
-            outputStream.flush();  // 确保最后的 done 事件到达前端
+            // 确保最后的 done 事件完全到达前端再退出
+            outputStream.flush();
+            try { Thread.sleep(200); } catch (InterruptedException ignored) {}
         }
     }
 
