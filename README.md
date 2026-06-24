@@ -1,26 +1,25 @@
 # practice-project-about-develop
 
-这是一个以物流管理系统为业务场景的 Spring Boot + Vue3 前后端分离练习项目。项目已经接入 Nacos、Sentinel、Elasticsearch、Redis、RabbitMQ、MyBatis、Sa-Token、Spring AI 和布隆过滤器，重点用于练习“业务流程闭环 + 中间件落地 + 权限控制 + 前端管理台 + 只读 AI 助手”。
+这是一个以物流管理系统为业务场景的 Spring Boot + Vue3 + Python (FastAPI) 前后端分离练习项目。Java 负责业务系统与数据安全网关，Python 负责 AI 推理引擎。项目已经接入 Nacos、Sentinel、Elasticsearch、Redis、RabbitMQ、MyBatis、Sa-Token、Spring AI、Qdrant 和布隆过滤器，重点用于练习”业务流程闭环 + 中间件落地 + 权限控制 + 前端管理台 + AI 助手（Java+Python 混合架构）”。
 
 ## 技术栈
 
-- Java 21
-- Spring Boot 3.5.14
-- Spring Cloud 2025.0.2
-- Spring Cloud Alibaba 2025.0.0.0
-- Spring AI 1.1.7
-- Nacos Discovery / Config
-- Sentinel
-- Spring Data Elasticsearch
-- Spring Data Redis
-- RabbitMQ
-- MyBatis
-- MySQL 8.4 / H2
-- Guava Bloom Filter
-- Sa-Token
-- Vue 3
-- Element Plus
-- Maven
+| 层 | 技术 |
+|---|---|
+| **业务后端** | Java 21, Spring Boot 3.5.14, Spring Cloud 2025.0.2 |
+| **AI 引擎** | Python 3.12, FastAPI, uv (包管理) |
+| **AI 模型** | DeepSeek v4-flash (OpenAI 兼容), Ollama bge-m3 (Embedding) |
+| **注册/配置** | Nacos Discovery / Config |
+| **流量控制** | Sentinel |
+| **搜索** | Spring Data Elasticsearch |
+| **缓存/过滤** | Redis + Guava Bloom Filter |
+| **消息队列** | RabbitMQ |
+| **持久层** | MyBatis + MySQL 8.4 / H2 |
+| **向量库** | Qdrant 1.18.2 |
+| **鉴权** | Sa-Token (RBAC) |
+| **链路追踪** | OpenTelemetry → Jaeger |
+| **前端** | Vue 3 + Element Plus |
+| **构建** | Maven + uv
 
 ## 已完成功能
 
@@ -44,19 +43,26 @@
 确认本地已经启动 Nacos、Sentinel Dashboard、Elasticsearch、Redis、RabbitMQ 和 MySQL，然后运行：
 
 ```bash
-mvn spring-boot:run
+# 1. 启动 Python AI 服务
+cd ai-service
+uv sync
+set SPRING_AI_OPENAI_API_KEY=sk-***
+uv run uvicorn ai_service.main:app --host 127.0.0.1 --port 8001
+
+# 2. 启动 Java 后端（另一个终端）
+cd ..
+mvn spring-boot:run -Dspring-boot.run.arguments="--app.ai.python.enabled=true --app.encrypt.enabled=false"
+
+# 3. 启动前端（可选，第三个终端）
+cd frontend && npm run dev
 ```
 
 应用默认地址：
 
 ```text
-http://127.0.0.1:8080
-```
-
-前端默认地址：
-
-```text
-http://127.0.0.1:5173
+Java:  http://127.0.0.1:8080
+Python: http://127.0.0.1:8001 (仅内部调用)
+前端:  http://127.0.0.1:5173
 ```
 
 默认管理员：
@@ -108,27 +114,21 @@ mvn spring-boot:run
 ## 项目结构
 
 ```text
-src/main/java/jimmy
-├── DemoApplication.java
-├── common
-├── config
-├── controller
-├── entity
-├── logistics
-├── mapper
-├── model
-└── service
-```
-
-配置文件：
-
-```text
-src/main/resources/bootstrap.yml
-src/main/resources/application.yml
-src/main/resources/application-h2.yml
-src/main/resources/mapper/DemoUserMapper.xml
-src/main/resources/schema.sql
-src/main/resources/data.sql
+├── ai-service/                   ← Python AI 服务（FastAPI）
+│   ├── src/ai_service/           ← 源代码：模型网关、Agent、RAG、记忆
+│   ├── prompts/                  ← Prompt 模板（Git 版本化）
+│   ├── config/                   ← Provider 注册表
+│   └── tests/                    ← 单元测试（pytest）
+├── frontend/                     ← Vue 3 前端
+├── src/main/java/jimmy
+│   ├── ai/                       ← AI 模块（Java 侧：Tool Executor、会话、记忆治理）
+│   ├── logistics/                ← 物流业务
+│   ├── auth/                     ← 认证鉴权
+│   ├── system/                   ← 系统管理
+│   └── common/                   ← 公共组件
+├── docs/                         ← 项目文档
+│   └── adr/                      ← 架构决策记录
+└── scripts/sql/                  ← 数据库增量脚本
 ```
 
 ## 文档
@@ -195,8 +195,10 @@ RABBITMQ_PORT=5672
 SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/logistics_management?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
 SPRING_DATASOURCE_USERNAME=root
 SPRING_DATASOURCE_PASSWORD=
-SPRING_AI_OPENAI_API_KEY=missing
-SPRING_AI_OPENAI_BASE_URL=https://api.openai.com
-SPRING_AI_OPENAI_CHAT_MODEL=gpt-4o-mini
-APP_AI_CONVERSATION_TTL_SECONDS=3600
+SPRING_AI_OPENAI_API_KEY=sk-***                    # DeepSeek API Key（必配，从 Nacos 获取）
+SPRING_AI_OPENAI_BASE_URL=https://api.deepseek.com
+SPRING_AI_OPENAI_CHAT_MODEL=deepseek-v4-flash
+APP_AI_PYTHON_ENABLED=true                         # 启用 Python AI 服务代理
+APP_AI_PYTHON_BASE_URL=http://127.0.0.1:8001
+APP_ENCRYPT_ENABLED=false                          # 本地开发关闭加密
 ```
