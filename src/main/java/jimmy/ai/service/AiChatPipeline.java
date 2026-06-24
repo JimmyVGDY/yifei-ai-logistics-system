@@ -476,6 +476,7 @@ public class AiChatPipeline {
                     } catch (Exception ignored) { /* skip */ }
                 }
             }
+            outputStream.flush();  // 确保最后的 done 事件到达前端
         }
     }
 
