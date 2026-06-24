@@ -411,6 +411,7 @@ public class AiChatPipeline {
         String jsonBody = objectMapper.writeValueAsString(pythonRequest);
 
         HttpClient httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)   // 强制 HTTP/1.1，避免 uvicorn HTTP/2 兼容问题
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
         HttpRequest httpRequest = HttpRequest.newBuilder()
@@ -459,6 +460,7 @@ public class AiChatPipeline {
         String jsonBody = objectMapper.writeValueAsString(pythonRequest);
 
         HttpClient httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
         HttpRequest httpRequest = HttpRequest.newBuilder()

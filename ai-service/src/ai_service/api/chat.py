@@ -4,9 +4,9 @@ import json
 from typing import AsyncIterator, Optional
 
 import structlog
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from ai_service.core.agent import AgentContext, AgentOrchestrator
 
@@ -34,6 +34,7 @@ orchestrator: Optional[AgentOrchestrator] = None
 @router.post("/stream")
 async def chat_stream(request: Request, body: ChatRequest):
     """SSE 流式对话端点。Java SSE Proxy 透传到前端。"""
+    logger.info("chat_stream_request", question=body.question[:50], conversation_id=body.conversation_id)
 
     async def event_generator() -> AsyncIterator[str]:
         ctx = AgentContext(
