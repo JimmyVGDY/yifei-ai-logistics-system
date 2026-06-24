@@ -14,6 +14,7 @@ class Settings:
 
     # ── Java 内部地址 ──
     java_internal_url: str = "http://localhost:8080"
+    ai_internal_shared_secret: str = ""
 
     # ── Redis ──
     redis_url: str = "redis://localhost:6379"

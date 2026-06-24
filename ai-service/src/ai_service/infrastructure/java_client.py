@@ -20,9 +20,13 @@ class JavaClient:
         return self._client
 
     async def connect(self) -> None:
+        headers = {}
+        if settings.ai_internal_shared_secret:
+            headers["X-Internal-Secret"] = settings.ai_internal_shared_secret
         self._client = httpx.AsyncClient(
             base_url=settings.java_internal_url,
             timeout=httpx.Timeout(30.0),
+            headers=headers,
             trust_env=False,            # 绕过 Windows 系统代理
         )
 

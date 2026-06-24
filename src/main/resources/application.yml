@@ -153,6 +153,8 @@ app:
     url: ${LOCAL_FRONTEND_URL:http://127.0.0.1:5173}
     working-directory: ${LOCAL_FRONTEND_WORKING_DIRECTORY:frontend}
   ai:
+    internal:
+      shared-secret: ${AI_INTERNAL_SHARED_SECRET:}
     # ── Python AI 服务 ──
     python:
       enabled: ${APP_AI_PYTHON_ENABLED:false}       # 开发环境开启，生产暂默认关

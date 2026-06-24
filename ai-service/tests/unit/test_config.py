@@ -16,6 +16,7 @@ def test_settings_defaults():
     assert s.host == "127.0.0.1"
     assert s.port == 8001
     assert "localhost" in s.java_internal_url
+    assert s.ai_internal_shared_secret == ""
     assert "localhost" in s.redis_url
     assert s.max_agent_iterations == 5
     assert s.model_timeout_seconds == 60.0

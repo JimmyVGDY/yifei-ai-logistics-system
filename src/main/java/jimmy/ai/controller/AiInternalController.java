@@ -8,6 +8,7 @@ import jimmy.ai.model.AiToolExecuteRequest;
 import jimmy.ai.service.ToolExecutorService;
 import jimmy.ai.service.ToolRegistryService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +16,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,17 +37,24 @@ import java.util.Map;
 public class AiInternalController {
 
     private static final String HEADER_INTERNAL_USER = "X-Internal-User";
+    private static final String HEADER_INTERNAL_SECRET = "X-Internal-Secret";
 
     private final ToolRegistryService toolRegistryService;
     private final ToolExecutorService toolExecutorService;
     private final ObjectMapper objectMapper;
+    private final String internalSharedSecret;
+    private final boolean prodProfileActive;
 
     public AiInternalController(ToolRegistryService toolRegistryService,
                                  ToolExecutorService toolExecutorService,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 Environment environment) {
         this.toolRegistryService = toolRegistryService;
         this.toolExecutorService = toolExecutorService;
         this.objectMapper = objectMapper;
+        this.internalSharedSecret = environment.getProperty("app.ai.internal.shared-secret", "").trim();
+        this.prodProfileActive = Arrays.stream(environment.getActiveProfiles())
+                .anyMatch(profile -> "prod".equalsIgnoreCase(profile));
     }
 
     /**
@@ -53,9 +64,9 @@ public class AiInternalController {
      */
     @GetMapping("/health")
     public Map<String, Object> health(HttpServletRequest request, HttpServletResponse response) {
-        if (!isLoopbackRequest(request)) {
+        if (!authorizeInternalRequest(request, response)) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            return errorResponse("AI 内部接口仅允许本机调用");
+            return errorResponse("AI 内部接口认证失败");
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("status", "ok");
@@ -73,9 +84,9 @@ public class AiInternalController {
     @GetMapping("/tools/registry")
     public Map<String, Object> toolsRegistry(HttpServletRequest request, HttpServletResponse response) {
         try {
-            if (!isLoopbackRequest(request)) {
+            if (!authorizeInternalRequest(request, response)) {
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                return errorResponse("AI 内部接口仅允许本机调用");
+                return errorResponse("AI 内部接口认证失败");
             }
             InternalUserContext context = parseInternalUser(request.getHeader(HEADER_INTERNAL_USER));
             if (context == null || !StringUtils.hasText(context.userId())) {
@@ -90,7 +101,7 @@ public class AiInternalController {
             return result;
         } catch (Exception e) {
             log.error("获取工具注册表失败, reason={}", e.getMessage(), e);
-            return errorResponse("获取工具注册表失败：" + e.getMessage());
+            return errorResponse("获取工具注册表失败，请稍后重试");
         }
     }
 
@@ -108,9 +119,9 @@ public class AiInternalController {
                                             HttpServletRequest request,
                                             HttpServletResponse response) {
         try {
-            if (!isLoopbackRequest(request)) {
+            if (!authorizeInternalRequest(request, response)) {
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                return errorResponse("AI 内部接口仅允许本机调用");
+                return errorResponse("AI 内部接口认证失败");
             }
             InternalUserContext context = parseInternalUser(request.getHeader(HEADER_INTERNAL_USER));
             if (context == null || !StringUtils.hasText(context.userId())) {
@@ -134,7 +145,7 @@ public class AiInternalController {
             );
         } catch (Exception e) {
             log.error("工具执行失败, reason={}", e.getMessage(), e);
-            return errorResponse("工具执行失败：" + e.getMessage());
+            return errorResponse("工具执行失败，请稍后重试");
         }
     }
 
@@ -180,6 +191,37 @@ public class AiInternalController {
                 || "0:0:0:0:0:0:0:1".equals(remoteAddr)
                 || "::1".equals(remoteAddr)
                 || "localhost".equalsIgnoreCase(remoteAddr);
+    }
+
+    private boolean authorizeInternalRequest(HttpServletRequest request, HttpServletResponse response) {
+        boolean loopback = isLoopbackRequest(request);
+        if (!StringUtils.hasText(internalSharedSecret)) {
+            if (!loopback || prodProfileActive) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                log.warn("AI internal request rejected: shared secret missing, remoteAddr={}, prodProfile={}",
+                        request.getRemoteAddr(), prodProfileActive);
+                return false;
+            }
+            return true;
+        }
+
+        String providedSecret = request.getHeader(HEADER_INTERNAL_SECRET);
+        if (!constantTimeEquals(internalSharedSecret, providedSecret)) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            log.warn("AI internal request rejected: invalid shared secret, remoteAddr={}", request.getRemoteAddr());
+            return false;
+        }
+        return true;
+    }
+
+    private boolean constantTimeEquals(String expected, String actual) {
+        if (!StringUtils.hasText(actual)) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                actual.getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     private record InternalUserContext(String userId,
