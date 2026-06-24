@@ -158,7 +158,7 @@ class AgentOrchestrator:
                 # error 后必须发 done，否则前端报"SSE 连接意外关闭"
                 yield self._sse("done", {
                     "conversationId": ctx.conversation_id,
-                    "answer": full_answer if full_answer else "抱歉，AI 服务暂时不可用，请稍后重试",
+                    "answer": (full_answer or "").strip() or "抱歉，AI 服务暂时不可用，请稍后重试",
                     "elapsedMs": int((time.monotonic() - ctx.start_time) * 1000),
                     "citationCount": len(ctx.tool_results),
                     "toolCallCount": len(ctx.tool_results),
@@ -227,7 +227,7 @@ class AgentOrchestrator:
         total_ms = (time.monotonic() - ctx.start_time) * 1000
         yield self._sse("done", {
             "conversationId": ctx.conversation_id,
-            "answer": full_answer,
+            "answer": full_answer.strip(),
             "elapsedMs": int(total_ms),
             "citationCount": len(ctx.tool_results),
             "toolCallCount": len(ctx.tool_results),
