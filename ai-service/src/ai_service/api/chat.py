@@ -37,21 +37,20 @@ async def chat_stream(request: Request, body: ChatRequest):
     logger.info("chat_stream_request", question=body.question[:50], conversation_id=body.conversation_id)
 
     async def event_generator() -> AsyncIterator[str]:
-        ctx = AgentContext(
-            question=body.question,
-            conversation_id=body.conversation_id or "",
-            user_context=body.user_context,
-            memory_context=body.memory_context,
-            rag_context=body.rag_context,
-            model_policy=body.model_policy,
-        )
-
-        if orchestrator is None:
-            yield _sse("error", {"code": "NOT_INITIALIZED", "message": "Agent 编排器未初始化"})
-            return
-
         try:
-            # API Key 优先级：Java 注入的 apiKey > 环境变量 SPRING_AI_OPENAI_API_KEY
+            ctx = AgentContext(
+                question=body.question,
+                conversation_id=body.conversation_id or "",
+                user_context=body.user_context,
+                memory_context=body.memory_context,
+                rag_context=body.rag_context,
+                model_policy=body.model_policy,
+            )
+
+            if orchestrator is None:
+                yield _sse("error", {"code": "NOT_INITIALIZED", "message": "Agent 编排器未初始化"})
+                return
+
             import os
             api_key = None
             if body.model_policy == "API_ALLOWED":
@@ -62,6 +61,7 @@ async def chat_stream(request: Request, body: ChatRequest):
                     break
                 yield sse_event
         except Exception as exc:
+            logger.error("chat_stream_error", error=str(exc), exc_info=True)
             yield _sse("error", {"code": "INTERNAL_ERROR", "message": str(exc)[:500]})
             yield _sse("done", {"conversationId": body.conversation_id or "", "answer": "",
                                 "elapsedMs": 0, "citationCount": 0, "toolCallCount": 0})
