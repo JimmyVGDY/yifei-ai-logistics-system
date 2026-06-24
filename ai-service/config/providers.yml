@@ -6,7 +6,7 @@ providers:
   - name: deepseek
     type: cloud
     enabled: true
-    api_base: https://api.deepseek.com
+    api_base: https://api.deepseek.com/v1
     models:
       - deepseek-v4-flash       # 主力模型（与 Java Nacos 配置一致）
       - deepseek-chat           # 备用模型
