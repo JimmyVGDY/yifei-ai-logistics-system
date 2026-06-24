@@ -1,0 +1,10 @@
+# 本地开发环境配置
+# 启动方式：IntelliJ → Active profiles: dev
+# 或命令行：--spring.profiles.active=dev
+
+app:
+  ai:
+    python:
+      enabled: true
+  encrypt:
+    enabled: false

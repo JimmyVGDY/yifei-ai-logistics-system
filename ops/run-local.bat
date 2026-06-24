@@ -65,7 +65,9 @@ set LOCAL_FRONTEND_AUTO_OPEN=true
 start "物流管理平台" javaw -jar target\demo-springboot-1.0-SNAPSHOT.jar ^
   --xxl.job.enabled=true ^
   --xxl.job.admin.addresses=http://127.0.0.1:8081/xxl-job-admin ^
-  --xxl.job.executor.port=%XXL_EXECUTOR_PORT%
+  --xxl.job.executor.port=%XXL_EXECUTOR_PORT% ^
+  --app.ai.python.enabled=true ^
+  --app.encrypt.enabled=false
 
 echo.
 echo 后端启动命令已发送。
