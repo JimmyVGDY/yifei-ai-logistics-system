@@ -1,4 +1,4 @@
-# practice-project-about-develop
+# yifei-ai-logistics-system
 
 这是一个以物流管理系统为业务场景的 Spring Boot + Vue3 + Python (FastAPI) 前后端分离练习项目。Java 负责业务系统与数据安全网关，Python 负责 AI 推理引擎。项目已经接入 Nacos、Sentinel、Elasticsearch、Redis、RabbitMQ、MyBatis、Sa-Token、Spring AI、Qdrant 和布隆过滤器，重点用于练习”业务流程闭环 + 中间件落地 + 权限控制 + 前端管理台 + AI 助手（Java+Python 混合架构）”。
 

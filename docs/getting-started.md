@@ -16,8 +16,8 @@
 ## 第一步：克隆仓库
 
 ```bash
-git clone https://gitee.com/jimmyVG/practice-project-about-develop.git
-cd practice-project-about-develop
+git clone https://gitee.com/jimmyVG/yifei-ai-logistics-system.git
+cd yifei-ai-logistics-system
 ```
 
 ## 第二步：确认中间件运行状态
@@ -118,7 +118,7 @@ npm run dev
 
 | 账号 | 密码 | 角色 |
 |------|------|------|
-| `admin` | `963311213` | 系统管理员（全部权限） |
+| `admin` | `your-password` | 系统管理员（全部权限） |
 | `dispatcher` | `123456` | 调度专员 |
 | `finance` | `123456` | 财务专员 |
 | `customer` | `123456` | 客户账号 |
@@ -131,7 +131,7 @@ npm run dev
 # 1. 登录获取 token
 curl -X POST http://127.0.0.1:8080/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"963311213"}'
+  -d '{"username":"admin","password":"your-password"}'
 
 # 2. 查看运营看板
 curl http://127.0.0.1:8080/logistics/dashboard \

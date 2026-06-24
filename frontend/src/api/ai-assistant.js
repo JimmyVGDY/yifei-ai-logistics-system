@@ -55,71 +55,86 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
     const toolCalls = []
     const dataResults = []
 
+    const parseSseEvent = (evName, evData) => {
+      if (!evName || !evData) return
+      try {
+        const data = JSON.parse(evData)
+        if (evName === 'done') {
+          result = {
+            conversationId: data.conversationId || conversationId || '',
+            answer: data.answer || '',
+            citations: Array.isArray(data.citations) ? data.citations : [],
+            toolCalls,
+            dataResults,
+            elapsedMs: data.elapsedMs || 0
+          }
+        } else if (evName === 'tool_result') {
+          toolCalls.push({
+            toolName: data.toolName || '业务数据查询',
+            target: data.target || '',
+            result: data.result || ''
+          })
+          const rows = Array.isArray(data.rows) ? data.rows : (Array.isArray(data.data) ? data.data : [])
+          if (rows.length) {
+            dataResults.push({
+              toolName: data.toolName || '业务数据查询',
+              target: data.target || '',
+              summary: data.result || '',
+              columns: Array.isArray(data.columns) ? data.columns : [],
+              rows,
+              cursorId: data.cursorId || '',
+              total: data.total ?? data.totalCount,
+              returnedCount: data.returnedCount,
+              remainingCount: data.remainingCount,
+              hasMore: data.hasMore === true,
+              nextPageHint: data.nextPageHint || ''
+            })
+          }
+        } else if (evName === 'error') {
+          streamError = data.message || 'AI 流式响应失败，请稍后重试'
+        }
+        if (onEvent) {
+          onEvent({ type: evName, ...data })
+        }
+      } catch (e) {
+        // JSON 解析失败，跳过
+      }
+    }
+
+    const processBuffer = (lines) => {
+      let evName = ''
+      let evData = ''
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          evName = line.slice(6).trim()
+        } else if (line.startsWith('data:')) {
+          evData = line.slice(5).trim()
+        } else if (line === '' && evName && evData) {
+          parseSseEvent(evName, evData)
+          evName = ''
+          evData = ''
+        }
+      }
+      return { evName, evData }
+    }
+
     while (true) {
       const { done, value } = await reader.read()
-      if (done) break
+      if (done) {
+        // 根因修复：流结束时处理 buffer 中剩余数据
+        // done 事件的 data 行可能被 TCP 分帧卡在 buffer 里
+        if (buffer.trim()) {
+          const finalLines = buffer.split('\n')
+          const { evName, evData } = processBuffer(finalLines)
+          parseSseEvent(evName, evData)
+        }
+        break
+      }
 
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
-      // 最后一行可能不完整，保留在 buffer 中
       buffer = lines.pop() || ''
-
-      let eventName = ''
-      let eventData = ''
-
-      for (const line of lines) {
-        if (line.startsWith('event:')) {
-          eventName = line.slice(6).trim()
-        } else if (line.startsWith('data:')) {
-          eventData = line.slice(5).trim()
-        } else if (line === '' && eventName && eventData) {
-          // 空行表示事件结束
-          try {
-            const data = JSON.parse(eventData)
-            if (eventName === 'done') {
-              result = {
-                conversationId: data.conversationId || conversationId || '',
-                answer: data.answer || '',
-                citations: Array.isArray(data.citations) ? data.citations : [],
-                toolCalls,
-                dataResults,
-                elapsedMs: data.elapsedMs || 0
-              }
-            } else if (eventName === 'tool_result') {
-              toolCalls.push({
-                toolName: data.toolName || '业务数据查询',
-                target: data.target || '',
-                result: data.result || ''
-              })
-              const rows = Array.isArray(data.rows) ? data.rows : (Array.isArray(data.data) ? data.data : [])
-              if (rows.length) {
-                dataResults.push({
-                  toolName: data.toolName || '业务数据查询',
-                  target: data.target || '',
-                  summary: data.result || '',
-                  columns: Array.isArray(data.columns) ? data.columns : [],
-                  rows,
-                  cursorId: data.cursorId || '',
-                  total: data.total ?? data.totalCount,
-                  returnedCount: data.returnedCount,
-                  remainingCount: data.remainingCount,
-                  hasMore: data.hasMore === true,
-                  nextPageHint: data.nextPageHint || ''
-                })
-              }
-            } else if (eventName === 'error') {
-              streamError = data.message || 'AI 流式响应失败，请稍后重试'
-            }
-            if (onEvent) {
-              onEvent({ type: eventName, ...data })
-            }
-          } catch (e) {
-            // JSON 解析失败，跳过
-          }
-          eventName = ''
-          eventData = ''
-        }
-      }
+      processBuffer(lines)
     }
 
     if (streamError) {

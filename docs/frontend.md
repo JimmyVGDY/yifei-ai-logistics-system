@@ -414,7 +414,7 @@ frontend/src/utils/status-labels.js
 仓库包含：
 
 - `.vscode/` 配置
-- `practice-project-about-develop.code-workspace` 工作区文件
+- `yifei-ai-logistics-system.code-workspace` 工作区文件
 
 建议新前端开发者用 VS Code 打开工作区文件，而不是只打开 `frontend/` 目录。这样可以同时看到后端、前端、文档、脚本和配置。
 

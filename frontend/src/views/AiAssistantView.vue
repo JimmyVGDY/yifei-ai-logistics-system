@@ -159,7 +159,7 @@
             </div>
           </div>
 
-          <div v-if="chatLoading && !streamingTokens" class="message-row assistant pending">
+          <div v-if="chatLoading" class="message-row assistant pending">
             <div class="avatar">AI</div>
             <div class="message-body">
               <div class="message-meta">
@@ -632,14 +632,8 @@ function handleStreamEvent(event) {
       }
       break
     case 'token':
-      // 流式追加文本到当前 assistant 消息
-      if (event.delta) {
-        const last = messages.value[messages.value.length - 1]
-        if (last && last.role === 'assistant') {
-          last.content = (last.content || '') + event.delta
-        }
-        streamingTokens.value = true
-      }
+      // 流式 token 到达，保持 loading 状态直到 done 再展示完整回答
+      streamingTokens.value = true
       streamProgress.value = 'streaming'
       break
     case 'done':

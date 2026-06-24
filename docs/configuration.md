@@ -79,7 +79,7 @@ mvn spring-boot:run
 
 ## Nacos
 
-默认应用名是 `practice-project-about-develop`，默认环境是 `dev`。
+默认应用名是 `yifei-ai-logistics-system`，默认环境是 `dev`。
 
 本地启动 Nacos：
 
@@ -90,7 +90,7 @@ F:\Development\Middleware\scripts\start-nacos.ps1
 Nacos 配置中心可以创建：
 
 ```text
-Data ID: practice-project-about-develop-dev.yaml
+Data ID: yifei-ai-logistics-system-dev.yaml
 Group: DEFAULT_GROUP
 ```
 
@@ -160,7 +160,7 @@ SA_TOKEN_IS_SHARE=false
 
 ```text
 username: admin
-password: 963311213
+password: your-password
 ```
 
 常用接口：

@@ -427,9 +427,10 @@ public class AiChatPipeline {
                                          String traceId, StringBuilder answerBuf) throws IOException, InterruptedException {
         com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
         String jsonBody = objectMapper.writeValueAsString(pythonRequest);
+        boolean doneReceived = false;
 
         HttpClient httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)   // 强制 HTTP/1.1，避免 uvicorn HTTP/2 兼容问题
+                .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
         HttpRequest httpRequest = HttpRequest.newBuilder()
@@ -453,35 +454,36 @@ public class AiChatPipeline {
             String line;
             String lastEvent = "";
             while ((line = reader.readLine()) != null) {
-                // 逐行透传 SSE 事件
                 outputStream.write((line + "\n").getBytes(StandardCharsets.UTF_8));
                 outputStream.flush();
-                // 提取 token delta 用于持久化到 MySQL
                 if (line.startsWith("event:")) {
                     lastEvent = line.substring(6).trim();
+                    if ("done".equals(lastEvent)) doneReceived = true;
                 } else if (line.startsWith("data:") && "token".equals(lastEvent)) {
                     try {
-                        String data = line.substring(5).trim();
-                        Map<String, ?> event = objectMapper.readValue(data, Map.class);
+                        Map<String, ?> event = objectMapper.readValue(line.substring(5).trim(), Map.class);
                         Object delta = event.get("delta");
-                        if (delta instanceof String s) {
-                            answerBuf.append(s);
-                        }
-                    } catch (Exception ignored) { /* skip parse errors */ }
+                        if (delta instanceof String s) answerBuf.append(s);
+                    } catch (Exception ignored) {}
                 } else if (line.startsWith("data:") && "done".equals(lastEvent)) {
                     try {
-                        String data = line.substring(5).trim();
-                        Map<String, ?> event = objectMapper.readValue(data, Map.class);
+                        Map<String, ?> event = objectMapper.readValue(line.substring(5).trim(), Map.class);
                         Object answer = event.get("answer");
                         if (answer instanceof String s && !s.isEmpty() && answerBuf.length() == 0) {
-                            answerBuf.append(s);  // 兜底：token 为空时用 done.answer
+                            answerBuf.append(s);
                         }
-                    } catch (Exception ignored) { /* skip */ }
+                    } catch (Exception ignored) {}
                 }
             }
-            // 确保最后的 done 事件完全到达前端再退出
+        } finally {
+            // 兜底保证：即使 Python 没发 done，Java 补发一个给前端
+            if (!doneReceived) {
+                String fallbackJson = objectMapper.writeValueAsString(Map.of(
+                        "conversationId", "", "answer", answerBuf.length() > 0 ? answerBuf.toString() : "AI 服务返回异常，请稍后重试",
+                        "elapsedMs", 0, "citationCount", 0, "toolCallCount", 0));
+                outputStream.write(("event: done\ndata: " + fallbackJson + "\n\n").getBytes(StandardCharsets.UTF_8));
+            }
             outputStream.flush();
-            try { Thread.sleep(200); } catch (InterruptedException ignored) {}
         }
     }
 

@@ -126,6 +126,7 @@ class AgentOrchestrator:
         ]
 
         # Step 3: Agent loop
+        full_answer = ""  # 跨轮累积全部文本，确保 done.answer 完整
         while ctx.iteration < max_iterations:
             ctx.iteration += 1
 
@@ -136,7 +137,6 @@ class AgentOrchestrator:
             })
 
             # Call LLM with tool definitions
-            full_answer = ""
             tool_calls_in_round = []
 
             try:
@@ -176,6 +176,9 @@ class AgentOrchestrator:
                         "maxToolCalls": max_iterations,
                         "elapsedMs": elapsed_ms,
                     })
+
+                    # 关键词后处理：剔除 LLM 编造的垃圾 keyword（如 "ing"）
+                    tc = self._sanitize_tool_call(tc)
 
                     result = await self._execute_tool(tc, ctx)
                     ctx.tool_results.append(result)
@@ -331,6 +334,23 @@ class AgentOrchestrator:
                         pass
                 else:
                     yield delta
+
+    @staticmethod
+    def _sanitize_tool_call(tc: ToolCall) -> ToolCall:
+        """清洗工具调用参数：剔除 LLM 编造的垃圾 keyword（如截取模块名子串）。"""
+        if tc.name == "query_business_module":
+            keyword = tc.arguments.get("keyword", "")
+            module = tc.arguments.get("module", "")
+            if isinstance(keyword, str) and isinstance(module, str):
+                # keyword 是 module 的子串 → LLM 瞎编的，清掉
+                if len(keyword) <= 5 and keyword.lower() in module.lower():
+                    logger.warning("sanitized_keyword", keyword=keyword, module=module)
+                    tc.arguments["keyword"] = ""
+                # keyword 只有 1-2 个字母 → 明显是垃圾
+                elif len(keyword) <= 2 and keyword.isascii() and keyword.isalpha():
+                    logger.warning("sanitized_keyword_garbage", keyword=keyword)
+                    tc.arguments["keyword"] = ""
+        return tc
 
     @staticmethod
     def _sse(event: str, data: dict) -> str:

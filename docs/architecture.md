@@ -5,7 +5,7 @@
 ## 目录结构
 
 ```text
-practice-project-about-develop
+yifei-ai-logistics-system
 ├── pom.xml
 ├── Dockerfile                      ← 应用 Docker 镜像
 ├── docker-compose.yml              ← 全栈编排（Java + Python + 中间件）
