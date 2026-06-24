@@ -159,7 +159,7 @@
             </div>
           </div>
 
-          <div v-if="chatLoading" class="message-row assistant pending">
+          <div v-if="chatLoading && !streamingTokens" class="message-row assistant pending">
             <div class="avatar">AI</div>
             <div class="message-body">
               <div class="message-meta">
@@ -457,6 +457,7 @@ const dataResults = computed(() => normalizeDataResults(lastResponse.value?.data
 
 /** SSE 流式进度状态 */
 const streamProgress = ref(null)
+const streamingTokens = ref(false)
 const streamStepIndex = ref(0)
 const streamMaxToolCalls = ref(8)
 const streamElapsed = ref(0)
@@ -513,14 +514,18 @@ async function sendMessage() {
   message.value = ''
   lastResponse.value = null
 
-  // 初始化流式进度
+  // 初始化流式进度 — 预推空消息占位，token 事件流式追加
   chatLoading.value = true
+  streamingTokens.value = false
   streamProgress.value = 'thinking'
   streamStepIndex.value = 0
   streamMaxToolCalls.value = 8
   streamElapsed.value = 0
   streamToolLog.value = []
   startElapsedTimer()
+  // 预推空消息作为流式写入目标
+  const assistantMsgIndex = messages.value.length
+  messages.value.push({ role: 'assistant', content: '', _streaming: true })
   await scrollToBottom()
 
   const stream = chatWithAiStream({
@@ -536,7 +541,11 @@ async function sendMessage() {
     const response = await stream.promise
     conversationId.value = response.conversationId
     lastResponse.value = response
-    messages.value.push({ role: 'assistant', content: response.answer })
+    // 流式完成 — 用完整 answer 替换流式内容，移除 _streaming 标记
+    if (messages.value[assistantMsgIndex]) {
+      messages.value[assistantMsgIndex].content = response.answer || messages.value[assistantMsgIndex].content
+      messages.value[assistantMsgIndex]._streaming = false
+    }
     await loadConversations()
     await loadMemory()
   } catch (err) {
@@ -622,12 +631,25 @@ function handleStreamEvent(event) {
         }
       }
       break
+    case 'token':
+      // 流式追加文本到当前 assistant 消息
+      if (event.delta) {
+        const last = messages.value[messages.value.length - 1]
+        if (last && last.role === 'assistant') {
+          last.content = (last.content || '') + event.delta
+        }
+        streamingTokens.value = true
+      }
+      streamProgress.value = 'streaming'
+      break
     case 'done':
       streamProgress.value = 'done'
+      streamingTokens.value = false
       streamElapsed.value = event.elapsedMs || 0
       break
     case 'error':
       streamProgress.value = 'error'
+      streamingTokens.value = false
       streamElapsed.value = event.elapsedMs || 0
       break
     case 'heartbeat':
