@@ -4,10 +4,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jimmy.auth.mapper.AuthMapper;
 import jimmy.ai.model.AiToolExecuteRequest;
 import jimmy.ai.service.ToolExecutorService;
 import jimmy.ai.service.ToolRegistryService;
+import jimmy.system.service.SystemPermissionService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,20 +44,32 @@ public class AiInternalController {
 
     private final ToolRegistryService toolRegistryService;
     private final ToolExecutorService toolExecutorService;
+    private final AuthMapper authMapper;
+    private final SystemPermissionService systemPermissionService;
     private final ObjectMapper objectMapper;
     private final String internalSharedSecret;
     private final boolean prodProfileActive;
+    private final boolean pythonEnabled;
 
     public AiInternalController(ToolRegistryService toolRegistryService,
                                  ToolExecutorService toolExecutorService,
+                                 AuthMapper authMapper,
+                                 SystemPermissionService systemPermissionService,
                                  ObjectMapper objectMapper,
-                                 Environment environment) {
+                                 Environment environment,
+                                 @Value("${app.ai.python.enabled:false}") boolean pythonEnabled) {
         this.toolRegistryService = toolRegistryService;
         this.toolExecutorService = toolExecutorService;
+        this.authMapper = authMapper;
+        this.systemPermissionService = systemPermissionService;
         this.objectMapper = objectMapper;
         this.internalSharedSecret = environment.getProperty("app.ai.internal.shared-secret", "").trim();
         this.prodProfileActive = Arrays.stream(environment.getActiveProfiles())
                 .anyMatch(profile -> "prod".equalsIgnoreCase(profile));
+        this.pythonEnabled = pythonEnabled;
+        if ((this.prodProfileActive || this.pythonEnabled) && !StringUtils.hasText(this.internalSharedSecret)) {
+            throw new IllegalStateException("启用 Python AI 或 prod 环境时必须配置 app.ai.internal.shared-secret / AI_INTERNAL_SHARED_SECRET");
+        }
     }
 
     /**
@@ -88,7 +103,7 @@ public class AiInternalController {
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 return errorResponse("AI 内部接口认证失败");
             }
-            InternalUserContext context = parseInternalUser(request.getHeader(HEADER_INTERNAL_USER));
+            InternalUserContext context = resolveInternalUser(request.getHeader(HEADER_INTERNAL_USER));
             if (context == null || !StringUtils.hasText(context.userId())) {
                 return errorResponse("缺少或无法解析 X-Internal-User 请求头");
             }
@@ -123,7 +138,7 @@ public class AiInternalController {
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 return errorResponse("AI 内部接口认证失败");
             }
-            InternalUserContext context = parseInternalUser(request.getHeader(HEADER_INTERNAL_USER));
+            InternalUserContext context = resolveInternalUser(request.getHeader(HEADER_INTERNAL_USER));
             if (context == null || !StringUtils.hasText(context.userId())) {
                 return errorResponse("缺少或无法解析 X-Internal-User 请求头");
             }
@@ -162,18 +177,41 @@ public class AiInternalController {
         try {
             Map<String, Object> map = objectMapper.readValue(headerValue, new TypeReference<>() {});
             String userId = map.get("userId") != null ? String.valueOf(map.get("userId")) : null;
-            String userCode = map.get("userCode") != null ? String.valueOf(map.get("userCode")) : "";
-            String roleCode = map.get("roleCode") != null ? String.valueOf(map.get("roleCode")) : "";
-            String customerId = map.get("customerId") != null ? String.valueOf(map.get("customerId")) : "";
             String loginSessionId = map.get("loginSessionId") != null ? String.valueOf(map.get("loginSessionId")) : "";
             String conversationId = map.get("conversationId") != null ? String.valueOf(map.get("conversationId")) : "AI_INTERNAL";
-            @SuppressWarnings("unchecked")
-            List<String> permissions = map.get("permissions") instanceof List<?> list
-                    ? list.stream().map(String::valueOf).toList()
-                    : Collections.emptyList();
-            return new InternalUserContext(userId, userCode, roleCode, customerId, loginSessionId, conversationId, permissions);
+            return new InternalUserContext(userId, "", "", "", loginSessionId, conversationId, Collections.emptyList());
         } catch (Exception e) {
             log.warn("解析 X-Internal-User 失败, headerValue={}, reason={}", headerValue, e.getMessage());
+            return null;
+        }
+    }
+
+    private InternalUserContext resolveInternalUser(String headerValue) {
+        InternalUserContext parsed = parseInternalUser(headerValue);
+        if (parsed == null || !StringUtils.hasText(parsed.userId())) {
+            return parsed;
+        }
+        try {
+            Long userId = Long.valueOf(parsed.userId());
+            Map<String, Object> user = authMapper.findLoginUserById(userId);
+            if (user == null || user.isEmpty()) {
+                log.warn("AI internal request rejected: user not found, userId={}", parsed.userId());
+                return null;
+            }
+            Integer status = toInteger(user.get("status"));
+            if (status == null || status != 1) {
+                log.warn("AI internal request rejected: disabled user, userId={}", parsed.userId());
+                return null;
+            }
+            Long roleId = toLong(user.get("roleId"));
+            List<String> permissions = systemPermissionService.effectivePermissionCodes(userId, roleId);
+            String userCode = stringValue(user.get("userCode"));
+            String roleCode = stringValue(user.get("roleCode"));
+            String customerId = stringValue(user.get("customerId"));
+            return new InternalUserContext(parsed.userId(), userCode, roleCode, customerId,
+                    parsed.loginSessionId(), parsed.conversationId(), permissions == null ? List.of() : permissions);
+        } catch (Exception e) {
+            log.warn("AI internal user context resolve failed, userId={}, reason={}", parsed.userId(), e.getMessage());
             return null;
         }
     }
@@ -194,15 +232,11 @@ public class AiInternalController {
     }
 
     private boolean authorizeInternalRequest(HttpServletRequest request, HttpServletResponse response) {
-        boolean loopback = isLoopbackRequest(request);
         if (!StringUtils.hasText(internalSharedSecret)) {
-            if (!loopback || prodProfileActive) {
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                log.warn("AI internal request rejected: shared secret missing, remoteAddr={}, prodProfile={}",
-                        request.getRemoteAddr(), prodProfileActive);
-                return false;
-            }
-            return true;
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            log.warn("AI internal request rejected: shared secret missing, remoteAddr={}, prodProfile={}, pythonEnabled={}",
+                    request.getRemoteAddr(), prodProfileActive, pythonEnabled);
+            return false;
         }
 
         String providedSecret = request.getHeader(HEADER_INTERNAL_SECRET);
@@ -222,6 +256,30 @@ public class AiInternalController {
                 expected.getBytes(StandardCharsets.UTF_8),
                 actual.getBytes(StandardCharsets.UTF_8)
         );
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private Long toLong(Object value) {
+        if (value == null || !StringUtils.hasText(String.valueOf(value))) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return Long.valueOf(String.valueOf(value));
+    }
+
+    private Integer toInteger(Object value) {
+        if (value == null || !StringUtils.hasText(String.valueOf(value))) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return Integer.valueOf(String.valueOf(value));
     }
 
     private record InternalUserContext(String userId,

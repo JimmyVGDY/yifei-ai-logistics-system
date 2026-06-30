@@ -70,20 +70,19 @@ xxl:
       port: ${XXL_JOB_EXECUTOR_PORT:9999}
       logpath: ${XXL_JOB_EXECUTOR_LOGPATH:/app/logs/xxl-job}
 
-# AES 加密密钥（至少 16 字符，环境变量 APP_ENCRYPT_KEY 传入，不配置则明文存储）
+# AES 加密密钥（16/24/32 字节，生产必须通过环境变量 APP_ENCRYPT_KEY 传入）
 app:
   encrypt:
+    enabled: true
     key: ${APP_ENCRYPT_KEY:}
     require-key: true
-
-# 生产环境关闭 Sa-Token 调试日志，避免泄露会话信息
-sa-token:
-  is-log: false
-
-# 生产环境 CORS 必须显式配置
-# 生产环境关闭权限表自动建表 DDL（应通过迁移脚本管理）
-app:
+  # 生产环境 CORS 必须显式配置
+  # 生产环境关闭权限表自动建表 DDL（应通过迁移脚本管理）
   cors:
     origins: ${CORS_ORIGINS:}
   permission:
     auto-ddl: false
+
+# 生产环境关闭 Sa-Token 调试日志，避免泄露会话信息
+sa-token:
+  is-log: false

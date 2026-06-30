@@ -12,9 +12,9 @@ public class PasswordChangeRequest {
     @NotBlank(message = "原密码不能为空")
     private String oldPassword;
 
-    /** 新密码（至少 6 位） */
+    /** 新密码（至少 8 位，业务层校验字母和数字组合） */
     @NotBlank(message = "新密码不能为空")
-    @Size(min = 6, message = "新密码至少 6 位")
+    @Size(min = 8, message = "新密码至少 8 位")
     private String newPassword;
 
     public String getOldPassword() { return oldPassword; }

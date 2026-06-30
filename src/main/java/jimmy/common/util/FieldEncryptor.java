@@ -14,6 +14,7 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -33,6 +34,7 @@ public class FieldEncryptor {
     private static final String GCM_PREFIX = "ENCGCM:";
     private static final int GCM_IV_LENGTH = 12;
     private static final int GCM_TAG_LENGTH = 128;
+    private static final int REQUIRED_KEY_LENGTH = 16;
     private static final Set<String> ENCRYPTED_FIELDS = new HashSet<>(Arrays.asList(
             "mobile", "phone", "contact_phone"
     ));
@@ -51,8 +53,11 @@ public class FieldEncryptor {
         if (enabled && !StringUtils.hasText(key)) {
             throw new IllegalStateException("加密已启用但未配置 app.encrypt.key，请通过环境变量 APP_ENCRYPT_KEY 设置（建议至少16字符）");
         }
+        if (enabled) {
+            validateKey(key);
+        }
         this.secretKey = StringUtils.hasText(key)
-                ? new SecretKeySpec(normalizeKey(key), ALGORITHM)
+                ? new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), ALGORITHM)
                 : null;
     }
 
@@ -91,7 +96,7 @@ public class FieldEncryptor {
             if (cipherText.startsWith(GCM_PREFIX)) {
                 byte[] payload = BASE64_DECODER.decode(cipherText.substring(GCM_PREFIX.length()));
                 if (payload.length <= GCM_IV_LENGTH) {
-                    return cipherText;
+                    throw new IllegalArgumentException("GCM 密文格式不完整");
                 }
                 byte[] iv = Arrays.copyOfRange(payload, 0, GCM_IV_LENGTH);
                 byte[] encrypted = Arrays.copyOfRange(payload, GCM_IV_LENGTH, payload.length);
@@ -107,7 +112,7 @@ public class FieldEncryptor {
             }
             return cipherText;
         } catch (Exception e) {
-            return cipherText;
+            throw new IllegalArgumentException("字段解密失败，密文可能被篡改或密钥不匹配", e);
         }
     }
 
@@ -141,10 +146,40 @@ public class FieldEncryptor {
         return value.startsWith(LEGACY_PREFIX) || value.startsWith(GCM_PREFIX);
     }
 
-    private static byte[] normalizeKey(String key) {
-        byte[] raw = key.getBytes(StandardCharsets.UTF_8);
-        byte[] normalized = new byte[16];
-        System.arraycopy(raw, 0, normalized, 0, Math.min(raw.length, normalized.length));
-        return normalized;
+    private static void validateKey(String key) {
+        if (!StringUtils.hasText(key) || key.getBytes(StandardCharsets.UTF_8).length < REQUIRED_KEY_LENGTH) {
+            throw new IllegalStateException("app.encrypt.key 至少需要16个UTF-8字节，禁止短密钥零填充");
+        }
+        int length = key.getBytes(StandardCharsets.UTF_8).length;
+        if (length != 16 && length != 24 && length != 32) {
+            throw new IllegalStateException("app.encrypt.key 长度必须为16、24或32个UTF-8字节，以匹配 AES-128/192/256");
+        }
+        String trimmed = key.trim();
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        if (lower.contains("password") || lower.contains("123456") || lower.contains("qwerty")
+                || lower.contains("changeme") || lower.contains("default")) {
+            throw new IllegalStateException("app.encrypt.key 过于常见，请使用随机高强度密钥");
+        }
+        long distinct = trimmed.chars().distinct().count();
+        if (distinct < 8 || isRepeatedPattern(trimmed)) {
+            throw new IllegalStateException("app.encrypt.key 熵过低，请使用包含大小写、数字或符号的随机密钥");
+        }
+    }
+
+    private static boolean isRepeatedPattern(String key) {
+        for (int size = 1; size <= key.length() / 2; size++) {
+            if (key.length() % size != 0) {
+                continue;
+            }
+            String pattern = key.substring(0, size);
+            StringBuilder repeated = new StringBuilder(key.length());
+            while (repeated.length() < key.length()) {
+                repeated.append(pattern);
+            }
+            if (repeated.toString().equals(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

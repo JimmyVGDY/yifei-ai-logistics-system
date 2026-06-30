@@ -111,6 +111,24 @@ public final class LogMaskUtils {
         return ip.substring(0, secondLastDot) + ".***.***";
     }
 
+    /**
+     * 对任意日志文本做兜底脱敏，覆盖 token、密钥、身份证、银行卡、手机号、邮箱等高风险片段。
+     */
+    public static String maskSensitiveText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value == null ? "" : value;
+        }
+        String masked = value;
+        masked = masked.replaceAll("(?i)authorization\\s*[:=]\\s*bearer\\s+[^\\s,;]+", "Authorization=***");
+        masked = masked.replaceAll("(?i)bearer\\s+[a-z0-9._~+/=-]+", "Bearer ***");
+        masked = masked.replaceAll("\\b(\\d{6})\\d{8}(\\d{3}[0-9Xx])\\b", "$1********$2");
+        masked = masked.replaceAll("\\b(\\d{4})\\d{8,11}(\\d{4})\\b", "$1********$2");
+        masked = masked.replaceAll("(1[3-9]\\d)\\d{4}(\\d{4})", "$1****$2");
+        masked = masked.replaceAll("(?i)([\\w.+-])[\\w.+-]*@([\\w.-])[\\w.-]*(\\.[a-z]{2,})", "$1***@$2***$3");
+        masked = masked.replaceAll("(?i)\\b(password|passwd|pwd|token|secret|authorization|apikey|api_key|access_key|ak|sk|jwt|bearer)\\b\\s*[:=]\\s*[^\\s,;]+", "$1=***");
+        return masked;
+    }
+
     // ==================== 内部实现 ====================
 
     /**

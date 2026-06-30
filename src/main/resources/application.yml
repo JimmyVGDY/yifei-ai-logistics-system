@@ -133,6 +133,8 @@ app:
   bloom-filter:
     expected-insertions: ${BLOOM_FILTER_EXPECTED_INSERTIONS:100000}
     false-positive-probability: ${BLOOM_FILTER_FALSE_POSITIVE_PROBABILITY:0.01}
+  id:
+    worker-id: ${APP_ID_WORKER_ID:0}
   rabbitmq:
     demo-exchange: ${RABBITMQ_DEMO_EXCHANGE:practice.demo.exchange}
     demo-queue: ${RABBITMQ_DEMO_QUEUE:practice.demo.queue}
@@ -186,6 +188,10 @@ app:
         base-url: ${APP_AI_MEMORY_QDRANT_BASE_URL:http://127.0.0.1:6333}
         collection: ${APP_AI_MEMORY_QDRANT_COLLECTION:logistics_ai_user_memory}
   auth:
+    login:
+      max-failures: ${APP_AUTH_LOGIN_MAX_FAILURES:5}
+      lock-minutes: ${APP_AUTH_LOGIN_LOCK_MINUTES:15}
+      rate-limit-per-minute: ${APP_AUTH_LOGIN_RATE_LIMIT_PER_MINUTE:10}
     admin:
       username: ${APP_ADMIN_USERNAME:admin}
       password: ${APP_ADMIN_PASSWORD:}

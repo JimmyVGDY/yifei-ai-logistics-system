@@ -1,5 +1,6 @@
 package jimmy.ai.service;
 
+import jimmy.common.util.LogMaskUtils;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,10 +13,6 @@ public class AiSensitiveDataMasker {
         if (value == null || value.isBlank()) {
             return value;
         }
-        String masked = value.replaceAll("(1[3-9]\\d)\\d{4}(\\d{4})", "$1****$2");
-        masked = masked.replaceAll("([\\w.+-])[\\w.+-]*@([\\w.-])[\\w.-]*(\\.[a-zA-Z]{2,})", "$1***@$2***$3");
-        masked = masked.replaceAll("\\b(\\d{3})\\d{11}(\\d{4})\\b", "$1***********$2");
-        masked = masked.replaceAll("(?i)(password|token|secret|authorization)\\s*[:=]\\s*\\S+", "$1=***");
-        return masked;
+        return LogMaskUtils.maskSensitiveText(value);
     }
 }

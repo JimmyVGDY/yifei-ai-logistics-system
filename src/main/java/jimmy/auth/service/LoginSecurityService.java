@@ -4,8 +4,10 @@ import jimmy.common.id.CompactSnowflakeIdGenerator;
 import jimmy.auth.entity.LoginHistory;
 import jimmy.auth.mapper.LoginHistoryMapper;
 import jimmy.auth.model.CaptchaResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -42,6 +44,9 @@ public class LoginSecurityService {
     private static final int FAMILIAR_MIN_COUNT = 3;
     /** 验证码 Redis Key 前缀 */
     private static final String CAPTCHA_KEY_PREFIX = "login:captcha:";
+    private static final String FAILURE_KEY_PREFIX = "login:failure:";
+    private static final String LOCK_KEY_PREFIX = "login:lock:";
+    private static final String RATE_KEY_PREFIX = "login:rate:";
     /** 验证码有效期（分钟） */
     private static final int CAPTCHA_TTL_MINUTES = 5;
     /** 验证码图片宽度 */
@@ -61,13 +66,59 @@ public class LoginSecurityService {
     private final LoginHistoryMapper loginHistoryMapper;
     private final StringRedisTemplate redisTemplate;
     private final CompactSnowflakeIdGenerator idGenerator;
+    private final int maxFailures;
+    private final int lockMinutes;
+    private final int rateLimitPerMinute;
 
     public LoginSecurityService(LoginHistoryMapper loginHistoryMapper,
                                 StringRedisTemplate redisTemplate,
-                                CompactSnowflakeIdGenerator idGenerator) {
+                                CompactSnowflakeIdGenerator idGenerator,
+                                @Value("${app.auth.login.max-failures:5}") int maxFailures,
+                                @Value("${app.auth.login.lock-minutes:15}") int lockMinutes,
+                                @Value("${app.auth.login.rate-limit-per-minute:10}") int rateLimitPerMinute) {
         this.loginHistoryMapper = loginHistoryMapper;
         this.redisTemplate = redisTemplate;
         this.idGenerator = idGenerator;
+        this.maxFailures = Math.max(1, maxFailures);
+        this.lockMinutes = Math.max(1, lockMinutes);
+        this.rateLimitPerMinute = Math.max(1, rateLimitPerMinute);
+    }
+
+    public void assertLoginAllowed(String username, String clientIp) {
+        String accountKey = normalized(username);
+        String ipKey = normalized(clientIp);
+        if (isLocked("account", accountKey) || isLocked("ip", ipKey)) {
+            throw new IllegalArgumentException("登录失败次数过多，请稍后再试");
+        }
+        long accountRate = incrementWithTtl(RATE_KEY_PREFIX + "account:" + accountKey, 1, TimeUnit.MINUTES);
+        long ipRate = incrementWithTtl(RATE_KEY_PREFIX + "ip:" + ipKey, 1, TimeUnit.MINUTES);
+        if (accountRate > rateLimitPerMinute || ipRate > rateLimitPerMinute) {
+            lock("account", accountKey);
+            lock("ip", ipKey);
+            throw new IllegalArgumentException("登录请求过于频繁，请稍后再试");
+        }
+    }
+
+    public void recordLoginFailure(String username, String clientIp) {
+        String accountKey = normalized(username);
+        String ipKey = normalized(clientIp);
+        long accountFailures = incrementWithTtl(FAILURE_KEY_PREFIX + "account:" + accountKey, lockMinutes, TimeUnit.MINUTES);
+        long ipFailures = incrementWithTtl(FAILURE_KEY_PREFIX + "ip:" + ipKey, lockMinutes, TimeUnit.MINUTES);
+        if (accountFailures >= maxFailures) {
+            lock("account", accountKey);
+        }
+        if (ipFailures >= maxFailures) {
+            lock("ip", ipKey);
+        }
+    }
+
+    public void clearLoginFailures(String username, String clientIp) {
+        String accountKey = normalized(username);
+        String ipKey = normalized(clientIp);
+        redisTemplate.delete(FAILURE_KEY_PREFIX + "account:" + accountKey);
+        redisTemplate.delete(FAILURE_KEY_PREFIX + "ip:" + ipKey);
+        redisTemplate.delete(LOCK_KEY_PREFIX + "account:" + accountKey);
+        redisTemplate.delete(LOCK_KEY_PREFIX + "ip:" + ipKey);
     }
 
     /**
@@ -221,6 +272,29 @@ public class LoginSecurityService {
             return null;
         }
         return userAgent.length() > 500 ? userAgent.substring(0, 500) : userAgent;
+    }
+
+    private boolean isLocked(String dimension, String key) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(LOCK_KEY_PREFIX + dimension + ":" + key));
+    }
+
+    private void lock(String dimension, String key) {
+        redisTemplate.opsForValue().set(LOCK_KEY_PREFIX + dimension + ":" + key, "1", lockMinutes, TimeUnit.MINUTES);
+    }
+
+    private long incrementWithTtl(String key, long ttl, TimeUnit unit) {
+        Long value = redisTemplate.opsForValue().increment(key);
+        if (value != null && value == 1L) {
+            redisTemplate.expire(key, ttl, unit);
+        }
+        return value == null ? 0L : value;
+    }
+
+    private String normalized(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "unknown";
+        }
+        return value.trim().toLowerCase();
     }
 
     /**

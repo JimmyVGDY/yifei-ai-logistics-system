@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <springProperty scope="context" name="LOG_FILE" source="logging.file.name" defaultValue="logs/logistics-management.log"/>
+    <conversionRule conversionWord="maskedMsg" converterClass="jimmy.common.logging.MaskMessageConverter"/>
+    <conversionRule conversionWord="maskedEx" converterClass="jimmy.common.logging.MaskThrowableConverter"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} [traceId=%X{traceId:-} operationId=%X{operationId:-} loginSessionId=%X{loginSessionId:-} userId=%X{userId:-} userCode=%X{userCode:-}] - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} [traceId=%X{traceId:-} operationId=%X{operationId:-} loginSessionId=%X{loginSessionId:-} userId=%X{userId:-} userCode=%X{userCode:-}] - %maskedMsg%n</pattern>
             <charset>UTF-8</charset>
         </encoder>
     </appender>
@@ -43,8 +45,12 @@
                     <fieldName>thread</fieldName>
                 </threadName>
                 <mdc/>
-                <message/>
-                <stackTrace/>
+                <pattern>
+                    <pattern>{"message":"%maskedMsg"}</pattern>
+                </pattern>
+                <pattern>
+                    <pattern>{"stack_trace":"%maskedEx"}</pattern>
+                </pattern>
             </providers>
         </encoder>
     </appender>

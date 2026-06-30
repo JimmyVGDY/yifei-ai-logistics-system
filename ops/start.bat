@@ -75,6 +75,7 @@ echo.
 echo 【启动应用】
 set NACOS_REGISTER_ENABLED=false
 set SPRING_SQL_INIT_MODE=never
+set APP_ENCRYPT_ENABLED=false
 set LOCAL_FRONTEND_AUTO_START=false
 set LOCAL_FRONTEND_AUTO_OPEN=false
 

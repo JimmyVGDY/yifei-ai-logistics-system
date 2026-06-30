@@ -102,10 +102,12 @@ public class AuthService {
         HttpServletRequest httpRequest = currentRequest();
         String clientIp = extractClientIp(httpRequest);
         String userAgent = httpRequest != null ? httpRequest.getHeader("User-Agent") : null;
+        loginSecurityService.assertLoginAllowed(username, clientIp);
 
         LoginUser loginUser = findLoginUser(username);
         if (loginUser == null) {
             log.warn("登录失败，账号或密码错误，username={}", LogMaskUtils.maskAccount(username));
+            loginSecurityService.recordLoginFailure(username, clientIp);
             throw new IllegalArgumentException("账号或密码错误");
         }
 
@@ -130,6 +132,7 @@ public class AuthService {
                         loginUser.id, LogMaskUtils.maskAccount(username));
                 loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
                         "FAIL", "验证码错误", true);
+                loginSecurityService.recordLoginFailure(loginUser.username, clientIp);
                 throw new IllegalArgumentException("验证码错误，请刷新验证码后重新输入");
             }
         }
@@ -138,11 +141,13 @@ public class AuthService {
             log.warn("登录失败，账号或密码错误，username={}", LogMaskUtils.maskAccount(username));
             loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
                     "FAIL", "密码错误", !isFamiliar);
+            loginSecurityService.recordLoginFailure(loginUser.username, clientIp);
             throw new IllegalArgumentException("账号或密码错误");
         }
         if (loginUser.status == null || loginUser.status != 1) {
             loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
                     "FAIL", "账号已停用", !isFamiliar);
+            loginSecurityService.recordLoginFailure(loginUser.username, clientIp);
             throw new IllegalArgumentException("账号已停用");
         }
         upgradePasswordIfNecessary(loginUser, password);
@@ -156,6 +161,7 @@ public class AuthService {
         // 登录成功，记录到历史
         loginSecurityService.recordLoginAttempt(loginUser.id, loginUser.username, clientIp, userAgent,
                 "SUCCESS", null, !isFamiliar);
+        loginSecurityService.clearLoginFailures(loginUser.username, clientIp);
         return completeLogin(loginUser);
     }
 
@@ -426,6 +432,9 @@ public class AuthService {
         if (!matchesPassword(request.getOldPassword(), storedPassword)) {
             throw new IllegalArgumentException("原密码错误");
         }
+        if (!isStrongPassword(request.getNewPassword())) {
+            throw new IllegalArgumentException("新密码至少8位且必须包含字母和数字");
+        }
         authMapper.updatePassword(userId, PASSWORD_ENCODER.encode(request.getNewPassword()));
         StpUtil.logout(userId);
     }
@@ -487,6 +496,15 @@ public class AuthService {
      */
     private boolean isBcrypt(String password) {
         return password != null && (password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$"));
+    }
+
+    private boolean isStrongPassword(String password) {
+        if (!StringUtils.hasText(password) || password.trim().length() < 8) {
+            return false;
+        }
+        boolean hasLetter = password.chars().anyMatch(Character::isLetter);
+        boolean hasDigit = password.chars().anyMatch(Character::isDigit);
+        return hasLetter && hasDigit;
     }
 
     /**

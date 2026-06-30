@@ -61,6 +61,7 @@ set NACOS_REGISTER_ENABLED=false
 set SPRING_SQL_INIT_MODE=never
 set LOCAL_FRONTEND_AUTO_START=true
 set LOCAL_FRONTEND_AUTO_OPEN=true
+set AI_INTERNAL_SHARED_SECRET=local-dev-ai-secret-please-change
 
 start "物流管理平台" javaw -jar target\demo-springboot-1.0-SNAPSHOT.jar ^
   --xxl.job.enabled=true ^
@@ -74,3 +75,4 @@ echo 后端启动命令已发送。
 echo 应用地址：http://127.0.0.1:8080
 echo XXL-Job：http://127.0.0.1:8081/xxl-job-admin
 echo 执行器端口：%XXL_EXECUTOR_PORT%
+echo Python AI 本地启动前请设置同值：set AI_INTERNAL_SHARED_SECRET=%AI_INTERNAL_SHARED_SECRET%
