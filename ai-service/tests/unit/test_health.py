@@ -3,6 +3,7 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
 
+from ai_service.api import health as health_module
 from ai_service.main import app
 
 
@@ -22,6 +23,33 @@ async def test_health_returns_degraded_when_infra_unavailable(client):
     assert "redis" in data["checks"]
     assert "qdrant" in data["checks"]
     assert "java" in data["checks"]
+
+
+@pytest.mark.asyncio
+async def test_health_uses_short_java_probe_timeout(monkeypatch):
+    """Java health probe should not block the Python health endpoint for the default client timeout."""
+
+    class FakeRedisClient:
+        async def ping(self):
+            return True
+
+    class FakeJavaHttpClient:
+        def __init__(self):
+            self.timeout = None
+
+        async def get(self, path, timeout=None):
+            self.timeout = timeout
+            return {"path": path}
+
+    fake_java = FakeJavaHttpClient()
+    monkeypatch.setattr(health_module.redis_client, "_client", FakeRedisClient())
+    monkeypatch.setattr(health_module.qdrant_client, "_available", True)
+    monkeypatch.setattr(health_module.java_client, "_client", fake_java)
+
+    data = await health_module.health()
+
+    assert data["status"] == "ok"
+    assert fake_java.timeout == health_module.JAVA_HEALTH_TIMEOUT_SECONDS
 
 
 @pytest.mark.asyncio

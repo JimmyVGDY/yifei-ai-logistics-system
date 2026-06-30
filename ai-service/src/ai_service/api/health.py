@@ -7,6 +7,7 @@ from ai_service.infrastructure.qdrant_client import qdrant_client
 from ai_service.infrastructure.java_client import java_client
 
 router = APIRouter()
+JAVA_HEALTH_TIMEOUT_SECONDS = 2.0
 
 
 @router.get("/health")
@@ -23,7 +24,7 @@ async def health() -> dict:
     checks["qdrant"] = "ok" if qdrant_client.available else "unavailable"
 
     try:
-        await java_client.client.get("/ai/internal/health")
+        await java_client.client.get("/ai/internal/health", timeout=JAVA_HEALTH_TIMEOUT_SECONDS)
         checks["java"] = "ok"
     except Exception:
         checks["java"] = "unreachable"

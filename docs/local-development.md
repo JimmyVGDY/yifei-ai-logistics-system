@@ -156,6 +156,8 @@ ops\logs.bat
 ops\stop.bat
 ```
 
+Windows 本地脚本默认设置 `MANAGEMENT_HEALTH_ELASTICSEARCH_ENABLED=false`，避免本机 Elasticsearch health 响应和 Java client 版本差异导致 `/actuator/health` 被误判为 DOWN；业务搜索链路仍按 `ELASTICSEARCH_URIS` 连接。
+
 ### Linux / WSL2
 
 ```bash

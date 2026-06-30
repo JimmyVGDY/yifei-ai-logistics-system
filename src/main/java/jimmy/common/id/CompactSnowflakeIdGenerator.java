@@ -1,5 +1,7 @@
 package jimmy.common.id;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -33,7 +35,8 @@ public class CompactSnowflakeIdGenerator {
     private final int workerId;
     private final Supplier<Instant> clock;
 
-    public CompactSnowflakeIdGenerator(@org.springframework.beans.factory.annotation.Value("${app.id.worker-id:0}") int workerId) {
+    @Autowired
+    public CompactSnowflakeIdGenerator(@Value("${app.id.worker-id:0}") int workerId) {
         this(workerId, Instant::now);
     }
 

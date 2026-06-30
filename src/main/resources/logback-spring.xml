@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <springProperty scope="context" name="LOG_FILE" source="logging.file.name" defaultValue="logs/logistics-management.log"/>
-    <conversionRule conversionWord="maskedMsg" converterClass="jimmy.common.logging.MaskMessageConverter"/>
-    <conversionRule conversionWord="maskedEx" converterClass="jimmy.common.logging.MaskThrowableConverter"/>
+    <conversionRule conversionWord="maskedMsg" class="jimmy.common.logging.MaskMessageConverter"/>
+    <conversionRule conversionWord="maskedEx" class="jimmy.common.logging.MaskThrowableConverter"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>

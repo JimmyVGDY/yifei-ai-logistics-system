@@ -59,6 +59,7 @@ echo.
 echo [4/4] 启动后端应用
 set NACOS_REGISTER_ENABLED=false
 set SPRING_SQL_INIT_MODE=never
+set MANAGEMENT_HEALTH_ELASTICSEARCH_ENABLED=false
 set LOCAL_FRONTEND_AUTO_START=true
 set LOCAL_FRONTEND_AUTO_OPEN=true
 set AI_INTERNAL_SHARED_SECRET=local-dev-ai-secret-please-change
