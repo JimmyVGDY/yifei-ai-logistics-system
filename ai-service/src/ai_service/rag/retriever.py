@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from typing import Optional
+import asyncio
 import re
 
 import structlog
@@ -54,7 +55,8 @@ class KnowledgeRetriever:
         # 使用哈希向量作为简易 embedding（Ollama bge-m3 不可用时降级）
         vector = self._hash_vector(query)
 
-        results = qdrant_client.client.query_points(
+        results = await asyncio.to_thread(
+            qdrant_client.client.query_points,
             collection_name=COLLECTION_NAME,
             query=vector,
             limit=top_k,

@@ -1,11 +1,12 @@
-import http from './http'
-import { createSseParser } from './sse-parser'
-import { getAuthToken } from '../stores/auth-store'
+import http from './http.js'
+import { createSseParser } from './sse-parser.js'
+import { getAuthToken } from '../stores/auth-store.js'
 
 let activeStreamConversationId = ''
 const transientHistories = new Map()
 const MAX_CLIENT_HISTORY = 8
 const MAX_HISTORY_CONTENT_LENGTH = 1000
+const DEFAULT_SSE_IDLE_TIMEOUT_MS = 30000
 
 export function chatWithAi(payload) {
   return http.post('/ai/chat', payload)
@@ -75,13 +76,29 @@ function clientHistoryFor(conversationId) {
  */
 export function chatWithAiStream({ message, conversationId, pageContext, cursorId, onEvent }) {
   const controller = new AbortController()
+  let idleTimer = null
+  let idleTimedOut = false
+  const env = import.meta.env || globalThis.__VITE_ENV__ || {}
+  const idleTimeoutMs = Number(env.VITE_AI_SSE_IDLE_TIMEOUT_MS || DEFAULT_SSE_IDLE_TIMEOUT_MS)
   const { tokenName, tokenValue } = getAuthToken()
-  const baseURL = import.meta.env.VITE_API_BASE || '/api'
+  const baseURL = env.VITE_API_BASE || '/api'
   const url = `${baseURL}/ai/chat/stream`
   const effectiveConversationId = resolveStreamConversationId(conversationId)
   const clientHistory = clientHistoryFor(effectiveConversationId)
 
   const promise = (async () => {
+    const resetIdleTimer = () => {
+      if (idleTimer) {
+        clearTimeout(idleTimer)
+      }
+      if (idleTimeoutMs > 0) {
+        idleTimer = setTimeout(() => {
+          idleTimedOut = true
+          controller.abort()
+        }, idleTimeoutMs)
+      }
+    }
+
     const headers = {
       Accept: 'text/event-stream',
       'Content-Type': 'application/json'
@@ -93,33 +110,36 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
     // 先记录当前用户消息到前端临时历史，保证即使本轮 SSE 失败，下一轮追问仍能带上上下文。
     appendTransientHistory(effectiveConversationId, 'user', message)
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        message,
-        conversationId: effectiveConversationId,
-        pageContext,
-        cursorId,
-        clientHistory
-      }),
-      signal: controller.signal
-    })
+    try {
+      resetIdleTimer()
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          message,
+          conversationId: effectiveConversationId,
+          pageContext,
+          cursorId,
+          clientHistory
+        }),
+        signal: controller.signal
+      })
 
-    if (!response.ok) {
-      const text = await response.text().catch(() => '')
-      throw new Error(text || `HTTP ${response.status}`)
-    }
+      if (!response.ok) {
+        const text = await response.text().catch(() => '')
+        throw new Error(text || `HTTP ${response.status}`)
+      }
 
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let result = null
-    let streamError = null
-    const toolCalls = []
-    const dataResults = []
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let result = null
+      let streamError = null
+      const toolCalls = []
+      const dataResults = []
 
-    const parseSseEvent = (evName, evData) => {
+      const parseSseEvent = (evName, evData) => {
       if (!evName || !evData) return
+      resetIdleTimer()
       try {
         const data = JSON.parse(evData)
         if (evName === 'done') {
@@ -164,35 +184,45 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
       }
     }
 
-    const parser = createSseParser(({ event, data }) => parseSseEvent(event, data))
+      const parser = createSseParser(({ event, data }) => parseSseEvent(event, data))
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) {
-        parser.feed(decoder.decode())
-        parser.close()
-        break
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) {
+          parser.feed(decoder.decode())
+          parser.close()
+          break
+        }
+        resetIdleTimer()
+        parser.feed(decoder.decode(value, { stream: true }))
       }
 
-      parser.feed(decoder.decode(value, { stream: true }))
+      if (!result && streamError) {
+        throw new Error(streamError)
+      }
+      if (!result) {
+        throw new Error('SSE 连接意外关闭，未收到最终结果')
+      }
+      if (streamError && !result.answer) {
+        result.answer = streamError
+      }
+      if (result.conversationId) {
+        activeStreamConversationId = result.conversationId
+      }
+      if (result.answer) {
+        appendTransientHistory(result.conversationId || effectiveConversationId, 'assistant', result.answer)
+      }
+      return result
+    } catch (error) {
+      if (idleTimedOut) {
+        throw new Error('AI 流式响应超时，请稍后重试')
+      }
+      throw error
+    } finally {
+      if (idleTimer) {
+        clearTimeout(idleTimer)
+      }
     }
-
-    if (!result && streamError) {
-      throw new Error(streamError)
-    }
-    if (!result) {
-      throw new Error('SSE 连接意外关闭，未收到最终结果')
-    }
-    if (streamError && !result.answer) {
-      result.answer = streamError
-    }
-    if (result.conversationId) {
-      activeStreamConversationId = result.conversationId
-    }
-    if (result.answer) {
-      appendTransientHistory(result.conversationId || effectiveConversationId, 'assistant', result.answer)
-    }
-    return result
   })()
 
   return {

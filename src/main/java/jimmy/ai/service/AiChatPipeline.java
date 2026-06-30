@@ -75,6 +75,7 @@ public class AiChatPipeline {
     private final long heartbeatSeconds;
     private final PythonClient pythonClient;
     private final boolean pythonEnabled;
+    private final int pythonTimeoutSeconds;
 
     public AiChatPipeline(AiKnowledgeService knowledgeService,
                           AiReadonlyQueryService readonlyQueryService,
@@ -94,6 +95,7 @@ public class AiChatPipeline {
                           AiGroundingGuard groundingGuard,
                           PythonClient pythonClient,
                           @Value("${app.ai.python.enabled:false}") boolean pythonEnabled,
+                          @Value("${app.ai.python.timeout-seconds:180}") int pythonTimeoutSeconds,
                           @Value("${app.ai.sse.heartbeat-seconds:10}") long heartbeatSeconds) {
         this.knowledgeService = knowledgeService;
         this.readonlyQueryService = readonlyQueryService;
@@ -113,6 +115,7 @@ public class AiChatPipeline {
         this.groundingGuard = groundingGuard;
         this.pythonClient = pythonClient;
         this.pythonEnabled = pythonEnabled;
+        this.pythonTimeoutSeconds = Math.max(5, pythonTimeoutSeconds);
         this.heartbeatSeconds = Math.max(1, heartbeatSeconds);
     }
 
@@ -441,7 +444,7 @@ public class AiChatPipeline {
                 .header("Content-Type", "application/json")
                 .header("Accept", "text/event-stream")
                 .header("X-Trace-Id", traceId)
-                .timeout(Duration.ofSeconds(180))
+                .timeout(Duration.ofSeconds(pythonTimeoutSeconds))
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
                 .build();
 
@@ -517,7 +520,7 @@ public class AiChatPipeline {
                 .uri(URI.create(pythonClient.getBaseUrl() + "/chat/stream"))
                 .header("Content-Type", "application/json")
                 .header("Accept", "text/event-stream")
-                .timeout(Duration.ofSeconds(180))
+                .timeout(Duration.ofSeconds(pythonTimeoutSeconds))
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
                 .build();
 

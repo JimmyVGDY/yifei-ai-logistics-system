@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from typing import Optional
+import asyncio
 
 import structlog
 
@@ -48,7 +49,8 @@ class MemoryMergeService:
             from qdrant_client.models import Filter, FieldCondition, MatchValue
             vector = self._hash_vector(question)
 
-            results = qdrant_client.client.query_points(
+            results = await asyncio.to_thread(
+                qdrant_client.client.query_points,
                 collection_name=COLLECTION_NAME,
                 query=vector,
                 query_filter=Filter(must=[

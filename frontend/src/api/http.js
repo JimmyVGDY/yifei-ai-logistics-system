@@ -1,9 +1,10 @@
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { clearAuthToken, getAuthToken } from '../stores/auth-store'
+import { clearAuthToken, getAuthToken } from '../stores/auth-store.js'
 
+const env = import.meta.env || globalThis.__VITE_ENV__ || {}
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || '/api',
+  baseURL: env.VITE_API_BASE || '/api',
   timeout: 10000
 })
 

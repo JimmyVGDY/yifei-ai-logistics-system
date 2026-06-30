@@ -9,7 +9,8 @@
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "test:auth": "node scripts/test-auth-permissions.mjs",
     "test:sse": "node scripts/test-sse-parser.mjs",
-    "test:unit": "npm run test:auth && npm run test:sse"
+    "test:stream": "node scripts/test-ai-assistant-stream.mjs",
+    "test:unit": "npm run test:auth && npm run test:sse && npm run test:stream"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

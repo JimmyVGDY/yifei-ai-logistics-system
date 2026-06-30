@@ -43,3 +43,33 @@ groups:
         annotations:
           summary: "JVM 堆内存使用率超过 85%"
           description: "当前: {{ $value | humanizePercentage }}"
+
+      # ---- Python AI 服务存活 ----
+      - alert: AiServiceDown
+        expr: up{job="logistics-ai-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Python AI 服务宕机"
+          description: "AI 服务 {{ $labels.instance }} 已超过 1 分钟无响应"
+
+      # ---- Python AI 5xx 错误率 ----
+      - alert: AiServiceHighErrorRate
+        expr: rate(http_requests_total{status=~"5..",job="logistics-ai-service"}[5m]) / rate(http_requests_total{job="logistics-ai-service"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Python AI 服务 5xx 错误率超过 5%"
+          description: "错误率: {{ $value | humanizePercentage }}"
+
+      # ---- Python AI 响应时间 ----
+      - alert: AiServiceHighLatency
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job="logistics-ai-service"}[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Python AI 服务 P99 响应时间超过 10 秒"
+          description: "P99: {{ $value }}s"
