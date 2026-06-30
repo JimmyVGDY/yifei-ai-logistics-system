@@ -18,6 +18,9 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class LogisticsOrderCacheService {
 
+    private static final String IDEMPOTENCY_PENDING = "__PENDING__";
+    private static final long IDEMPOTENCY_TTL_HOURS = 24;
+
     private final RedisTemplate<String, Object> redisTemplate;
     private final LogisticsProperties logisticsProperties;
     private final BloomFilterService bloomFilterService;
@@ -54,10 +57,41 @@ public class LogisticsOrderCacheService {
                 logisticsOrder.getOrderNo(), logisticsProperties.getOrderCacheTtlSeconds());
     }
 
+    public String idempotencyOrderNo(String key) {
+        Object value = redisTemplate.opsForValue().get(idempotencyKey(key));
+        if (value == null || IDEMPOTENCY_PENDING.equals(String.valueOf(value))) {
+            return null;
+        }
+        return String.valueOf(value);
+    }
+
+    public boolean reserveIdempotencyKey(String key) {
+        Boolean created = redisTemplate.opsForValue().setIfAbsent(
+                idempotencyKey(key), IDEMPOTENCY_PENDING, IDEMPOTENCY_TTL_HOURS, TimeUnit.HOURS);
+        return Boolean.TRUE.equals(created);
+    }
+
+    public boolean isIdempotencyPending(String key) {
+        Object value = redisTemplate.opsForValue().get(idempotencyKey(key));
+        return IDEMPOTENCY_PENDING.equals(String.valueOf(value));
+    }
+
+    public void completeIdempotencyKey(String key, String orderNo) {
+        redisTemplate.opsForValue().set(idempotencyKey(key), orderNo, IDEMPOTENCY_TTL_HOURS, TimeUnit.HOURS);
+    }
+
+    public void clearIdempotencyKey(String key) {
+        redisTemplate.delete(idempotencyKey(key));
+    }
+
     /**
      * 生成订单缓存的 Redis Key，格式为 {@code 前缀:order:订单号}，支持按前缀批量清理。
      */
     private String orderCacheKey(String orderNo) {
         return logisticsProperties.getCachePrefix() + ":order:" + orderNo;
+    }
+
+    private String idempotencyKey(String key) {
+        return logisticsProperties.getCachePrefix() + ":order:idempotency:" + key;
     }
 }

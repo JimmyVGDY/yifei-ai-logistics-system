@@ -5,13 +5,13 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 /**
  * 紧凑型雪花 ID 生成器。
  * <p>
- * ID 格式：{@code yyMMddHHmmss + 3位序列号}（共 15 位十进制数字），
- * 每秒最多生成 1000 个 ID，适合单机部署的中小型项目。
+ * ID 格式：{@code yyMMddHHmmss + 2位workerId + 3位序列号}。
+ * 默认 workerId=0，单实例本地开发无需配置；多实例部署必须显式分配不同 workerId。
  * </p>
  * <p>
  * 线程安全：{@code nextId()} 通过 synchronized 保证同一秒内序列号不重复，
@@ -30,6 +30,20 @@ public class CompactSnowflakeIdGenerator {
 
     /** 当前秒内的序列号 [0, 999]，仅在 synchronized 块内修改 */
     private int sequence;
+    private final int workerId;
+    private final Supplier<Instant> clock;
+
+    public CompactSnowflakeIdGenerator(@org.springframework.beans.factory.annotation.Value("${app.id.worker-id:0}") int workerId) {
+        this(workerId, Instant::now);
+    }
+
+    CompactSnowflakeIdGenerator(int workerId, Supplier<Instant> clock) {
+        if (workerId < 0 || workerId > 99) {
+            throw new IllegalArgumentException("app.id.worker-id 必须在 0 到 99 之间");
+        }
+        this.workerId = workerId;
+        this.clock = clock == null ? Instant::now : clock;
+    }
 
     /**
      * 生成下一个唯一 ID。
@@ -42,7 +56,7 @@ public class CompactSnowflakeIdGenerator {
      */
     public synchronized long nextId() {
         // 统一时间源：用 Instant 获取 epoch 秒，避免 System.currentTimeMillis 与 LocalDateTime 之间的跨秒偏差
-        Instant now = Instant.now();
+        Instant now = clock.get();
         long currentEpochSecond = now.getEpochSecond();
 
         if (currentEpochSecond == lastEpochSecond) {
@@ -51,8 +65,11 @@ public class CompactSnowflakeIdGenerator {
             if (sequence > 999) {
                 // 当前秒序列号耗尽，等待下一秒
                 currentEpochSecond = waitNextSecond(currentEpochSecond);
+                now = Instant.ofEpochSecond(currentEpochSecond);
                 sequence = 0;
             }
+        } else if (currentEpochSecond < lastEpochSecond) {
+            throw new IllegalStateException("系统时钟发生回拨，拒绝生成ID");
         } else {
             // 进入新的一秒，序列号归零
             lastEpochSecond = currentEpochSecond;
@@ -61,7 +78,7 @@ public class CompactSnowflakeIdGenerator {
 
         // 时间部分与秒级锁使用同一个 Instant，确保格式化结果与锁判断的秒一致
         String timePart = SECOND_FORMATTER.format(now);
-        return Long.parseLong(timePart + String.format("%03d", sequence));
+        return Long.parseLong(timePart + String.format("%02d%03d", workerId, sequence));
     }
 
     /**
@@ -75,11 +92,11 @@ public class CompactSnowflakeIdGenerator {
      * @return 下一秒的 epoch 秒值
      */
     private long waitNextSecond(long currentSecond) {
-        long nextSecond = Instant.now().getEpochSecond();
+        long nextSecond = clock.get().getEpochSecond();
         while (nextSecond <= currentSecond) {
             // 短暂让出 CPU，避免空转消耗
             Thread.yield();
-            nextSecond = Instant.now().getEpochSecond();
+            nextSecond = clock.get().getEpochSecond();
         }
         lastEpochSecond = nextSecond;
         return nextSecond;

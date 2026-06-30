@@ -112,6 +112,9 @@ public class LogisticsCrudService {
         userAccountService.normalizeUserCustomerBinding(module, values, id, true);
         Map<String, Object> changeValues = new LinkedHashMap<>(values);
         Map<String, Object> before = logisticsCrudMapper.selectRecordById(config.tableName, id);
+        if (before == null || before.isEmpty()) {
+            throw new IllegalArgumentException("记录不存在");
+        }
         fillUpdateDefaults(config, values);
         fillAuditDefaults(config, values, false);
         userAccountService.validateMobileFields(values);
@@ -122,9 +125,11 @@ public class LogisticsCrudService {
             throw new IllegalArgumentException("没有可更新字段");
         }
 
-        int updated = logisticsCrudMapper.updateRecord(config.tableName, id, utils.toFieldValues(values), columnChecker.hasColumn(config.tableName, "version"));
+        boolean versioned = columnChecker.hasColumn(config.tableName, "version");
+        int updated = logisticsCrudMapper.updateRecord(config.tableName, id, utils.toFieldValues(values), versioned,
+                versioned ? before.get("version") : null);
         if (updated == 0) {
-            throw new IllegalArgumentException("记录不存在");
+            throw new IllegalArgumentException(versioned ? "记录已被他人修改，请刷新后重试" : "记录不存在");
         }
         changeAudit.recordUpdate(changeValues, before);
         log.info("管理模块更新完成,module={}, id={}", module, id);
@@ -139,6 +144,9 @@ public class LogisticsCrudService {
     public OperationResultVO delete(String module, long id) {
         CrudConfig config = requireConfig(module);
         Map<String, Object> before = logisticsCrudMapper.selectRecordById(config.tableName, id);
+        if (before == null || before.isEmpty()) {
+            throw new IllegalArgumentException("记录不存在");
+        }
         if (!columnChecker.hasColumn(config.tableName, "deleted")) {
             throw new IllegalStateException("当前表未迁移 deleted 字段，禁止物理删除，请先执行增量迁移");
         }
@@ -149,9 +157,11 @@ public class LogisticsCrudService {
         if (columnChecker.hasColumn(config.tableName, "update_by")) {
             deleteValues.put("update_by", currentUserId());
         }
-        int updated = logisticsCrudMapper.logicalDelete(config.tableName, id, utils.toFieldValues(deleteValues), columnChecker.hasColumn(config.tableName, "version"));
+        boolean versioned = columnChecker.hasColumn(config.tableName, "version");
+        int updated = logisticsCrudMapper.logicalDelete(config.tableName, id, utils.toFieldValues(deleteValues), versioned,
+                versioned ? before.get("version") : null);
         if (updated == 0) {
-            throw new IllegalArgumentException("记录不存在");
+            throw new IllegalArgumentException(versioned ? "记录已被他人修改，请刷新后重试" : "记录不存在");
         }
         changeAudit.recordDelete(before);
         log.info("管理模块删除完成,module={}, id={}", module, id);
@@ -249,11 +259,15 @@ public class LogisticsCrudService {
     }
 
     private Long currentUserId() {
-        Object loginId = StpUtil.getLoginIdDefaultNull();
-        if (loginId == null) {
+        try {
+            Object loginId = StpUtil.getLoginIdDefaultNull();
+            if (loginId == null) {
+                return 0L;
+            }
+            return Long.valueOf(String.valueOf(loginId));
+        } catch (Exception e) {
             return 0L;
         }
-        return Long.valueOf(String.valueOf(loginId));
     }
 
 }

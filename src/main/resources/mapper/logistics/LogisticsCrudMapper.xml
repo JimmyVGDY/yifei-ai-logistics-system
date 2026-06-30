@@ -35,6 +35,9 @@
             </if>
         </set>
         where id = #{id}
+        <if test="increaseVersion and expectedVersion != null">
+            and version = #{expectedVersion}
+        </if>
     </update>
 
     <!-- 已迁移 deleted 字段的表走逻辑删除，同时可更新审计字段和版本号。 -->
@@ -51,6 +54,9 @@
         </set>
         where id = #{id}
           and deleted = 0
+          <if test="increaseVersion and expectedVersion != null">
+              and version = #{expectedVersion}
+          </if>
     </update>
 
     <!-- 兼容未执行增量迁移的旧表：没有 deleted 字段时才回退物理删除。 -->

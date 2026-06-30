@@ -21,6 +21,8 @@ public class CreateLogisticsOrderRequest {
     private String cargoName;
     /** 货物重量（千克） */
     private BigDecimal cargoWeight;
+    /** 可选幂等键，支持同一创建请求重试不重复下单 */
+    private String idempotencyKey;
 
     public String getCustomerName() {
         return customerName;
@@ -60,5 +62,13 @@ public class CreateLogisticsOrderRequest {
 
     public void setCargoWeight(BigDecimal cargoWeight) {
         this.cargoWeight = cargoWeight;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
     }
 }

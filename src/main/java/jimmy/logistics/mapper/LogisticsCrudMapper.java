@@ -21,12 +21,14 @@ public interface LogisticsCrudMapper {
     int updateRecord(@Param("tableName") String tableName,
                      @Param("id") Long id,
                      @Param("fields") List<CrudFieldValue> fields,
-                     @Param("increaseVersion") boolean increaseVersion);
+                     @Param("increaseVersion") boolean increaseVersion,
+                     @Param("expectedVersion") Object expectedVersion);
 
     int logicalDelete(@Param("tableName") String tableName,
                       @Param("id") Long id,
                       @Param("fields") List<CrudFieldValue> fields,
-                      @Param("increaseVersion") boolean increaseVersion);
+                      @Param("increaseVersion") boolean increaseVersion,
+                      @Param("expectedVersion") Object expectedVersion);
 
     Map<String, Object> selectRecordById(@Param("tableName") String tableName,
                                          @Param("id") Long id);

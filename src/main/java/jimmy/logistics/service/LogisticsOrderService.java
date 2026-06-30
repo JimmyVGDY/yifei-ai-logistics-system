@@ -11,6 +11,8 @@ import jimmy.common.util.LogMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -64,36 +66,67 @@ public class LogisticsOrderService {
                 request == null ? null : LogMaskUtils.maskName(request.getCustomerName()),
                 request == null ? null : LogMaskUtils.maskText(request.getCargoName()));
         validate(request);
+        String idempotencyKey = normalizeIdempotencyKey(request.getIdempotencyKey());
+        if (StringUtils.hasText(idempotencyKey)) {
+            String existingOrderNo = orderCacheService.idempotencyOrderNo(idempotencyKey);
+            if (StringUtils.hasText(existingOrderNo)) {
+                LogisticsOrder existing = findByOrderNo(existingOrderNo);
+                if (existing != null) {
+                    log.info("订单创建命中幂等键，idempotencyKey={}, orderNo={}", LogMaskUtils.maskText(idempotencyKey), existingOrderNo);
+                    return existing;
+                }
+            }
+            if (!orderCacheService.reserveIdempotencyKey(idempotencyKey)) {
+                if (orderCacheService.isIdempotencyPending(idempotencyKey)) {
+                    throw new IllegalArgumentException("相同订单请求正在处理中，请稍后重试");
+                }
+                existingOrderNo = orderCacheService.idempotencyOrderNo(idempotencyKey);
+                LogisticsOrder existing = StringUtils.hasText(existingOrderNo) ? findByOrderNo(existingOrderNo) : null;
+                if (existing != null) {
+                    return existing;
+                }
+                throw new IllegalArgumentException("相同订单请求已提交，请稍后查询订单结果");
+            }
+        }
 
-        // 运单号在服务端生成，避免前端传入重复单号导致业务数据冲突。
-        LocalDateTime now = LocalDateTime.now();
-        LogisticsOrder logisticsOrder = new LogisticsOrder();
-        logisticsOrder.setId(idGenerator.nextId());
-        logisticsOrder.setCustomerId(currentCustomerScopeOrNull());
-        logisticsOrder.setOrderNo(generateOrderNo(now));
-        logisticsOrder.setCustomerName(request.getCustomerName());
-        logisticsOrder.setSenderAddress(request.getSenderAddress());
-        logisticsOrder.setReceiverAddress(request.getReceiverAddress());
-        logisticsOrder.setCargoName(request.getCargoName());
-        logisticsOrder.setCargoWeight(request.getCargoWeight());
-        logisticsOrder.setStatus(STATUS_CREATED);
-        logisticsOrder.setCreatedAt(now);
-        logisticsOrder.setUpdatedAt(now);
+        try {
+            // 运单号在服务端生成，避免前端传入重复单号导致业务数据冲突。
+            LocalDateTime now = LocalDateTime.now();
+            LogisticsOrder logisticsOrder = new LogisticsOrder();
+            logisticsOrder.setId(idGenerator.nextId());
+            logisticsOrder.setCustomerId(currentCustomerScopeOrNull());
+            logisticsOrder.setOrderNo(generateOrderNo(now));
+            logisticsOrder.setCustomerName(request.getCustomerName());
+            logisticsOrder.setSenderAddress(request.getSenderAddress());
+            logisticsOrder.setReceiverAddress(request.getReceiverAddress());
+            logisticsOrder.setCargoName(request.getCargoName());
+            logisticsOrder.setCargoWeight(request.getCargoWeight());
+            logisticsOrder.setStatus(STATUS_CREATED);
+            logisticsOrder.setCreatedAt(now);
+            logisticsOrder.setUpdatedAt(now);
 
-        // 下单主流程：先落库保证核心数据可靠，再同步缓存、搜索索引和异步事件。
-        logisticsOrderMapper.insert(logisticsOrder);
-        orderCacheService.rememberOrderNo(logisticsOrder.getOrderNo());
-        orderCacheService.cacheOrder(logisticsOrder);
-        orderSearchService.saveSearchDocument(logisticsOrder);
-        orderMessageService.publishOrderCreated(logisticsOrder);
-        log.info("物流订单创建完成，orderNo={}, customerName={}, status={}",
-                logisticsOrder.getOrderNo(),
-                LogMaskUtils.maskName(logisticsOrder.getCustomerName()),
-                logisticsOrder.getStatus());
-        OperationChangeContext.setChangeSummary("订单号=" + logisticsOrder.getOrderNo()
-                + ", 客户=" + LogMaskUtils.maskName(logisticsOrder.getCustomerName())
-                + ", 货物=" + logisticsOrder.getCargoName());
-        return logisticsOrder;
+            // 下单主流程：事务内只落库；缓存、搜索索引和 MQ 事件必须在提交后执行，避免回滚产生脏副作用。
+            logisticsOrderMapper.insert(logisticsOrder);
+            runAfterCommit(() -> {
+                syncOrderSideEffects(logisticsOrder);
+                if (StringUtils.hasText(idempotencyKey)) {
+                    orderCacheService.completeIdempotencyKey(idempotencyKey, logisticsOrder.getOrderNo());
+                }
+            });
+            log.info("物流订单创建完成，orderNo={}, customerName={}, status={}",
+                    logisticsOrder.getOrderNo(),
+                    LogMaskUtils.maskName(logisticsOrder.getCustomerName()),
+                    logisticsOrder.getStatus());
+            OperationChangeContext.setChangeSummary("订单号=" + logisticsOrder.getOrderNo()
+                    + ", 客户=" + LogMaskUtils.maskName(logisticsOrder.getCustomerName())
+                    + ", 货物=" + logisticsOrder.getCargoName());
+            return logisticsOrder;
+        } catch (RuntimeException e) {
+            if (StringUtils.hasText(idempotencyKey)) {
+                orderCacheService.clearIdempotencyKey(idempotencyKey);
+            }
+            throw e;
+        }
     }
 
     /**
@@ -183,6 +216,53 @@ public class LogisticsOrderService {
         }
     }
 
+    private String normalizeIdempotencyKey(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String trimmed = value.trim();
+        if (trimmed.length() > 128) {
+            throw new IllegalArgumentException("Idempotency-Key 长度不能超过128");
+        }
+        if (!trimmed.matches("[A-Za-z0-9._:-]+")) {
+            throw new IllegalArgumentException("Idempotency-Key 只能包含字母、数字、点、下划线、冒号和短横线");
+        }
+        return currentUserIdForIdempotency() + ":" + trimmed;
+    }
+
+    private String currentUserIdForIdempotency() {
+        try {
+            Object loginId = StpUtil.getLoginIdDefaultNull();
+            return loginId == null ? "anonymous" : String.valueOf(loginId);
+        } catch (Exception e) {
+            return "anonymous";
+        }
+    }
+
+    private void syncOrderSideEffects(LogisticsOrder logisticsOrder) {
+        try {
+            orderCacheService.rememberOrderNo(logisticsOrder.getOrderNo());
+            orderCacheService.cacheOrder(logisticsOrder);
+            orderSearchService.saveSearchDocument(logisticsOrder);
+            orderMessageService.publishOrderCreated(logisticsOrder);
+        } catch (Exception e) {
+            log.error("订单提交后副作用同步失败，orderNo={}, reason={}", logisticsOrder.getOrderNo(), e.getMessage(), e);
+        }
+    }
+
+    private void runAfterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+            return;
+        }
+        action.run();
+    }
+
     /**
      * 生成订单号：前缀 LO + 14 位时间戳 + 8 位 Snowflake 唯一后缀。
      * <p>
@@ -221,6 +301,8 @@ public class LogisticsOrderService {
             throw new IllegalStateException("客户账号未绑定客户档案，禁止查询业务数据");
         } catch (IllegalStateException ex) {
             throw ex;
+        } catch (cn.dev33.satoken.exception.SaTokenContextException ex) {
+            return null;
         } catch (Exception ex) {
             throw new IllegalStateException("客户数据权限校验失败", ex);
         }
