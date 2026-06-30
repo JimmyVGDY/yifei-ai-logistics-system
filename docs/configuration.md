@@ -37,8 +37,12 @@
 | `APP_ADMIN_PASSWORD` | 见 `application.yml` | 后台管理员密码，建议本地通过环境变量覆盖 |
 | `APP_OPERATION_LOG_RETENTION_DAYS` | `180` | 操作日志保留天数，超期自动归档至 `sys_operation_log_archive` |
 | `APP_ENCRYPT_ENABLED` | `true` | 是否启用手机号等敏感字段加密 |
-| `APP_ENCRYPT_KEY` | 空 | 敏感字段加密密钥；生产环境必须配置 |
+| `APP_ENCRYPT_KEY` | 空 | 敏感字段加密密钥；启用加密时必须配置，长度必须为 16/24/32 个 UTF-8 字节且不能使用弱值 |
 | `APP_ENCRYPT_REQUIRE_KEY` | `false`，生产为 `true` | 是否要求显式配置加密密钥 |
+| `APP_ID_WORKER_ID` | `0` | 紧凑型 ID 生成器 workerId，本地单实例可保持 0，多实例必须唯一，范围 0-99 |
+| `APP_AUTH_LOGIN_MAX_FAILURES` | `5` | 同账号或同 IP 连续登录失败锁定阈值 |
+| `APP_AUTH_LOGIN_LOCK_MINUTES` | `15` | 登录失败锁定时间，单位分钟 |
+| `APP_AUTH_LOGIN_RATE_LIMIT_PER_MINUTE` | `10` | 同账号或同 IP 每分钟登录请求上限 |
 | `MYBATIS_SQL_LOG_LEVEL` | `info` | MyBatis Mapper 日志级别，排查 SQL 时可临时设为 `debug` |
 | `SPRING_AI_OPENAI_API_KEY` | `missing` | Spring AI OpenAI 兼容接口密钥；未配置时 AI 接口走本地兜底，不影响应用启动 |
 | `SPRING_AI_OPENAI_BASE_URL` | `https://api.openai.com` | OpenAI 兼容接口地址，可替换为内网模型网关 |
@@ -48,6 +52,7 @@
 | `APP_AI_TOOL_MAX_CALLS` | `8` | 单次 AI 问答最多允许调用的后端只读工具次数；系统提示词和后端硬限制共用该值 |
 | `APP_AI_QUERY_CURSOR_TTL_MINUTES` | `60` | AI 查询结果游标保留时间，支持“继续看、查看剩余数据、下一页”等追问 |
 | `APP_AI_SSE_TIMEOUT_MS` | `180000` | AI 流式问答的 Spring MVC 异步超时时间，单位毫秒 |
+| `APP_AI_SSE_IDLE_TIMEOUT_MS` | `30000` | 前端 SSE 空闲超时时间，单位毫秒；超过该时间无数据块会主动中断并提示重试 |
 | `APP_AI_SSE_HEARTBEAT_SECONDS` | `10` | AI 流式问答心跳间隔，防止长时间工具调用时前端误判连接卡死 |
 | `APP_AI_SSE_LEGACY_GET_ENABLED` | `true` | 是否保留旧版 `GET /ai/chat/stream` 流式入口；用户问题放在 URL 中有安全风险，生产环境建议关闭并提示前端刷新使用 POST SSE |
 | `APP_AI_RAG_ENABLED` | 兼容 `APP_AI_MEMORY_QDRANT_ENABLED`，默认 `true` | 是否启用 RAG 文档向量检索；关闭后系统文档问答退回本地轻量检索 |
@@ -57,6 +62,7 @@
 | `SA_TOKEN_NAME` | `satoken` | Sa-Token 请求头名称 |
 | `SA_TOKEN_TIMEOUT` | `86400` | 登录有效期，单位秒 |
 | `SA_TOKEN_ACTIVE_TIMEOUT` | `1800` | 无操作有效期，单位秒 |
+| `AI_INTERNAL_SHARED_SECRET` | 空 | Java 与 Python AI internal 回调共享密钥；启用 Python AI 或 Docker AI 编排时必须配置且两侧一致 |
 
 ## MySQL
 
@@ -273,7 +279,8 @@ falsePositiveProbability = 0.01
 - 新数据写入 `ENCGCM:` AES-GCM 密文。
 - 旧数据 `ENC:` 密文继续兼容解密。
 - `sys_user.mobile_hash` 用于手机号不可逆查重。
-- 生产配置 `application-prod.yml` 已开启 `app.encrypt.require-key=true`，必须通过 `APP_ENCRYPT_KEY` 提供密钥。
+- 启用加密时必须通过 `APP_ENCRYPT_KEY` 提供 16/24/32 字节的非弱密钥；短密钥、常见弱值和低熵重复值会启动失败。
+- 本地快速开发可以显式设置 `app.encrypt.enabled=false`，此时不会要求密钥。
 
 ## 上传限制
 

@@ -143,11 +143,27 @@ uv run pytest tests/unit/test_prompt_engine.py -v
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `JAVA_INTERNAL_URL` | `http://localhost:8080` | Java Backend 内部地址 |
+| `AI_INTERNAL_SHARED_SECRET` | 空 | Java `/ai/internal/**` 回调共享密钥；启用 Python AI 时必须与 Java 侧一致 |
 | `REDIS_URL` | `redis://localhost:6379` | Redis 地址 |
 | `QDRANT_URL` | `http://localhost:6333` | Qdrant REST 地址 |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama 地址（预留） |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | （空） | OTLP trace 接收端，不设则退 console |
 | `LOG_LEVEL` | `INFO` | 日志级别 |
+
+## 本地 Java/Python 联调
+
+本地开发不需要 Docker。推荐顺序：
+
+```cmd
+set AI_INTERNAL_SHARED_SECRET=local-dev-ai-secret-please-change
+uv run uvicorn ai_service.main:app --host 127.0.0.1 --port 8001 --reload
+```
+
+Java 侧使用同一个 `AI_INTERNAL_SHARED_SECRET`，并设置 `APP_AI_PYTHON_ENABLED=true`。`ops\run-local.bat` 会为本地 Java 进程设置开发用 shared secret，并在控制台提示 Python 侧需要设置的同值。
+
+`/metrics` 已暴露 Prometheus 指标；`/health` 会检查 Redis、Qdrant 和 Java internal 端点。Qdrant 不可用时 RAG 和长期记忆会自动降级，不影响主对话链路。
+
+Qdrant Python SDK 是同步客户端，RAG 和长期记忆召回已通过 `asyncio.to_thread` 包装，避免多路 SSE 时阻塞事件循环。
 
 ## 相关文档
 

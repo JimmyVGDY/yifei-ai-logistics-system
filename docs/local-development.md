@@ -31,6 +31,8 @@ XXL-Job:      F:\Development\Middleware\xxl-job
 
 ## 启动基础组件
 
+本地开发默认使用 Windows 本机安装的中间件，不需要启动 Docker Compose。Docker 仅用于可选的全栈/发布前编排验证。
+
 ### MySQL
 
 服务名：`MySQL84`，默认连接：
@@ -239,7 +241,10 @@ uv sync
 # 2. 设置 API Key（从 Nacos spring-ai.yml 获取）
 set SPRING_AI_OPENAI_API_KEY=sk-***
 
-# 3. 启动（PyCharm 或命令行）
+# 3. 设置 Java/Python internal shared secret，两侧必须一致
+set AI_INTERNAL_SHARED_SECRET=local-dev-ai-secret-please-change
+
+# 4. 启动（PyCharm 或命令行）
 uv run uvicorn ai_service.main:app --host 127.0.0.1 --port 8001 --reload
 ```
 
@@ -256,6 +261,25 @@ ops\stop-qdrant.bat
 ```
 
 默认安装路径为 `F:\Development\Middleware\qdrant\qdrant-1.18.2`，数据目录为 `F:\Development\Middleware\qdrant\data`。如果 Qdrant 未启动，AI 问答和物流主业务仍可运行，只是不会使用向量长期记忆和 RAG 文档语义检索。RAG 相关变量包括 `APP_AI_RAG_ENABLED`、`APP_AI_RAG_INDEX_ON_STARTUP`、`APP_AI_RAG_QDRANT_BASE_URL` 和 `APP_AI_RAG_QDRANT_COLLECTION`，默认集合为 `logistics_docs`。
+
+## 本地测试命令
+
+```cmd
+:: Java 全量单元测试
+.\mvnw.cmd test
+
+:: Python AI 测试；如果 pytest.exe 入口损坏，使用 python -m pytest
+cd ai-service
+uv sync --extra dev
+uv run python -m pytest
+
+:: 前端测试和构建
+cd frontend
+npm run test:unit
+npm run build
+```
+
+如果当前 shell 找不到 `npm`，可以使用本机 Node/npm 安装路径，或使用 Codex/IDE 提供的 Node 可执行文件直接运行 `frontend/scripts/*.mjs` 和 `node_modules/vite/bin/vite.js`。
 
 ## Docker 部署（生产环境）
 
