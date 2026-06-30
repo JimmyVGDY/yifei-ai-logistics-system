@@ -4,6 +4,7 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 
 from ai_service.main import app
+from ai_service.memory import merger
 
 
 @pytest.fixture
@@ -54,3 +55,33 @@ async def test_extract_returns_candidates(client):
     data = resp.json()
     assert "candidates" in data
     assert isinstance(data["candidates"], list)
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_uses_to_thread(monkeypatch):
+    """同步 Qdrant 记忆召回应放进线程，避免阻塞事件循环。"""
+    calls = []
+
+    class Point:
+        id = "p1"
+        payload = {"content": "偏好表格", "confidence": 0.8}
+
+    class Result:
+        points = [Point()]
+
+    class Client:
+        def query_points(self, **kwargs):
+            return Result()
+
+    async def fake_to_thread(func, *args, **kwargs):
+        calls.append(func)
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(merger.qdrant_client, "_available", True)
+    monkeypatch.setattr(merger.qdrant_client, "_client", Client())
+    monkeypatch.setattr(merger.asyncio, "to_thread", fake_to_thread)
+
+    result = await merger.MemoryMergeService().recall("1", "查订单")
+
+    assert result.hit_count == 1
+    assert calls

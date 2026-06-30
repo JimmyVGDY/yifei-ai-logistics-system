@@ -112,6 +112,22 @@ class LogMaskUtilsTest {
         assertThat(LogMaskUtils.maskIdCard("")).isEqualTo("");
     }
 
+    @Test
+    void shouldMaskSensitiveTextBroadly() {
+        String text = "phone=13812341234 id=11010119900101123X card=6222021234567890123 "
+                + "apikey=abc123 jwt=header.payload.signature Authorization: Bearer secret-token user=a@example.com";
+
+        String masked = LogMaskUtils.maskSensitiveText(text);
+
+        assertThat(masked).contains("138****1234");
+        assertThat(masked).contains("110101********123X");
+        assertThat(masked).contains("6222********0123");
+        assertThat(masked).contains("apikey=***");
+        assertThat(masked).contains("jwt=***");
+        assertThat(masked).contains("Authorization=***");
+        assertThat(masked).contains("a***@e***.com");
+    }
+
     // ==================== 随机性验证 ====================
 
     @RepeatedTest(20)
