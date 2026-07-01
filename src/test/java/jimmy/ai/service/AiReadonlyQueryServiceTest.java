@@ -472,6 +472,32 @@ class AiReadonlyQueryServiceTest {
     }
 
     @Test
+    void shouldHideForeignKeyIdsFromBusinessRows() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class)))
+                .thenReturn(new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of(
+                        "task_no", "TASK-001",
+                        "driver_id", 260602222327046L,
+                        "order_id", 260602222327004L,
+                        "driver_name", "张三"
+                ))), 1, 10, 1));
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission("task:query")).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("我要看全部的运输任务");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.rows()).hasSize(1);
+            assertThat(result.rows().getFirst())
+                    .containsEntry("任务号", "TASK-001")
+                    .containsEntry("司机", "张三")
+                    .doesNotContainKeys("司机ID", "订单ID", "driver_id", "order_id");
+        }
+    }
+
+    @Test
     void shouldNormalizeRecentSevenDaysPendingExceptionsToStatusKeyword() {
         LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
         AiReadonlyQueryService service = serviceWithRealParser(requirementService);

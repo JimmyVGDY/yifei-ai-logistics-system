@@ -336,6 +336,122 @@ class TestAgentOrchestrator:
         assert any("event: tool_result" in event for event in events)
         assert any("event: done" in event and "已查询订单管理" in event for event in events)
 
+    @pytest.mark.asyncio
+    async def test_plain_detail_query_filters_readonly_sql_tool(self, monkeypatch):
+        from ai_service.core.agent import AgentContext, AgentOrchestrator
+        from ai_service.core.prompt_engine import PromptEngine
+        import ai_service.core.agent as agent_module
+
+        async def fake_fetch_tool_registry(user_context=None):
+            return [
+                {"name": "query_business_module", "parameters": {"type": "object", "properties": {}}},
+                {"name": "execute_readonly_sql", "parameters": {"type": "object", "properties": {}}},
+            ]
+
+        monkeypatch.setattr(agent_module.java_client, "fetch_tool_registry", fake_fetch_tool_registry)
+
+        class Gateway:
+            async def chat_stream_messages(self, *args, **kwargs):
+                tool_names = [tool["function"]["name"] for tool in kwargs["tools"]]
+                assert "execute_readonly_sql" not in tool_names
+                assert "query_business_module" in tool_names
+                yield '{"tool_call":{"name":"query_business_module","arguments":{"module":"tasks","keyword":""}}}'
+
+        async def fake_execute_tool(tool_name, arguments, user_context=None):
+            assert tool_name == "query_business_module"
+            return {
+                "success": True,
+                "data": [{"任务号": "TASK-001"}],
+                "columns": ["任务号"],
+                "totalCount": 1,
+                "returnedCount": 1,
+                "remainingCount": 0,
+                "summary": "已查询运输任务，共匹配 1 条记录。",
+                "displayToolName": "业务数据查询",
+                "displayTarget": "运输任务",
+            }
+
+        monkeypatch.setattr(agent_module.java_client, "execute_tool", fake_execute_tool)
+
+        orch = AgentOrchestrator(Gateway(), PromptEngine(PROMPTS_DIR))
+        ctx = AgentContext(
+            question="我要看全部的运输任务",
+            conversation_id="conv-plain",
+            user_context={"userId": "user-1"},
+            memory_context={},
+            rag_context="",
+        )
+
+        events = [event async for event in orch.run(ctx)]
+
+        assert any("运输任务" in event for event in events)
+        assert not any("execute_readonly_sql" in event for event in events)
+
+    @pytest.mark.asyncio
+    async def test_statistical_query_can_use_sql_tool_with_display_fields(self, monkeypatch):
+        from ai_service.core.agent import AgentContext, AgentOrchestrator
+        from ai_service.core.prompt_engine import PromptEngine
+        import ai_service.core.agent as agent_module
+
+        async def fake_fetch_tool_registry(user_context=None):
+            return [{"name": "execute_readonly_sql", "parameters": {"type": "object", "properties": {}}}]
+
+        async def fake_execute_tool(tool_name, arguments, user_context=None):
+            assert tool_name == "execute_readonly_sql"
+            return {
+                "success": True,
+                "data": [{"客户名称": "华南客户", "订单数量": 3}],
+                "columns": ["客户名称", "订单数量"],
+                "totalCount": 1,
+                "returnedCount": 1,
+                "remainingCount": 0,
+                "summary": "统计分析完成，返回 1 条记录。",
+                "displayToolName": "统计分析",
+                "displayTarget": "统计结果",
+                "displaySummary": "统计分析完成，返回 1 条记录。",
+            }
+
+        monkeypatch.setattr(agent_module.java_client, "fetch_tool_registry", fake_fetch_tool_registry)
+        monkeypatch.setattr(agent_module.java_client, "execute_tool", fake_execute_tool)
+
+        class Gateway:
+            async def chat_stream_messages(self, *args, **kwargs):
+                tool_names = [tool["function"]["name"] for tool in kwargs["tools"]]
+                assert "execute_readonly_sql" in tool_names
+                yield '{"tool_call":{"name":"execute_readonly_sql","arguments":{"question":"统计本月各客户订单数量排名"}}}'
+
+        orch = AgentOrchestrator(Gateway(), PromptEngine(PROMPTS_DIR))
+        ctx = AgentContext(
+            question="统计本月各客户订单数量排名",
+            conversation_id="conv-stat",
+            user_context={"userId": "user-1"},
+            memory_context={},
+            rag_context="",
+        )
+
+        events = [event async for event in orch.run(ctx)]
+
+        assert any('"displayToolName": "统计分析"' in event for event in events)
+        assert any('"displayTarget": "统计结果"' in event for event in events)
+        assert not any("execute_readonly_sql" in event for event in events)
+
+    def test_tool_answer_falls_back_when_summary_contains_internal_fields(self):
+        from ai_service.core.agent import AgentOrchestrator, ToolResult
+
+        result = ToolResult(
+            name="execute_readonly_sql",
+            success=True,
+            total_count=20,
+            returned_count=20,
+            summary="| order_no | driver_name |\n| --- | --- |\n| LO-1 | 张三 |",
+        )
+
+        answer = AgentOrchestrator._tool_answer(result)
+
+        assert "统计分析完成" in answer
+        assert "order_no" not in answer
+        assert "| ---" not in answer
+
 
     @pytest.mark.asyncio
     async def test_business_query_stops_when_tool_registry_unavailable(self, monkeypatch):

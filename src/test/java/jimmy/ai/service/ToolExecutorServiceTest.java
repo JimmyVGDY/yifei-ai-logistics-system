@@ -1,6 +1,7 @@
 package jimmy.ai.service;
 
 import jimmy.ai.model.AiReadonlyQueryResult;
+import jimmy.ai.model.AiToolCall;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -11,6 +12,59 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class ToolExecutorServiceTest {
+
+    @Test
+    void shouldExposeChineseDisplayTargetForBusinessModuleQuery() {
+        AiReadonlyQueryService readonlyQueryService = mock(AiReadonlyQueryService.class);
+        UserContextResolver userContextResolver = mock(UserContextResolver.class);
+        ToolExecutorService service = new ToolExecutorService(
+                readonlyQueryService,
+                mock(AiLogAnalysisService.class),
+                mock(AiGeneratedSqlQueryService.class),
+                new AiSensitiveDataMasker(),
+                mock(AiAuditLogService.class),
+                userContextResolver,
+                new AiToolCallContext(8)
+        );
+
+        when(readonlyQueryService.queryModule("tasks", "", "2026-01-01 00:00:00", "2026-07-01 23:59:59"))
+                .thenReturn(new AiReadonlyQueryResult(
+                        true,
+                        "已查询运输任务。",
+                        List.of(),
+                        List.of(new AiToolCall("业务数据查询", "运输任务", "已查询运输任务。")),
+                        List.of(Map.of("任务号", "TASK-001")),
+                        List.of("任务号"),
+                        "cursor-1",
+                        20L,
+                        10,
+                        10L,
+                        true,
+                        "还有 10 条"
+                ));
+
+        Map<String, Object> result = service.execute(
+                "user-1",
+                List.of("task:query"),
+                "U-1",
+                "ADMIN",
+                "",
+                "login-1",
+                "conv-1",
+                "query_business_module",
+                Map.of(
+                        "module", "tasks",
+                        "keyword", "",
+                        "startTime", "2026-01-01 00:00:00",
+                        "endTime", "2026-07-01 23:59:59"
+                )
+        );
+
+        assertThat(result.get("displayToolName")).isEqualTo("业务数据查询");
+        assertThat(result.get("displayTarget")).isEqualTo("运输任务");
+        Map<?, ?> citation = (Map<?, ?>) result.get("citation");
+        assertThat(citation.get("module")).isEqualTo("运输任务");
+    }
 
     @Test
     void shouldReturnRawCursorIdForFrontendContinuation() {
