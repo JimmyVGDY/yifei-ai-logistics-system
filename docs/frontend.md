@@ -446,7 +446,21 @@ frontend/src/utils/status-labels.js
 
 如果涉及后端接口变更，还要回归 `mvn test`，并检查对应接口文档。
 
-## 18. 常见问题
+## 18. AI 展示安全
+
+AI 助手前端不能原样展示内部工具名、数据库字段名、权限码、SQL 文本或异常堆栈。`frontend/src/utils/ai-display-sanitizer.js` 是统一入口，`AiAssistantView`、`DataResultDrawer`、工具调用日志、引用来源和结构化结果卡片都必须复用它。
+
+展示规则：
+
+- 工具名和目标优先使用后端 `displayToolName`、`displayTarget`，缺失时映射为中文业务名。
+- 摘要优先使用 `displaySummary`；如果内容包含 Markdown 表格、SQL、snake_case 字段或内部工具名，前端降级为固定中文安全提示。
+- `columns` 和 `rows/data` 只展示中文安全列；未知字段、系统字段、权限字段和未授权敏感列默认隐藏，不再原样兜底展示。
+- 结果卡片标题显示“业务数据查询 · 订单管理”“统计分析 · 统计结果”等中文名，不显示 `execute_readonly_sql`、`query_business_module` 或模块码。
+- 抽屉 footer 只有在 `hasMore=true` 且存在 `cursorId` 时显示继续加载按钮。
+
+继续开发 AI 查询、SSE 或表格抽屉时，还要同步阅读 [Spring AI 接入说明](spring-ai.md)、[Python AI 服务开发指南](python-ai-service.md)、[MyBatis 使用规范](mybatis.md) 和 [链路追踪与会话审计说明](trace-context-audit.md)。
+
+## 19. 常见问题
 
 ### 登录后没有菜单
 
@@ -495,7 +509,7 @@ npm install
 
 必要时删除 `node_modules` 后重新安装。
 
-## 19. 相关文档
+## 20. 相关文档
 
 - [项目文档索引](README.md)
 - [新手快速上手指南](getting-started.md)
@@ -508,3 +522,6 @@ npm install
 - [用户与客户账号接口说明](user-api.md)
 - [权限、结构化日志与操作审计说明](logistics-rbac-structured-log.md)
 - [链路追踪与会话审计说明](trace-context-audit.md)
+- [Spring AI 接入说明](spring-ai.md)
+- [Python AI 服务开发指南](python-ai-service.md)
+- [MyBatis 使用规范](mybatis.md)

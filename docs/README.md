@@ -60,7 +60,7 @@
 
 | 文档 | 用途 |
 | --- | --- |
-| [spring-ai.md](spring-ai.md) | 已落地的 Spring AI 只读助手、业务查询、临时只读 SQL、RAG 文档索引、长期记忆和 Qdrant 接入说明 |
+| [spring-ai.md](spring-ai.md) | 已落地的 Spring AI 只读助手、业务查询、临时只读 SQL、AI 展示安全、RAG 文档索引、长期记忆和 Qdrant 接入说明 |
 | [ai-assistant-design.md](ai-assistant-design.md) | AI 助手整体设计、现有组件编排、权限审计、只读 SQL 边界和后续演进方案 |
 
 ## 阅读建议
@@ -68,7 +68,7 @@
 - 新开发者先看“新人接入”和“系统设计”，搭环境前先确认 [environment-versions.md](environment-versions.md)，前端开发者还应重点阅读 [frontend.md](frontend.md)，再按负责模块阅读接口和数据库文档。
 - 做后端业务开发前必须阅读 [development-guide.md](development-guide.md) 和 [mybatis.md](mybatis.md)。
 - 做权限、日志、审计相关功能前必须阅读 [logistics-rbac-structured-log.md](logistics-rbac-structured-log.md) 和 [trace-context-audit.md](trace-context-audit.md)。
-- 使用或继续开发 AI 助手前先阅读 [spring-ai.md](spring-ai.md)，再阅读 [ai-assistant-design.md](ai-assistant-design.md)；涉及 AI 生成临时查询时还必须阅读 [mybatis.md](mybatis.md) 中的例外边界，涉及历史会话时确认 `ai_conversation` / `ai_conversation_message` 增量脚本，涉及多轮追问分页时确认 `ai_query_cursor` 增量脚本，涉及长期记忆时还要确认 Qdrant 版本和 `ai_user_memory` 相关增量脚本；涉及系统文档 RAG 时还要确认 `ai_document_index`、`APP_AI_RAG_*` 配置和 `logistics_docs` 集合。
+- 使用或继续开发 AI 助手前先阅读 [spring-ai.md](spring-ai.md)，再阅读 [ai-assistant-design.md](ai-assistant-design.md)；涉及 Python Agent 或 SSE 事件时同步阅读 [python-ai-service.md](python-ai-service.md)，涉及前端聊天气泡、工具日志、结果卡片或抽屉展示时同步阅读 [frontend.md](frontend.md) 的 AI 展示安全章节，涉及 AI 生成临时查询时还必须阅读 [mybatis.md](mybatis.md) 中的例外边界，涉及历史会话时确认 `ai_conversation` / `ai_conversation_message` 增量脚本，涉及多轮追问分页时确认 `ai_query_cursor` 增量脚本，涉及长期记忆时还要确认 Qdrant 版本和 `ai_user_memory` 相关增量脚本；涉及系统文档 RAG 时还要确认 `ai_document_index`、`APP_AI_RAG_*` 配置和 `logistics_docs` 集合。
 
 ## 文档维护约定
 
@@ -91,6 +91,8 @@
 ## AI Prompt 治理补充
 
 AI 助手 Prompt 已纳入模板化治理。继续开发 AI 能力前，需要同时阅读 [Spring AI 接入说明](spring-ai.md)、[AI 助手设计文档](ai-assistant-design.md)、[MyBatis 使用规范](mybatis.md) 和 [数据库增量迁移说明](incremental-migration.md)。涉及新增 Prompt 时，需要同步维护 `ai_prompt_template` 默认模板、输出校验、测试用例和文档交叉引用。
+
+AI 展示安全已统一为 Java 展示字段、Python SSE 透传和前端 sanitizer 三层兜底。继续开发 Tool Calling、临时 SQL、结果表格或抽屉分页时，必须确认用户界面不展示内部工具名、SQL、snake_case 字段名、权限码、异常堆栈或未知字段原文；相关说明见 [Spring AI 接入说明](spring-ai.md)、[Python AI 服务开发指南](python-ai-service.md)、[前端开发说明](frontend.md)、[MyBatis 使用规范](mybatis.md) 和 [链路追踪与会话审计说明](trace-context-audit.md)。
 
 ## AI 长期记忆治理与幻觉处理补充
 

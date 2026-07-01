@@ -41,9 +41,9 @@ src/main/resources/mapper/**/*.xml
 
 `JdbcTemplate` 只允许用于数据库元信息检测，例如判断某张表是否存在 `deleted` 或 `user_code` 字段。该逻辑不属于业务 SQL，且必须集中封装，不能散落到 Controller 或 Service 的业务流程里。
 
-AI 助手的临时只读 SQL 网关是另一个受控例外：`AiGeneratedSqlQueryService` 允许模型生成候选 `SELECT`，但执行前必须先让模型按白名单 schema 自检修正，再经过 `AiSqlSafetyValidator` 和数据库 `EXPLAIN` 语法预检；如果语法预检失败，会让模型按错误摘要自动纠错，最多重试 3 次，且每次纠错后都重新执行安全校验。校验规则包括单条 `SELECT`、禁止写关键字、禁止注释和多语句、禁止 `select *`、禁止子查询、禁止 `UNION`、禁止逗号连表、只允许模型可直查白名单表字段、每张表都要求当前账号具备对应查询权限，业务敏感列还必须通过列权限校验，并在顶层追加或收紧 `limit 20`。SQL 执行后还会按结果列来源再次做列权限过滤，避免通过别名绕过字段权限。该例外只服务自然语言临时统计、关联和连表分析，不能推广到普通业务开发。
+AI 助手的临时只读 SQL 网关是另一个受控例外：`AiGeneratedSqlQueryService` 允许模型生成候选 `SELECT`，但执行前必须先让模型按白名单 schema 自检修正，再经过 `AiSqlSafetyValidator` 和数据库 `EXPLAIN` 语法预检；如果语法预检失败，会让模型按错误摘要自动纠错，最多重试 3 次，且每次纠错后都重新执行安全校验。校验规则包括单条 `SELECT`、禁止写关键字、禁止注释和多语句、禁止 `select *`、禁止子查询、禁止 `UNION`、禁止逗号连表、只允许模型可直查白名单表字段、每张表都要求当前账号具备对应查询权限，业务敏感列还必须通过列权限校验，并在顶层追加或收紧 `limit 20`。SQL 执行后还会按结果列来源再次做列权限过滤，避免通过别名绕过字段权限。该例外只服务自然语言临时统计、聚合、排名、关联和连表分析，不能推广到普通业务开发，也不能承接“查看全部订单/运输任务/费用”等普通明细列表。
 
-临时 SQL schema 必须使用数据库真实物理表名和物理列名，不能使用前端展示字段、VO 别名或接口聚合字段。例如费用表应使用 `payable_fee/actual_fee`，车辆表应使用 `load_capacity_kg/volume_capacity_cubic`，运单表没有 `order_no` 时需要通过 `order_id` 关联 `logistics_order`。普通字段的返回列建议保持原字段名，聚合统计列可使用安全英文别名；中文展示由 AI 回答层或前端完成。
+临时 SQL schema 必须使用数据库真实物理表名和物理列名，不能使用前端展示字段、VO 别名或接口聚合字段。例如费用表应使用 `payable_fee/actual_fee`，车辆表应使用 `load_capacity_kg/volume_capacity_cubic`，运单表没有 `order_no` 时需要通过 `order_id` 关联 `logistics_order`。普通字段的返回列建议保持原字段名，聚合统计列可使用安全英文别名；用户界面的中文展示由 AI 回答层和前端 sanitizer 完成，不能把物理字段名、SQL 文本或内部工具名直接返回给用户。
 
 Spring AI Tool Calling 中的普通业务查询不属于 SQL 例外：`AiBusinessQueryTools` 只负责把模型选择的只读工具参数交给 `AiReadonlyQueryService`，最终仍然复用 `LogisticsRequirementService.modulePage()`、`LogisticsModuleQueryMapper.xml` 和后端白名单。全场景模糊搜索、自动联合查询也只是组合调用已有白名单模块，不允许模型自由拼接业务 SQL。
 

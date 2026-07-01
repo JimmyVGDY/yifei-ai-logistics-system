@@ -95,6 +95,10 @@ Content-Type: application/json
   event: error        → {"code": "MODEL_TIMEOUT", "message": "..."}
 ```
 
+`tool_start` 和 `tool_result` 会优先使用 Java 返回的展示字段：`displayToolName`、`displayTarget`、`displaySummary`。普通兼容字段仍保留，但用户界面只能展示中文业务名和安全中文摘要，不能展示 `execute_readonly_sql`、`query_business_module`、`generated_sql`、SQL 文本或 snake_case 字段名。结构化数据通过 `columns`、`rows/data`、`total/returnedCount/remainingCount/hasMore` 交给前端表格。
+
+Agent 在工具选择前会过滤 `execute_readonly_sql`：普通“查看全部订单/运输任务/费用”等明细查询只允许走 Java 标准业务模块工具；只有统计、汇总、数量、排名、平均、占比、关联、SQL、join、group 等分析意图才开放临时 SQL 工具。最终 SQL 权限和列权限仍由 Java `AiSqlSafetyValidator` 与展示净化层兜底，详细边界见 [Spring AI 接入说明](spring-ai.md) 和 [MyBatis 使用规范](mybatis.md)。
+
 ### 内部端点（仅供 Java 调用）
 
 ```
@@ -172,3 +176,6 @@ Qdrant Python SDK 是同步客户端，RAG 和长期记忆召回已通过 `async
 - [ADR 0001 — Java+Python 混合架构](adr/0001-java-python-hybrid-architecture.md)
 - [CONTEXT-MAP](../CONTEXT-MAP.md)
 - [AI 助手设计](ai-assistant-design.md)
+- [Spring AI 接入说明](spring-ai.md)
+- [前端开发说明](frontend.md)
+- [MyBatis 使用规范](mybatis.md)
