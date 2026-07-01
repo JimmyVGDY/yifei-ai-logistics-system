@@ -155,14 +155,20 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
           toolCalls.push({
             toolName: data.toolName || '业务数据查询',
             target: data.target || '',
-            result: data.result || ''
+            result: data.displaySummary || data.result || '',
+            displayToolName: data.displayToolName || '',
+            displayTarget: data.displayTarget || '',
+            displaySummary: data.displaySummary || ''
           })
           const rows = Array.isArray(data.rows) ? data.rows : (Array.isArray(data.data) ? data.data : [])
           if (rows.length) {
             dataResults.push({
               toolName: data.toolName || '业务数据查询',
               target: data.target || '',
-              summary: data.result || '',
+              displayToolName: data.displayToolName || '',
+              displayTarget: data.displayTarget || '',
+              displaySummary: data.displaySummary || '',
+              summary: data.displaySummary || data.result || '',
               columns: Array.isArray(data.columns) ? data.columns : [],
               rows,
               cursorId: data.cursorId || '',

@@ -38,6 +38,9 @@ class ToolResult:
     cursor_id: str = ""
     citation: dict = field(default_factory=dict)
     summary: str = ""
+    display_tool_name: str = ""
+    display_target: str = ""
+    display_summary: str = ""
 
 
 @dataclass
@@ -111,6 +114,7 @@ class AgentOrchestrator:
         use_tools = intent != "CHAT"
 
         tools = await self._fetch_tools(ctx) if use_tools else []
+        tools = self._filter_tools_for_question(tools, ctx.question)
         if use_tools and not tools:
             answer = (
                 "业务查询工具暂时不可用，当前没有真正执行订单、费用或异常等系统查询。"
@@ -202,25 +206,26 @@ class AgentOrchestrator:
             # If LLM wants to call tools, execute them
             if tool_calls_in_round:
                 for tc in tool_calls_in_round:
+                    tc = self._sanitize_tool_call(tc)
                     elapsed_ms = int((time.monotonic() - ctx.start_time) * 1000)
                     yield self._sse("tool_start", {
-                        "toolName": tc.name,
-                        "target": str(tc.arguments.get("module", tc.arguments.get("keyword", ""))),
+                        "toolName": self._display_tool_name(tc.name),
+                        "target": self._display_target(tc),
                         "toolCallCount": len(ctx.tool_results) + 1,
                         "maxToolCalls": max_iterations,
                         "elapsedMs": elapsed_ms,
                     })
 
-                    # 关键词后处理：剔除 LLM 编造的垃圾 keyword（如 "ing"）
-                    tc = self._sanitize_tool_call(tc)
-
                     result = await self._execute_tool(tc, ctx)
                     ctx.tool_results.append(result)
 
                     yield self._sse("tool_result", {
-                        "toolName": tc.name,
-                        "target": str(tc.arguments.get("module", tc.arguments.get("keyword", ""))),
-                        "result": result.summary,
+                        "toolName": result.display_tool_name or self._display_tool_name(tc.name),
+                        "target": result.display_target or self._display_target(tc),
+                        "displayToolName": result.display_tool_name or self._display_tool_name(tc.name),
+                        "displayTarget": result.display_target or self._display_target(tc),
+                        "displaySummary": result.display_summary or self._tool_answer(result),
+                        "result": result.display_summary or self._tool_answer(result),
                         "success": result.success,
                         "rows": result.data if isinstance(result.data, list) else [],
                         "data": result.data if isinstance(result.data, list) else [],
@@ -322,6 +327,9 @@ class AgentOrchestrator:
                 cursor_id=result.get("cursorId", ""),
                 citation=result.get("citation", {}),
                 summary=result.get("summary", f"返回 {total} 条数据"),
+                display_tool_name=result.get("displayToolName", ""),
+                display_target=result.get("displayTarget", ""),
+                display_summary=result.get("displaySummary", ""),
             )
         except Exception as exc:
             return ToolResult(
@@ -339,14 +347,97 @@ class AgentOrchestrator:
 
     @staticmethod
     def _tool_answer(result: ToolResult) -> str:
-        if result.summary:
-            return result.summary
+        summary = result.display_summary or result.summary
+        if summary and not AgentOrchestrator._looks_unsafe_for_user(summary):
+            return summary
         if result.total_count:
-            answer = f"已返回 {result.returned_count or 0} 条结构化记录，共匹配 {result.total_count} 条。"
+            prefix = "统计分析完成" if result.name == "execute_readonly_sql" else "业务查询完成"
+            answer = f"{prefix}，已返回 {result.returned_count or 0} 条结构化记录，共匹配 {result.total_count} 条。"
             if result.remaining_count > 0:
                 answer += f"还有 {result.remaining_count} 条记录可通过结果卡片继续分页查看。"
             return answer
         return "已完成业务数据查询，结构化结果已在下方表格中展示。"
+
+    @staticmethod
+    def _looks_unsafe_for_user(text: str) -> bool:
+        if not text:
+            return False
+        lowered = text.lower()
+        if "execute_readonly_sql" in lowered or "query_business_module" in lowered:
+            return True
+        if "select " in lowered or " from logistics_" in lowered or " from sys_" in lowered:
+            return True
+        if "| ---" in text or "\n|" in text:
+            return True
+        import re
+        return re.search(r"\b[a-z]+_[a-z0-9_]+\b", text) is not None
+
+    @classmethod
+    def _filter_tools_for_question(cls, tools: list[dict], question: str) -> list[dict]:
+        if cls._allow_readonly_sql(question):
+            return tools
+        return [tool for tool in tools if cls._tool_name(tool) != "execute_readonly_sql"]
+
+    @staticmethod
+    def _allow_readonly_sql(question: str) -> bool:
+        text = (question or "").lower()
+        return any(word in text for word in (
+            "sql", "连表", "关联", "统计", "汇总", "数量", "总数", "排名",
+            "最多", "最少", "平均", "多少", "占比", "比例", "group", "join",
+        ))
+
+    @staticmethod
+    def _tool_name(tool: dict) -> str:
+        return str(tool.get("name") or (tool.get("function") or {}).get("name") or "")
+
+    @staticmethod
+    def _display_tool_name(tool_name: str) -> str:
+        return {
+            "query_business_module": "业务数据查询",
+            "global_fuzzy_search": "全局业务搜索",
+            "joined_business_query": "业务联合查询",
+            "query_dashboard": "运营看板查询",
+            "query_log_analysis": "日志排障分析",
+            "execute_readonly_sql": "统计分析",
+            "continue_cursor": "继续分页查询",
+        }.get(tool_name, "业务数据查询")
+
+    @staticmethod
+    def _display_target(tc: ToolCall) -> str:
+        if tc.name == "execute_readonly_sql":
+            return "统计结果"
+        module = str(tc.arguments.get("module", "") or "")
+        scene = str(tc.arguments.get("scene", "") or "")
+        keyword = str(tc.arguments.get("keyword", "") or "")
+        module_names = {
+            "orders": "运单管理",
+            "waybills": "运单中心",
+            "customers": "客户管理",
+            "dispatches": "调度管理",
+            "tasks": "运输任务",
+            "tracks": "物流轨迹",
+            "drivers": "司机管理",
+            "vehicles": "车辆管理",
+            "exceptions": "异常管理",
+            "fees": "费用结算",
+            "users": "用户管理",
+            "roles": "角色管理",
+            "files": "上传文件",
+            "operationLogs": "操作日志",
+        }
+        scene_names = {
+            "customer": "客户全貌",
+            "order": "订单生命周期",
+            "driver": "司机任务链",
+            "vehicle": "车辆调度链",
+            "exception": "异常影响范围",
+            "business": "综合业务",
+        }
+        if module:
+            return module_names.get(module, "业务数据")
+        if scene:
+            return scene_names.get(scene, "业务联合结果")
+        return keyword if keyword and not AgentOrchestrator._looks_unsafe_for_user(keyword) else "查询结果"
 
     @staticmethod
     def _java_user_context(ctx: AgentContext) -> dict:

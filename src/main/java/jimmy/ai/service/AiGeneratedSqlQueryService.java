@@ -6,6 +6,7 @@ import jimmy.ai.util.SseChatContext;
 import jimmy.ai.model.AiGeneratedSqlQueryResult;
 import jimmy.ai.model.PromptRenderResult;
 import jimmy.common.util.LogMaskUtils;
+import jimmy.system.config.ModuleManifest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.BadSqlGrammarException;
@@ -23,7 +24,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.StringJoiner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -35,11 +35,17 @@ import java.util.regex.Pattern;
 public class AiGeneratedSqlQueryService {
 
     private static final int MAX_ROWS = 20;
-    private static final int SUMMARY_ROWS = 8;
     private static final int MAX_SQL_REPAIR_ATTEMPTS = 3;
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String CUSTOMER_SCOPE_MESSAGE = "当前账号存在客户数据范围限制，AI 暂不支持自定义关联 SQL 查询。请使用客户、订单或轨迹等普通只读查询。";
     private static final Pattern SIMPLE_LIMIT_PATTERN = Pattern.compile("(?is)\\s+limit\\s+(\\d+)\\s*$");
+    private static final String DETAIL_QUERY_MESSAGE = "这个问题属于普通业务明细查询，请使用标准业务模块查询。临时统计分析仅用于统计、汇总、排名和关联分析。";
+    private static final Set<String> INTERNAL_DISPLAY_FIELDS = Set.of(
+            "id", "deleted", "version", "create_by", "update_by", "created_by", "updated_by",
+            "trace_id", "operation_id", "login_session_id", "cursor_id", "password", "token",
+            "secret", "api_key", "access_token", "refresh_token", "mobile_hash"
+    );
+    private static final Map<String, String> FIELD_LABELS = buildFieldLabels();
 
     private final AiModelGateway modelGateway;
     private final AiSqlSafetyValidator sqlSafetyValidator;
@@ -71,6 +77,9 @@ public class AiGeneratedSqlQueryService {
     public AiGeneratedSqlQueryResult query(String message) {
         if (!shouldUseGeneratedSql(message)) {
             return AiGeneratedSqlQueryResult.skipped();
+        }
+        if (looksLikePlainDetailQuery(message)) {
+            return AiGeneratedSqlQueryResult.message(DETAIL_QUERY_MESSAGE);
         }
         // 客户账号存在天然数据范围限制，临时关联 SQL 很难安全补齐客户隔离条件，先统一走普通只读查询。
         if (isCustomerRole()) {
@@ -133,13 +142,17 @@ public class AiGeneratedSqlQueryService {
                     recordSqlStage("列权限过滤", message, "查询命中数据，但当前账号无权查看返回列", false);
                     return AiGeneratedSqlQueryResult.message("临时只读 SQL 查询完成，但当前账号无权查看返回字段。如有需要，请联系系统管理员。");
                 }
-                List<Map<String, Object>> formatted = formatRows(filteredRows);
-                String summary = summary(formatted);
+                DisplayRows displayRows = displayRows(formatRows(filteredRows), validatedSql);
+                if (!filteredRows.isEmpty() && displayRows.rows().stream().allMatch(Map::isEmpty)) {
+                    recordSqlStage("展示过滤", message, "查询命中数据，但没有可安全展示的字段", false);
+                    return AiGeneratedSqlQueryResult.message("统计分析完成，但当前结果不包含可安全展示的字段。");
+                }
+                String summary = summary(displayRows.rows());
                 log.info("AI 生成 SQL 查询完成，tables={}, rows={}, repairAttempt={}, sql={}",
-                        validatedSql.tables(), formatted.size(), repairAttempt, LogMaskUtils.maskText(validatedSql.sql()));
-                recordSqlStage("执行", message, "执行成功，rows=" + formatted.size()
+                        validatedSql.tables(), displayRows.rows().size(), repairAttempt, LogMaskUtils.maskText(validatedSql.sql()));
+                recordSqlStage("执行", message, "执行成功，rows=" + displayRows.rows().size()
                         + (repairAttempt > 0 ? "，纠错次数=" + repairAttempt : ""), true);
-                return new AiGeneratedSqlQueryResult(true, summary, formatted);
+                return new AiGeneratedSqlQueryResult(true, summary, displayRows.rows(), displayRows.columns(), "统计分析", "统计结果");
             } catch (BadSqlGrammarException exception) {
                 if (repairAttempt >= MAX_SQL_REPAIR_ATTEMPTS) {
                     log.warn("AI 生成 SQL 语法预检或执行失败，errorCode=SQL_SYNTAX_ERROR, repairAttempts={}, exceptionType={}, reason={}, sqlShape={}",
@@ -182,8 +195,46 @@ public class AiGeneratedSqlQueryService {
                 || lower.contains("最多")
                 || lower.contains("最少")
                 || lower.contains("平均")
+                || lower.contains("多少")
+                || lower.contains("占比")
+                || lower.contains("比例")
                 || lower.contains("group")
                 || lower.contains("join");
+    }
+
+    private boolean looksLikePlainDetailQuery(String message) {
+        if (!StringUtils.hasText(message)) {
+            return true;
+        }
+        String lower = message.toLowerCase(Locale.ROOT);
+        boolean explicitAnalysis = lower.contains("sql")
+                || lower.contains("连表")
+                || lower.contains("关联")
+                || lower.contains("统计")
+                || lower.contains("汇总")
+                || lower.contains("数量")
+                || lower.contains("总数")
+                || lower.contains("排名")
+                || lower.contains("最多")
+                || lower.contains("最少")
+                || lower.contains("平均")
+                || lower.contains("多少")
+                || lower.contains("占比")
+                || lower.contains("比例")
+                || lower.contains("group")
+                || lower.contains("join");
+        if (explicitAnalysis) {
+            return false;
+        }
+        return lower.contains("全部")
+                || lower.contains("所有")
+                || lower.contains("全量")
+                || lower.contains("明细")
+                || lower.contains("列表")
+                || lower.contains("查看")
+                || lower.contains("看一下")
+                || lower.contains("看看")
+                || lower.contains("查询");
     }
 
     private boolean isCustomerRole() {
@@ -368,6 +419,148 @@ public class AiGeneratedSqlQueryService {
         return value;
     }
 
+    private DisplayRows displayRows(List<Map<String, Object>> rows, AiSqlSafetyValidator.ValidatedSql validatedSql) {
+        if (rows == null || rows.isEmpty()) {
+            return new DisplayRows(List.of(), List.of());
+        }
+        Set<String> registeredColumns = new LinkedHashSet<>();
+        for (AiReadableSchemaRegistry.TableRule rule : validatedSql.tableRules()) {
+            registeredColumns.addAll(rule.columnSet());
+        }
+        Map<String, String> labelsByResultColumn = new LinkedHashMap<>();
+        int derivedIndex = 1;
+        for (Map<String, Object> row : rows) {
+            for (String column : row.keySet()) {
+                if (labelsByResultColumn.containsKey(column)) {
+                    continue;
+                }
+                String label = displayLabel(column, validatedSql.resultColumnSources(), registeredColumns, derivedIndex);
+                if (StringUtils.hasText(label) && label.startsWith("统计字段")) {
+                    derivedIndex++;
+                }
+                labelsByResultColumn.put(column, label);
+            }
+        }
+
+        List<Map<String, Object>> displayRows = new ArrayList<>();
+        List<String> columns = new ArrayList<>();
+        for (String label : labelsByResultColumn.values()) {
+            if (StringUtils.hasText(label) && !columns.contains(label)) {
+                columns.add(label);
+            }
+        }
+        for (Map<String, Object> row : rows) {
+            Map<String, Object> displayRow = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : row.entrySet()) {
+                String label = labelsByResultColumn.get(entry.getKey());
+                if (!StringUtils.hasText(label)) {
+                    continue;
+                }
+                displayRow.put(uniqueLabel(label, displayRow), entry.getValue());
+            }
+            displayRows.add(displayRow);
+        }
+        return new DisplayRows(displayRows, columns);
+    }
+
+    private String displayLabel(String column,
+                                Map<String, String> resultColumnSources,
+                                Set<String> registeredColumns,
+                                int derivedIndex) {
+        String resultColumn = normalizeResultColumn(column);
+        String sourceColumn = resultColumnSources.get(resultColumn);
+        if (StringUtils.hasText(sourceColumn)) {
+            return businessLabel(sourceColumn);
+        }
+        if (registeredColumns.contains(resultColumn)) {
+            return businessLabel(resultColumn);
+        }
+        if (isSafeDerivedColumn(resultColumn)) {
+            return derivedLabel(resultColumn, derivedIndex);
+        }
+        return "";
+    }
+
+    private String businessLabel(String column) {
+        String normalized = normalizeResultColumn(column);
+        if (INTERNAL_DISPLAY_FIELDS.contains(normalized)) {
+            return "";
+        }
+        if (isForeignKeyDisplayField(normalized)) {
+            return "";
+        }
+        return FIELD_LABELS.getOrDefault(normalized, "");
+    }
+
+    private boolean isForeignKeyDisplayField(String column) {
+        return StringUtils.hasText(column) && (column.endsWith("_id") || column.equals("id"));
+    }
+
+    private String derivedLabel(String columnName, int index) {
+        String lower = normalizeResultColumn(columnName);
+        if (lower.contains("order") && lower.contains("count")) {
+            return "订单数量";
+        }
+        if (lower.contains("customer") && lower.contains("count")) {
+            return "客户数量";
+        }
+        if (lower.contains("waybill") && lower.contains("count")) {
+            return "运单数量";
+        }
+        if (lower.contains("task") && lower.contains("count")) {
+            return "任务数量";
+        }
+        if (lower.contains("count") || lower.equals("cnt") || lower.equals("total")) {
+            return "数量";
+        }
+        if (lower.contains("amount") || lower.contains("fee") || lower.contains("sum")) {
+            return "金额合计";
+        }
+        if (lower.contains("avg") || lower.contains("average")) {
+            return "平均值";
+        }
+        if (lower.contains("max")) {
+            return "最大值";
+        }
+        if (lower.contains("min")) {
+            return "最小值";
+        }
+        if (lower.matches("[\\u4e00-\\u9fa5]+")) {
+            return lower;
+        }
+        return "统计字段" + index;
+    }
+
+    private String uniqueLabel(String label, Map<String, Object> row) {
+        if (!row.containsKey(label)) {
+            return label;
+        }
+        int index = 2;
+        while (row.containsKey(label + index)) {
+            index++;
+        }
+        return label + index;
+    }
+
+    private static Map<String, String> buildFieldLabels() {
+        Map<String, String> labels = new LinkedHashMap<>();
+        for (ModuleManifest.ModuleEntry module : ModuleManifest.all()) {
+            for (ModuleManifest.ColumnDef column : module.columns()) {
+                labels.putIfAbsent(column.fieldName(), column.label());
+            }
+        }
+        labels.putIfAbsent("created_at", "创建时间");
+        labels.putIfAbsent("updated_at", "更新时间");
+        labels.putIfAbsent("create_time", "创建时间");
+        labels.putIfAbsent("update_time", "更新时间");
+        labels.putIfAbsent("payable_amount", "应付金额");
+        labels.putIfAbsent("base_amount", "基础金额");
+        labels.putIfAbsent("fuel_surcharge", "燃油附加费");
+        labels.putIfAbsent("discount_amount", "优惠金额");
+        labels.putIfAbsent("pay_status", "支付状态");
+        return Map.copyOf(labels);
+    }
+
     /**
      * 按 RBAC 列权限过滤查询结果：用户无权查看的业务列会被移除。
      * <p>
@@ -434,35 +627,17 @@ public class AiGeneratedSqlQueryService {
                 || lower.contains("phone")
                 || lower.contains("email")
                 || lower.contains("address")
-                || lower.contains("license"));
+                || lower.contains("license")
+                || lower.endsWith("_id"));
     }
 
     private String summary(List<Map<String, Object>> rows) {
         if (rows.isEmpty()) {
-            return "临时只读 SQL 查询完成，未找到符合条件的数据。";
+            return "统计分析完成，未找到符合条件的数据。";
         }
-        StringBuilder builder = new StringBuilder();
-        builder.append("临时只读 SQL 查询完成，返回 ").append(rows.size()).append(" 条记录。");
-        builder.append("\n\n").append(markdownTable(rows.subList(0, Math.min(SUMMARY_ROWS, rows.size()))));
-        return masker.mask(builder.toString());
+        return masker.mask("统计分析完成，返回 " + rows.size() + " 条记录。完整结果已在下方表格展示。");
     }
 
-    private String markdownTable(List<Map<String, Object>> rows) {
-        List<String> columns = new ArrayList<>(rows.getFirst().keySet());
-        StringJoiner header = new StringJoiner(" | ", "| ", " |");
-        StringJoiner separator = new StringJoiner(" | ", "| ", " |");
-        for (String column : columns) {
-            header.add(column);
-            separator.add("---");
-        }
-        StringBuilder table = new StringBuilder(header.toString()).append("\n").append(separator).append("\n");
-        for (Map<String, Object> row : rows) {
-            StringJoiner values = new StringJoiner(" | ", "| ", " |");
-            for (String column : columns) {
-                values.add(masker.mask(String.valueOf(row.getOrDefault(column, ""))).replace("|", "\\|"));
-            }
-            table.append(values).append("\n");
-        }
-        return table.toString();
+    private record DisplayRows(List<Map<String, Object>> rows, List<String> columns) {
     }
 }

@@ -18,7 +18,7 @@
       />
     </el-table>
     <el-empty v-else description="暂无结构化数据" />
-    <template v-if="result?.cursorId && !result?.hasMore" #footer>
+    <template v-if="result?.cursorId && result?.hasMore" #footer>
       <el-button text type="primary" @click="$emit('load-more')">加载更多结果</el-button>
     </template>
   </el-drawer>
@@ -26,6 +26,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { displayColumns as safeDisplayColumns } from '../utils/ai-display-sanitizer.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -36,9 +37,7 @@ const props = defineProps({
 defineEmits(['update:visible', 'load-more'])
 
 const displayColumns = computed(() => {
-  const raw = (Array.isArray(props.result?.columns) && props.result.columns.length)
-    ? props.result.columns
-    : Object.keys(props.result?.rows?.[0] || {})
-  return raw.map(col => ({ prop: col, label: props.fieldLabel(col) }))
+  const columns = safeDisplayColumns(props.result)
+  return columns.length ? columns : []
 })
 </script>

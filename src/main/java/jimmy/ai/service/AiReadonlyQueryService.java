@@ -13,6 +13,7 @@ import jimmy.logistics.model.ModuleQueryDTO;
 import jimmy.logistics.model.ModuleRecordVO;
 import jimmy.logistics.service.LogisticsRequirementService;
 import jimmy.common.model.PageResult;
+import jimmy.system.config.ModuleManifest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -174,8 +175,9 @@ public class AiReadonlyQueryService {
         AiGeneratedSqlQueryResult sqlQueryResult = generatedSqlQueryService.query(normalizedMessage);
         if (sqlQueryResult.executed()) {
             return new AiReadonlyQueryResult(true, sqlQueryResult.message(),
-                    List.of(citation("临时只读 SQL 查询", sqlQueryResult.message())),
-                    List.of(new AiToolCall("临时只读 SQL 查询", "关联查询", sqlQueryResult.message())));
+                    List.of(citation(sqlQueryResult.displayTarget(), sqlQueryResult.message())),
+                    List.of(new AiToolCall(sqlQueryResult.displayToolName(), sqlQueryResult.displayTarget(), sqlQueryResult.message())),
+                    sqlQueryResult.records(), sqlQueryResult.columns());
         }
 
         if (quickIntent.dashboard()) {
@@ -756,6 +758,13 @@ public class AiReadonlyQueryService {
         );
         // 数据库字段名 → 中文显示名
         Map<String, String> LABELS = new LinkedHashMap<>();
+        String permissionModule = ModuleManifest.routeModuleToPermissionPrefix().getOrDefault(moduleCode, moduleCode);
+        ModuleManifest.ModuleEntry moduleEntry = ModuleManifest.get(permissionModule);
+        if (moduleEntry != null) {
+            for (ModuleManifest.ColumnDef column : moduleEntry.columns()) {
+                LABELS.put(column.fieldName(), column.label());
+            }
+        }
         LABELS.put("customer_name", "客户名称");
         LABELS.put("customer_code", "客户编码");
         LABELS.put("contact_name", "联系人");
@@ -811,20 +820,26 @@ public class AiReadonlyQueryService {
             boolean hasStatusLabel = record.keySet().stream().anyMatch(k -> k.endsWith("Label"));
             for (String key : record.keySet()) {
                 if (EXCLUDE_FIELDS.contains(key)) continue;
+                if (isForeignKeyDisplayField(key)) continue;
                 // RBAC 列权限过滤（在贴中文标签之前，key 是 snake_case）
                 if (!allowedColumns.isEmpty() && !allowedColumns.contains(key)) continue;
                 if (hasStatusLabel && REDUNDANT_STATUS.contains(key)) continue;
                 String label = LABELS.getOrDefault(key, null);
                 if (label != null) {
                     displayRow.put(label, record.get(key));
-                } else {
-                    // 未映射的字段用原 key（兜底，避免丢数据）
-                    displayRow.put(key, record.get(key));
                 }
             }
             result.add(displayRow);
         }
         return result;
+    }
+
+    private boolean isForeignKeyDisplayField(String key) {
+        if (!StringUtils.hasText(key)) {
+            return false;
+        }
+        String normalized = key.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase(Locale.ROOT);
+        return normalized.endsWith("_id") || normalized.equals("id");
     }
 
     private AiReadonlyQueryResult simpleResult(String toolName, String target, String message) {

@@ -291,13 +291,17 @@ public class ToolExecutorService {
             result.put("success", queryResult.executed());
             result.put("data", queryResult.records() != null ? maskRows(queryResult.records()) : Collections.emptyList());
             result.put("rows", queryResult.records() != null ? maskRows(queryResult.records()) : Collections.emptyList());
+            result.put("columns", queryResult.columns() != null ? queryResult.columns() : Collections.emptyList());
             result.put("totalCount", queryResult.records() != null ? queryResult.records().size() : 0);
             result.put("returnedCount", queryResult.records() != null ? queryResult.records().size() : 0);
             result.put("message", masker.mask(queryResult.message()));
             result.put("summary", masker.mask(queryResult.message()));
+            result.put("displayToolName", masker.mask(queryResult.displayToolName()));
+            result.put("displayTarget", masker.mask(queryResult.displayTarget()));
+            result.put("displaySummary", masker.mask(queryResult.message()));
             result.put("citation", Map.of(
-                    "source", "临时只读 SQL 查询",
-                    "module", "generated_sql",
+                    "source", "统计分析",
+                    "module", "统计结果",
                     "permissionChecked", true
             ));
             return result;
@@ -342,15 +346,45 @@ public class ToolExecutorService {
         map.put("cursorId", result.cursorId());
         map.put("hasMore", result.hasMore() != null && result.hasMore());
         map.put("nextPageHint", masker.mask(result.nextPageHint()));
+        String displayTarget = resolveDisplayTarget(result, moduleName);
+        map.put("displayToolName", "业务数据查询");
+        map.put("displayTarget", masker.mask(displayTarget));
+        map.put("displaySummary", masker.mask(result.answerContext()));
 
         Map<String, Object> citation = new LinkedHashMap<>();
         citation.put("source", "业务数据查询");
-        citation.put("module", masker.mask(moduleName));
+        citation.put("module", masker.mask(displayTarget));
         citation.put("permissionChecked", true);
         map.put("citation", citation);
 
         map.put("summary", masker.mask(result.answerContext()));
         return map;
+    }
+
+    private String resolveDisplayTarget(AiReadonlyQueryResult result, String fallback) {
+        if (result != null && result.toolCalls() != null && !result.toolCalls().isEmpty()) {
+            String target = result.toolCalls().getFirst().target();
+            if (StringUtils.hasText(target)) {
+                return target;
+            }
+        }
+        return switch (fallback == null ? "" : fallback) {
+            case "orders" -> "订单管理";
+            case "waybills" -> "运单管理";
+            case "customers" -> "客户管理";
+            case "dispatches" -> "调度管理";
+            case "tasks" -> "运输任务";
+            case "tracks" -> "物流轨迹";
+            case "drivers" -> "司机管理";
+            case "vehicles" -> "车辆管理";
+            case "exceptions" -> "异常管理";
+            case "fees" -> "费用结算";
+            case "users" -> "用户管理";
+            case "roles" -> "角色管理";
+            case "files" -> "文件管理";
+            case "operationLogs" -> "操作日志";
+            default -> fallback;
+        };
     }
 
     private String nullToEmpty(String value) {

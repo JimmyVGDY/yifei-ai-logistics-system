@@ -106,16 +106,19 @@ public class AiBusinessQueryTools {
     public String readonlySqlAnalysis(
             @ToolParam(description = "用户原始统计或关联分析问题") String question) {
         toolCallContext.incrementAndCheck();
-        toolCallContext.notifyToolStart("只读SQL分析", "关联查询");
+        toolCallContext.notifyToolStart("统计分析", "统计结果");
         AiGeneratedSqlQueryResult sqlResult = generatedSqlQueryService.query(question);
         AiReadonlyQueryResult result = new AiReadonlyQueryResult(
                 sqlResult.executed(),
                 sqlResult.message(),
-                sqlResult.executed() ? List.of(new AiCitation("business-query", "业务数据查询", "临时只读 SQL 查询", sqlResult.message())) : List.of(),
-                sqlResult.executed() ? List.of(new AiToolCall("临时只读 SQL 查询", "关联查询", sqlResult.message())) : List.of()
+                sqlResult.executed() ? List.of(new AiCitation("business-query", "业务数据查询", sqlResult.displayTarget(), sqlResult.message())) : List.of(),
+                sqlResult.executed() ? List.of(new AiToolCall(sqlResult.displayToolName(), sqlResult.displayTarget(), sqlResult.message())) : List.of(),
+                sqlResult.records(),
+                sqlResult.columns()
         );
         toolCallContext.record(result);
-        toolCallContext.notifyToolResult("只读SQL分析", "关联查询", toolResultSummary(result));
+        toolCallContext.notifyToolResult(sqlResult.displayToolName(), sqlResult.displayTarget(), toolResultSummary(result),
+                sqlResult.records(), sqlResult.columns());
         return sqlResult.message();
     }
 
