@@ -85,7 +85,7 @@ class AgentOrchestrator:
         max_iterations = settings.max_agent_iterations
 
         # Step 1: 加载工具注册表
-        tools = await self._fetch_tools(ctx)
+        tools = []
 
         # Step 2: 规则闸门 — 意图分类（对齐 Java AiConversationIntentClassifier）
         from ai_service.core.intent import IntentClassifier
@@ -109,6 +109,29 @@ class AgentOrchestrator:
 
         # CORRECTION/CLARIFY 之外 → Chat/Continuation/Business 走 LLM
         use_tools = intent != "CHAT"
+
+        tools = await self._fetch_tools(ctx) if use_tools else []
+        if use_tools and not tools:
+            answer = (
+                "业务查询工具暂时不可用，当前没有真正执行订单、费用或异常等系统查询。"
+                "请确认 Java 服务已启动、Python 进程设置了与 Java 一致的 AI_INTERNAL_SHARED_SECRET，"
+                "然后重新提问。"
+            )
+            yield self._sse("error", {
+                "code": "TOOLS_UNAVAILABLE",
+                "message": answer,
+                "elapsedMs": int((time.monotonic() - ctx.start_time) * 1000),
+            })
+            for ch in answer:
+                yield self._sse("token", {"delta": ch})
+            yield self._sse("done", {
+                "conversationId": ctx.conversation_id,
+                "answer": answer,
+                "elapsedMs": int((time.monotonic() - ctx.start_time) * 1000),
+                "citationCount": 0,
+                "toolCallCount": 0,
+            })
+            return
 
         # Step 3: 渲染主对话 prompt
         from datetime import date as date_type
@@ -252,8 +275,13 @@ class AgentOrchestrator:
         try:
             tools = await java_client.fetch_tool_registry(user_context=self._java_user_context(ctx))
             return tools
-        except Exception:
-            logger.warning("tool_registry_unavailable")
+        except Exception as exc:
+            logger.warning(
+                "tool_registry_unavailable",
+                error=str(exc),
+                user_id=(ctx.user_context or {}).get("userId", ""),
+                conversation_id=ctx.conversation_id,
+            )
             return []
 
     async def _execute_tool(self, tc: ToolCall, ctx: AgentContext) -> ToolResult:

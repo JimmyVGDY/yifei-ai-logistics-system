@@ -8,6 +8,11 @@ from httpx import AsyncClient
 from ai_service.config.settings import settings
 
 
+def _response_preview(resp: httpx.Response) -> str:
+    text = resp.text or ""
+    return text[:500]
+
+
 class JavaClient:
     """对 Java 后端的内部 HTTP 调用。"""
 
@@ -46,7 +51,12 @@ class JavaClient:
             json={"toolName": tool_name, "arguments": arguments},
             headers=headers,
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise RuntimeError(
+                f"Java internal tool execute failed: status={resp.status_code}, body={_response_preview(resp)}"
+            ) from exc
         return resp.json()
 
     # ── Tool Registry ──
@@ -55,8 +65,15 @@ class JavaClient:
         """拉取当前用户可用的工具列表。"""
         headers = self._build_internal_headers(user_context)
         resp = await self.client.get("/ai/internal/tools/registry", headers=headers)
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise RuntimeError(
+                f"Java internal tool registry failed: status={resp.status_code}, body={_response_preview(resp)}"
+            ) from exc
         body = resp.json()
+        if body.get("success") is False:
+            raise RuntimeError(f"Java internal tool registry failed: {body.get('error', 'unknown error')}")
         return body.get("tools", [])
 
     @staticmethod

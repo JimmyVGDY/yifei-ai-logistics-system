@@ -267,6 +267,38 @@ class TestAgentOrchestrator:
         assert data["cursorId"] == "cursor-1"
 
 
+    @pytest.mark.asyncio
+    async def test_business_query_stops_when_tool_registry_unavailable(self, monkeypatch):
+        from ai_service.core.agent import AgentContext, AgentOrchestrator
+        from ai_service.core.prompt_engine import PromptEngine
+        import ai_service.core.agent as agent_module
+
+        async def fake_fetch_tool_registry(user_context=None):
+            raise RuntimeError("Java internal tool registry failed: status=403")
+
+        monkeypatch.setattr(agent_module.java_client, "fetch_tool_registry", fake_fetch_tool_registry)
+
+        class GatewayShouldNotBeCalled:
+            async def chat_stream_messages(self, *args, **kwargs):
+                raise AssertionError("LLM must not be called when business tools are unavailable")
+
+        engine = PromptEngine(PROMPTS_DIR)
+        orch = AgentOrchestrator(GatewayShouldNotBeCalled(), engine)
+        ctx = AgentContext(
+            question="我要看全部的订单数据",
+            conversation_id="conv-tools-down",
+            user_context={"userId": "1"},
+            memory_context={},
+            rag_context="",
+        )
+
+        events = [event async for event in orch.run(ctx)]
+
+        assert any("TOOLS_UNAVAILABLE" in event for event in events)
+        assert any("业务查询工具暂时不可用" in event for event in events)
+        assert not any("event: tool_result" in event for event in events)
+
+
 class TestModelGatewayFunctionCalling:
     def test_tool_call_dataclass(self):
         from ai_service.core.model_gateway import ToolCall

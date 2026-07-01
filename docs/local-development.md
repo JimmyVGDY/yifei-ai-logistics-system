@@ -149,6 +149,12 @@ ops\run-local.bat
 :: 查看状态
 ops\status.bat
 
+:: RabbitMQ 旧订单队列缺少 DLQ 参数导致 PRECONDITION_FAILED 时执行一次
+ops\reset-rabbit-order-queues.bat
+
+:: 启动 Python AI，自动设置本地 internal secret，避免混用旧项目虚拟环境
+ops\run-python-ai-local.bat
+
 :: 查看日志
 ops\logs.bat
 
