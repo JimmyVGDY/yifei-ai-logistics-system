@@ -91,7 +91,11 @@ class JavaClient:
             "conversationId": str(user_context.get("conversationId", "")),
             "permissions": user_context.get("permissions", []),
         }
-        return {"X-Internal-User": _json.dumps(mini_ctx, ensure_ascii=False)}
+        headers = {"X-Internal-User": _json.dumps(mini_ctx, ensure_ascii=False)}
+        internal_secret = str(user_context.get("internalSecret") or "").strip()
+        if internal_secret:
+            headers["X-Internal-Secret"] = internal_secret
+        return headers
 
 
 java_client = JavaClient()

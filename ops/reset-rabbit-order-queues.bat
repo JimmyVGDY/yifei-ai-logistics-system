@@ -9,10 +9,13 @@ set RABBITMQ_PASSWORD=%RABBITMQ_PASSWORD%
 if "%RABBITMQ_PASSWORD%"=="" set RABBITMQ_PASSWORD=guest
 set ORDER_QUEUE=%LOGISTICS_ORDER_CREATED_QUEUE%
 if "%ORDER_QUEUE%"=="" set ORDER_QUEUE=logistics.order.created.queue
+set DEMO_QUEUE=%RABBITMQ_DEMO_QUEUE%
+if "%DEMO_QUEUE%"=="" set DEMO_QUEUE=practice.demo.queue
 
-echo This script deletes local RabbitMQ order queues so Spring can recreate them with DLQ arguments.
+echo This script deletes local RabbitMQ queues so Spring can recreate them with DLQ arguments.
 echo Target: %RABBITMQ_MANAGEMENT_URL%
-echo Queue : %ORDER_QUEUE%
+echo Order queue: %ORDER_QUEUE%
+echo Demo queue : %DEMO_QUEUE%
 echo.
 
 curl.exe -s -u "%RABBITMQ_USER%:%RABBITMQ_PASSWORD%" -X DELETE "%RABBITMQ_MANAGEMENT_URL%/api/queues/%%2F/%ORDER_QUEUE%?if-empty=false^&if-unused=false" >nul
@@ -22,5 +25,7 @@ if errorlevel 1 (
 )
 
 curl.exe -s -u "%RABBITMQ_USER%:%RABBITMQ_PASSWORD%" -X DELETE "%RABBITMQ_MANAGEMENT_URL%/api/queues/%%2F/%ORDER_QUEUE%.dlq?if-empty=false^&if-unused=false" >nul
+curl.exe -s -u "%RABBITMQ_USER%:%RABBITMQ_PASSWORD%" -X DELETE "%RABBITMQ_MANAGEMENT_URL%/api/queues/%%2F/%DEMO_QUEUE%?if-empty=false^&if-unused=false" >nul
+curl.exe -s -u "%RABBITMQ_USER%:%RABBITMQ_PASSWORD%" -X DELETE "%RABBITMQ_MANAGEMENT_URL%/api/queues/%%2F/%DEMO_QUEUE%.dlq?if-empty=false^&if-unused=false" >nul
 
 echo Done. Restart Java; the queue will be declared again with x-dead-letter-exchange.

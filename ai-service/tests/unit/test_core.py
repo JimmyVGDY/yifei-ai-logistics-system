@@ -209,6 +209,18 @@ class TestAgentOrchestrator:
         assert len(results) == 1
         assert results[0].name == "query_business_module"
 
+    def test_java_internal_secret_can_be_overridden_per_request(self):
+        from ai_service.infrastructure.java_client import JavaClient
+
+        headers = JavaClient._build_internal_headers({
+            "userId": "260602222327001",
+            "conversationId": "conv-1",
+            "internalSecret": "java-side-secret",
+        })
+
+        assert headers["X-Internal-Secret"] == "java-side-secret"
+        assert "java-side-secret" not in headers["X-Internal-User"]
+
     @pytest.mark.asyncio
     async def test_execute_tool_preserves_structured_result(self, monkeypatch):
         from ai_service.core.agent import AgentContext, AgentOrchestrator, ToolCall

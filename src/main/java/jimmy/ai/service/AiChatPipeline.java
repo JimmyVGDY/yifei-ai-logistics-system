@@ -76,6 +76,7 @@ public class AiChatPipeline {
     private final PythonClient pythonClient;
     private final boolean pythonEnabled;
     private final int pythonTimeoutSeconds;
+    private final String internalSharedSecret;
 
     public AiChatPipeline(AiKnowledgeService knowledgeService,
                           AiReadonlyQueryService readonlyQueryService,
@@ -96,6 +97,7 @@ public class AiChatPipeline {
                           PythonClient pythonClient,
                           @Value("${app.ai.python.enabled:false}") boolean pythonEnabled,
                           @Value("${app.ai.python.timeout-seconds:180}") int pythonTimeoutSeconds,
+                          @Value("${app.ai.internal.shared-secret:}") String internalSharedSecret,
                           @Value("${app.ai.sse.heartbeat-seconds:10}") long heartbeatSeconds) {
         this.knowledgeService = knowledgeService;
         this.readonlyQueryService = readonlyQueryService;
@@ -116,6 +118,7 @@ public class AiChatPipeline {
         this.pythonClient = pythonClient;
         this.pythonEnabled = pythonEnabled;
         this.pythonTimeoutSeconds = Math.max(5, pythonTimeoutSeconds);
+        this.internalSharedSecret = internalSharedSecret == null ? "" : internalSharedSecret.trim();
         this.heartbeatSeconds = Math.max(1, heartbeatSeconds);
     }
 
@@ -380,6 +383,9 @@ public class AiChatPipeline {
         userCtx.put("roleCode", roleCode == null ? "" : roleCode);
         userCtx.put("customerId", nullToBlank(SseChatContext.getCustomerId()));
         userCtx.put("loginSessionId", nullToBlank(SseChatContext.getLoginSessionId()));
+        if (StringUtils.hasText(internalSharedSecret)) {
+            userCtx.put("internalSecret", internalSharedSecret);
+        }
         pythonReq.put("userContext", userCtx);
 
         // 历史消息（从 MySQL 加载最近对话）
