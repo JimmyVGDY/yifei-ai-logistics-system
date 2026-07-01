@@ -17,6 +17,7 @@ class RedisClient:
         self._client = aioredis.from_url(
             settings.redis_url,
             decode_responses=True,
+            protocol=2,
         )
         await self._client.ping()
 

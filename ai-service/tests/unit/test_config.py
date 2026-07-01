@@ -22,6 +22,31 @@ def test_settings_defaults():
     assert s.model_timeout_seconds == 60.0
 
 
+@pytest.mark.asyncio
+async def test_redis_client_uses_resp2_for_redis5_compatibility(monkeypatch):
+    """本地 Redis 5.x 不支持 HELLO/RESP3，客户端必须显式使用 RESP2。"""
+    from ai_service.infrastructure import redis_client as redis_module
+
+    captured = {}
+
+    class FakeRedis:
+        async def ping(self):
+            return True
+
+    def fake_from_url(url, **kwargs):
+        captured["url"] = url
+        captured.update(kwargs)
+        return FakeRedis()
+
+    monkeypatch.setattr(redis_module.aioredis, "from_url", fake_from_url)
+    monkeypatch.setattr(redis_module.redis_client, "_client", None)
+
+    await redis_module.redis_client.connect()
+
+    assert captured["protocol"] == 2
+    assert captured["decode_responses"] is True
+
+
 def test_providers_yml_valid():
     """providers.yml 合法且包含必须的 Provider。"""
     path = CONFIG_DIR / "providers.yml"
