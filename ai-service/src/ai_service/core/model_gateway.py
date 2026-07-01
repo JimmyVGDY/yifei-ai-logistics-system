@@ -174,7 +174,7 @@ class ModelGateway:
                 return
             except Exception as exc:
                 last_error = exc
-                logger.warning("model_fallback_stream", model=model_name, error=str(exc)[:200])
+                self._log_stream_fallback(model_name, exc)
                 continue
 
         yield "抱歉，AI 服务暂时不可用，请稍后重试。"
@@ -210,10 +210,25 @@ class ModelGateway:
                 return
             except Exception as exc:
                 last_error = exc
-                logger.warning("model_fallback_stream", model=model_name, error=str(exc)[:200])
+                self._log_stream_fallback(model_name, exc)
                 continue
 
         yield "抱歉，AI 服务暂时不可用，请稍后重试。"
+
+    @staticmethod
+    def _log_stream_fallback(model_name: str, exc: Exception) -> None:
+        detail = ""
+        status_code = None
+        if isinstance(exc, httpx.HTTPStatusError):
+            status_code = exc.response.status_code
+            detail = exc.response.text[:500]
+        logger.warning(
+            "model_fallback_stream",
+            model=model_name,
+            status_code=status_code,
+            error=str(exc)[:300],
+            response_body=detail,
+        )
 
     async def _call(self, config: ModelConfig, system: str, user: str,
                     tools: Optional[list[dict]] = None) -> ModelResponse:

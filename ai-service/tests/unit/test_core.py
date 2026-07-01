@@ -278,6 +278,64 @@ class TestAgentOrchestrator:
         assert data["columns"] == ["订单号"]
         assert data["cursorId"] == "cursor-1"
 
+    @pytest.mark.asyncio
+    async def test_business_tool_result_finishes_without_second_model_call(self, monkeypatch):
+        from ai_service.core.agent import AgentContext, AgentOrchestrator
+        from ai_service.core.prompt_engine import PromptEngine
+        import ai_service.core.agent as agent_module
+
+        async def fake_fetch_tool_registry(user_context=None):
+            return [{
+                "type": "function",
+                "function": {
+                    "name": "query_business_module",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }]
+
+        async def fake_execute_tool(tool_name, arguments, user_context=None):
+            return {
+                "success": True,
+                "data": [{"订单号": "LO-001"}],
+                "columns": ["订单号"],
+                "totalCount": 441,
+                "returnedCount": 10,
+                "remainingCount": 431,
+                "hasMore": True,
+                "cursorId": "cursor-1",
+                "summary": "已查询订单管理，共匹配 441 条记录。本次已返回前 10 条结构化记录。",
+            }
+
+        monkeypatch.setattr(agent_module.java_client, "fetch_tool_registry", fake_fetch_tool_registry)
+        monkeypatch.setattr(agent_module.java_client, "execute_tool", fake_execute_tool)
+
+        class Gateway:
+            def __init__(self):
+                self.calls = 0
+
+            async def chat_stream_messages(self, *args, **kwargs):
+                self.calls += 1
+                if self.calls > 1:
+                    raise AssertionError("business tool summary must not call the model again")
+                yield '{"tool_call":{"name":"query_business_module","arguments":{"module":"orders","keyword":""}}}'
+
+        gateway = Gateway()
+        engine = PromptEngine(PROMPTS_DIR)
+        orch = AgentOrchestrator(gateway, engine)
+        ctx = AgentContext(
+            question="我要看全部的订单数据",
+            conversation_id="conv-1",
+            user_context={"userId": "user-1"},
+            memory_context={},
+            rag_context="",
+        )
+
+        events = [event async for event in orch.run(ctx)]
+
+        assert gateway.calls == 1
+        assert any("event: tool_result" in event for event in events)
+        assert any("event: done" in event and "已查询订单管理" in event for event in events)
+
 
     @pytest.mark.asyncio
     async def test_business_query_stops_when_tool_registry_unavailable(self, monkeypatch):

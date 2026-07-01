@@ -238,6 +238,19 @@ class AgentOrchestrator:
                         "elapsedMs": elapsed_ms,
                     })
 
+                    if self._should_finish_after_tool(result):
+                        full_answer = self._tool_answer(result)
+                        for ch in full_answer:
+                            yield self._sse("token", {"delta": ch})
+                        yield self._sse("done", {
+                            "conversationId": ctx.conversation_id,
+                            "answer": full_answer,
+                            "elapsedMs": int((time.monotonic() - ctx.start_time) * 1000),
+                            "citationCount": len(ctx.tool_results),
+                            "toolCallCount": len(ctx.tool_results),
+                        })
+                        return
+
                     # Append tool result to messages for next LLM round (OpenAI standard format)
                     tc_id = f"call_{ctx.iteration}_{len(ctx.tool_results)}"
                     messages.append({
@@ -316,6 +329,24 @@ class AgentOrchestrator:
                 success=False,
                 summary=f"工具执行失败: {exc}",
             )
+
+    @staticmethod
+    def _should_finish_after_tool(result: ToolResult) -> bool:
+        """业务工具已有结构化结果时直接收口，避免二次模型摘要失败影响体验。"""
+        if not result.success:
+            return False
+        return bool(result.summary or result.total_count or result.returned_count or result.data)
+
+    @staticmethod
+    def _tool_answer(result: ToolResult) -> str:
+        if result.summary:
+            return result.summary
+        if result.total_count:
+            answer = f"已返回 {result.returned_count or 0} 条结构化记录，共匹配 {result.total_count} 条。"
+            if result.remaining_count > 0:
+                answer += f"还有 {result.remaining_count} 条记录可通过结果卡片继续分页查看。"
+            return answer
+        return "已完成业务数据查询，结构化结果已在下方表格中展示。"
 
     @staticmethod
     def _java_user_context(ctx: AgentContext) -> dict:
@@ -401,11 +432,11 @@ class AgentOrchestrator:
             if isinstance(keyword, str) and isinstance(module, str):
                 # keyword 是 module 的子串 → LLM 瞎编的，清掉
                 if len(keyword) <= 5 and keyword.lower() in module.lower():
-                    logger.warning("sanitized_keyword", keyword=keyword, module=module)
+                    logger.debug("sanitized_keyword", keyword=keyword, module=module)
                     tc.arguments["keyword"] = ""
                 # keyword 只有 1-2 个字母 → 明显是垃圾
                 elif len(keyword) <= 2 and keyword.isascii() and keyword.isalpha():
-                    logger.warning("sanitized_keyword_garbage", keyword=keyword)
+                    logger.debug("sanitized_keyword_garbage", keyword=keyword)
                     tc.arguments["keyword"] = ""
         return tc
 

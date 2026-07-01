@@ -28,8 +28,17 @@ public class AiQuerySummaryService {
             return builder.toString();
         }
         int previewCount = page.records().size();
-        long remaining = Math.max(0, page.total() - previewCount);
-        builder.append("本次已返回前 ").append(previewCount).append(" 条结构化记录。");
+        int safePage = Math.max(1, page.page());
+        int safePageSize = Math.max(1, page.pageSize());
+        int returnedCount = Math.max(0, (safePage - 1) * safePageSize + previewCount);
+        long remaining = Math.max(0, page.total() - returnedCount);
+        if (safePage <= 1) {
+            builder.append("本次已返回前 ").append(previewCount).append(" 条结构化记录。");
+        } else {
+            int startIndex = (safePage - 1) * safePageSize + 1;
+            builder.append("本次已返回第 ").append(startIndex).append("-").append(returnedCount)
+                    .append(" 条结构化记录。");
+        }
         if (remaining > 0) {
             builder.append("还有 ").append(remaining).append(" 条记录可通过结果卡片继续分页查看。");
         } else {
