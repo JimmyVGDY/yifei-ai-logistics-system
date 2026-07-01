@@ -338,7 +338,8 @@ public class ToolExecutorService {
         map.put("totalCount", result.total() != null ? result.total() : 0);
         map.put("returnedCount", result.returnedCount() != null ? result.returnedCount() : 0);
         map.put("remainingCount", result.remainingCount() != null ? result.remainingCount() : 0);
-        map.put("cursorId", masker.mask(result.cursorId()));
+        // cursorId is an opaque pagination token consumed by the frontend; masking it breaks continuation.
+        map.put("cursorId", result.cursorId());
         map.put("hasMore", result.hasMore() != null && result.hasMore());
         map.put("nextPageHint", masker.mask(result.nextPageHint()));
 

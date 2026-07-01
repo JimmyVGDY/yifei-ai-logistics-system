@@ -73,7 +73,6 @@
                expires_at as expiresAt
         from ai_query_cursor
         where cursor_id = #{cursorId}
-          and conversation_id = #{conversationId}
           and user_id = #{userId}
           and ifnull(user_code, '') = ifnull(#{userCode}, '')
           and deleted = 0
