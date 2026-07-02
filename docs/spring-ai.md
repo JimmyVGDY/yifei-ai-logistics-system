@@ -162,9 +162,15 @@ AI 查询分三层处理：
 
 工具返回给 SSE 时会同时提供兼容字段和展示字段：`displayToolName`、`displayTarget`、`displaySummary`、`columns`、`rows/data`、`total/returnedCount/remainingCount/hasMore`。聊天气泡只使用安全中文摘要；结构化表格只展示经过列权限过滤和中文化后的字段。前端还有统一 sanitizer 兜底，详见 [前端开发说明](frontend.md)。
 
+全局候选搜索和业务联合查询会额外返回 `dataGroups`。每个分组包含 `groupId`、`displayToolName`、`displayTarget`、`displaySummary`、`columns`、`rows`、`cursorId`、`total/returnedCount/remainingCount/hasMore` 和 `nextPageHint`。旧版 `rows/columns` 仍保留为首个主结果组用于兼容，但前端新页面必须优先按 `dataGroups` 渲染多张独立卡片，避免客户、订单、运单、异常等模块列和摘要混在一张表里。
+
 自然语言解析会先做输入归一化，处理全角字符、零宽字符、换行、重复空格和关键词前后的误触标点，避免用户多打空格或符号时影响模块和关键词识别。解析器只负责识别白名单模块、关键词、业务编号、车牌号、状态和时间范围，不直接生成 SQL。
 
 同一会话内支持轻量上下文继承：如果上一轮用户查询了“异常管理”，下一轮只输入“只要待处理的”这类缺少模块的追问，后端会把上一轮用户问题作为查询上下文补充给解析器，再按当前筛选条件查询。
+
+Python Agent 侧增加轻量 `IntentPlan` 规划层，复用 `intent-classify.yml` 在模糊短词、多模块表达、上下文修正、代词追问、模块和关键词冲突场景中给出结构化建议。规则负责快路径和安全硬闸门，LLM 只提供 `modules/keyword/toolHint/refinementOfPrevious` 等建议，Java `AiReadonlyQueryService` 仍是最终模块白名单、权限、时间范围、工具边界和列权限校验点。典型链路是：`看看陈土豆` 先做受控业务候选搜索；用户随后说 `我要看跟陈土豆有关的订单信息` 或 `只看订单` 时，后端继承上一轮实体并收窄到订单模块，不再重复查询客户、用户、操作日志等无关模块。
+
+全局搜索仅用于“无明确模块但有有效实体/编号/车牌/地址/姓名”的候选场景。普通业务全局搜索默认排除用户、角色、操作日志和上传文件；只有用户明确提到账户、权限、日志、文件时，才应走对应明确模块或日志工具。`异常`、`数据`、`这个月的` 等宽泛表达低置信度时应澄清或受控单模块查询，不能跨模块乱查。
 
 跨会话个性化由“账号级长期记忆”负责：登录账号的常用模块、常用筛选条件、回答风格偏好会以脱敏摘要写入 MySQL，并把向量点写入 Qdrant。下一次新会话开始时，AI 会先按当前 `userId/userCode` 从 Qdrant 召回长期记忆，再把召回摘要作为回答上下文。召回和写入都绑定当前账号，不做企业客户级共享记忆。
 

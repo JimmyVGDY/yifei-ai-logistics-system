@@ -92,7 +92,7 @@
 
 AI 助手 Prompt 已纳入模板化治理。继续开发 AI 能力前，需要同时阅读 [Spring AI 接入说明](spring-ai.md)、[AI 助手设计文档](ai-assistant-design.md)、[MyBatis 使用规范](mybatis.md) 和 [数据库增量迁移说明](incremental-migration.md)。涉及新增 Prompt 时，需要同步维护 `ai_prompt_template` 默认模板、输出校验、测试用例和文档交叉引用。
 
-AI 展示安全已统一为 Java 展示字段、Python SSE 透传和前端 sanitizer 三层兜底。继续开发 Tool Calling、临时 SQL、结果表格或抽屉分页时，必须确认用户界面不展示内部工具名、SQL、snake_case 字段名、权限码、异常堆栈或未知字段原文；相关说明见 [Spring AI 接入说明](spring-ai.md)、[Python AI 服务开发指南](python-ai-service.md)、[前端开发说明](frontend.md)、[MyBatis 使用规范](mybatis.md) 和 [链路追踪与会话审计说明](trace-context-audit.md)。
+AI 展示安全已统一为 Java 展示字段、Python SSE 透传和前端 sanitizer 三层兜底。继续开发 Tool Calling、临时 SQL、结果表格或抽屉分页时，必须确认用户界面不展示内部工具名、SQL、snake_case 字段名、权限码、异常堆栈或未知字段原文；涉及全局候选搜索、多模块结果或上下文追问时，还必须确认 `IntentPlan`、Java 白名单校验和 SSE `dataGroups` 分组展示一致。相关说明见 [Spring AI 接入说明](spring-ai.md)、[Python AI 服务开发指南](python-ai-service.md)、[前端开发说明](frontend.md)、[MyBatis 使用规范](mybatis.md) 和 [链路追踪与会话审计说明](trace-context-audit.md)。
 
 ## AI 长期记忆治理与幻觉处理补充
 

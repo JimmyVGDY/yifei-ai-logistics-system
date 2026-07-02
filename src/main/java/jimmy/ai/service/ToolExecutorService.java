@@ -1,6 +1,7 @@
 package jimmy.ai.service;
 
 import jimmy.ai.model.AiCitation;
+import jimmy.ai.model.AiDataResultGroup;
 import jimmy.ai.model.AiGeneratedSqlQueryResult;
 import jimmy.ai.model.AiLogAnalysisResponse;
 import jimmy.ai.model.AiLogAnalyzeRequest;
@@ -299,6 +300,22 @@ public class ToolExecutorService {
             result.put("displayToolName", masker.mask(queryResult.displayToolName()));
             result.put("displayTarget", masker.mask(queryResult.displayTarget()));
             result.put("displaySummary", masker.mask(queryResult.message()));
+            if (queryResult.records() != null && !queryResult.records().isEmpty()) {
+                Map<String, Object> group = new LinkedHashMap<>();
+                group.put("groupId", "generated_sql");
+                group.put("displayToolName", masker.mask(queryResult.displayToolName()));
+                group.put("displayTarget", masker.mask(queryResult.displayTarget()));
+                group.put("displaySummary", masker.mask(queryResult.message()));
+                group.put("columns", queryResult.columns() != null ? queryResult.columns() : Collections.emptyList());
+                group.put("rows", maskRows(queryResult.records()));
+                group.put("total", queryResult.records().size());
+                group.put("returnedCount", queryResult.records().size());
+                group.put("remainingCount", 0);
+                group.put("hasMore", false);
+                result.put("dataGroups", List.of(group));
+            } else {
+                result.put("dataGroups", Collections.emptyList());
+            }
             result.put("citation", Map.of(
                     "source", "统计分析",
                     "module", "统计结果",
@@ -339,6 +356,7 @@ public class ToolExecutorService {
         map.put("data", result.rows() != null ? maskRows(result.rows()) : Collections.emptyList());
         map.put("rows", result.rows() != null ? maskRows(result.rows()) : Collections.emptyList());
         map.put("columns", result.columns() != null ? result.columns() : Collections.emptyList());
+        map.put("dataGroups", maskDataGroups(result));
         map.put("totalCount", result.total() != null ? result.total() : 0);
         map.put("returnedCount", result.returnedCount() != null ? result.returnedCount() : 0);
         map.put("remainingCount", result.remainingCount() != null ? result.remainingCount() : 0);
@@ -359,6 +377,48 @@ public class ToolExecutorService {
 
         map.put("summary", masker.mask(result.answerContext()));
         return map;
+    }
+
+    private List<Map<String, Object>> maskDataGroups(AiReadonlyQueryResult result) {
+        if (result == null || result.dataGroups() == null || result.dataGroups().isEmpty()) {
+            if (result == null || result.rows() == null || result.rows().isEmpty()) {
+                return Collections.emptyList();
+            }
+            String target = resolveDisplayTarget(result, "");
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("groupId", target);
+            fallback.put("displayToolName", "业务数据查询");
+            fallback.put("displayTarget", masker.mask(target));
+            fallback.put("displaySummary", masker.mask(result.answerContext()));
+            fallback.put("columns", result.columns() != null ? result.columns() : Collections.emptyList());
+            fallback.put("rows", maskRows(result.rows()));
+            fallback.put("cursorId", result.cursorId());
+            fallback.put("total", result.total() != null ? result.total() : 0);
+            fallback.put("returnedCount", result.returnedCount() != null ? result.returnedCount() : 0);
+            fallback.put("remainingCount", result.remainingCount() != null ? result.remainingCount() : 0);
+            fallback.put("hasMore", result.hasMore() != null && result.hasMore());
+            fallback.put("nextPageHint", masker.mask(result.nextPageHint()));
+            return List.of(fallback);
+        }
+
+        List<Map<String, Object>> groups = new ArrayList<>();
+        for (AiDataResultGroup group : result.dataGroups()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("groupId", group.groupId());
+            item.put("displayToolName", masker.mask(group.displayToolName()));
+            item.put("displayTarget", masker.mask(group.displayTarget()));
+            item.put("displaySummary", masker.mask(group.displaySummary()));
+            item.put("columns", group.columns() != null ? group.columns() : Collections.emptyList());
+            item.put("rows", maskRows(group.rows()));
+            item.put("cursorId", group.cursorId());
+            item.put("total", group.total() != null ? group.total() : 0);
+            item.put("returnedCount", group.returnedCount() != null ? group.returnedCount() : 0);
+            item.put("remainingCount", group.remainingCount() != null ? group.remainingCount() : 0);
+            item.put("hasMore", group.hasMore() != null && group.hasMore());
+            item.put("nextPageHint", masker.mask(group.nextPageHint()));
+            groups.add(item);
+        }
+        return groups;
     }
 
     private String resolveDisplayTarget(AiReadonlyQueryResult result, String fallback) {

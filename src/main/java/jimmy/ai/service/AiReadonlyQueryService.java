@@ -1,6 +1,7 @@
 package jimmy.ai.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import jimmy.ai.model.AiDataResultGroup;
 import jimmy.ai.model.AiCitation;
 import jimmy.ai.model.AiToolCall;
 import jimmy.ai.util.SseChatContext;
@@ -184,6 +185,8 @@ public class AiReadonlyQueryService {
             return queryDashboard(quickIntent);
         }
 
+        quickIntent = refineContextModuleIntent(quickIntent, normalizedMessage, previousUserMessage);
+
         if (isGlobalSearchRequest(normalizedMessage) && hasText(previousUserMessage)) {
             String previousKeyword = resolveKeyword(previousUserMessage, null);
             if (hasText(previousKeyword)) {
@@ -266,6 +269,7 @@ public class AiReadonlyQueryService {
         int queriedModules = 0;
         List<Map<String, Object>> allRows = new ArrayList<>();
         List<String> allColumns = null;
+        List<AiDataResultGroup> dataGroups = new ArrayList<>();
 
         for (SearchModule module : modules) {
             AiReadonlyQueryResult result = queryModule(module, keywordToUse, startTime, endTime, 1, 20, "业务联合查询",
@@ -284,6 +288,7 @@ public class AiReadonlyQueryService {
                     allColumns = result.columns();
                 }
             }
+            dataGroups.addAll(nonEmptyGroups(result, module.module()));
         }
 
         if (queriedModules == 0) {
@@ -294,7 +299,9 @@ public class AiReadonlyQueryService {
             return simpleResult("业务联合查询", joinModuleNames(modules), message);
         }
         return new AiReadonlyQueryResult(true, masker.mask(answer.toString()), citations, toolCalls,
-                allRows, allColumns == null ? List.of() : allColumns);
+                allRows, allColumns == null ? List.of() : allColumns,
+                null, total, allRows.size(), Math.max(0, total - allRows.size()), total > allRows.size(), null,
+                dataGroups);
     }
 
     public AiReadonlyQueryResult queryDashboard() {
@@ -432,10 +439,13 @@ public class AiReadonlyQueryService {
             );
             String cursorId = cursor.map(AiQueryCursor::getCursorId).orElse(null);
             String nextPageHint = remainingCount > 0 ? "还有 " + remainingCount + " 条记录，可输入“继续看”或“查看剩余数据”。" : null;
+            AiDataResultGroup group = dataGroup(module.module(), toolName, module.moduleName(), summary,
+                    rows, columns, cursorId, page.total(), returnedCount, remainingCount, remainingCount > 0, nextPageHint);
             return new AiReadonlyQueryResult(true, summary,
                     List.of(citation(module.moduleName(), summary)),
                     List.of(new AiToolCall(toolName, module.moduleName(), result)),
-                    rows, columns, cursorId, page.total(), returnedCount, remainingCount, remainingCount > 0, nextPageHint);
+                    rows, columns, cursorId, page.total(), returnedCount, remainingCount, remainingCount > 0, nextPageHint,
+                    rows.isEmpty() ? List.of() : List.of(group));
         } catch (IllegalStateException exception) {
             log.info("AI 只读查询被数据范围拦截，module={}, reason={}", module.module(), exception.getMessage());
             return simpleResult(toolName, module.moduleName(), CUSTOMER_NOT_BOUND_MESSAGE);
@@ -457,14 +467,16 @@ public class AiReadonlyQueryService {
 
         List<AiCitation> citations = new ArrayList<>();
         List<AiToolCall> toolCalls = new ArrayList<>();
-        List<Map<String, Object>> allRows = new ArrayList<>();
-        List<String> allColumns = null;
+        List<AiDataResultGroup> dataGroups = new ArrayList<>();
         StringBuilder answer = new StringBuilder("已按关键词“").append(keywordToUse).append("”进行全场景模糊搜索。");
         long total = 0;
         int queriedModules = 0;
 
         for (SearchModule module : SEARCH_MODULES.stream().sorted(Comparator.comparingInt(SearchModule::priority)).toList()) {
             if (module.module().equals(excludedModule)) {
+                continue;
+            }
+            if (isSystemModule(module)) {
                 continue;
             }
             if (!hasPermission(module.permission())) {
@@ -482,12 +494,7 @@ public class AiReadonlyQueryService {
                 citations.addAll(result.citations());
                 toolCalls.addAll(result.toolCalls());
                 answer.append("\n\n").append(result.answerContext());
-                if (result.rows() != null && !result.rows().isEmpty()) {
-                    allRows.addAll(result.rows());
-                    if (allColumns == null && result.columns() != null) {
-                        allColumns = result.columns();
-                    }
-                }
+                dataGroups.addAll(nonEmptyGroups(result, module.module()));
             }
         }
 
@@ -499,8 +506,105 @@ public class AiReadonlyQueryService {
                     + "可补充订单号、运单号、客户名称、手机号、车牌号、司机姓名、地址或时间范围继续查询。";
             return simpleResult("全场景模糊搜索", "业务模块", message);
         }
+        AiDataResultGroup first = dataGroups.isEmpty() ? null : dataGroups.getFirst();
         return new AiReadonlyQueryResult(true, masker.mask(answer.toString()), citations, toolCalls,
-                allRows, allColumns == null ? List.of() : allColumns);
+                first == null ? List.of() : first.rows(),
+                first == null ? List.of() : first.columns(),
+                first == null ? null : first.cursorId(),
+                total,
+                first == null ? 0 : first.returnedCount(),
+                Math.max(0, total - (first == null || first.returnedCount() == null ? 0 : first.returnedCount())),
+                !dataGroups.isEmpty() && dataGroups.stream().anyMatch(group -> Boolean.TRUE.equals(group.hasMore())),
+                first == null ? null : first.nextPageHint(),
+                dataGroups);
+    }
+
+    private AiQueryIntent refineContextModuleIntent(AiQueryIntent current, String message, String previousUserMessage) {
+        if (!hasText(previousUserMessage) || current == null || !current.matched() || current.dashboard()
+                || current.forbiddenWrite()) {
+            return current;
+        }
+        String currentKeyword = normalizeResolvedKeyword(current.keyword());
+        if (hasText(currentKeyword) && !isRefinementPlaceholderKeyword(currentKeyword)) {
+            return current;
+        }
+        if (!isContextModuleRefinement(message)) {
+            return current;
+        }
+        String previousKeyword = resolveKeyword(previousUserMessage, null);
+        if (!hasText(previousKeyword)) {
+            return current;
+        }
+        return new AiQueryIntent(
+                current.module(),
+                current.moduleName(),
+                current.permission(),
+                previousKeyword,
+                current.startTime(),
+                current.endTime(),
+                current.dashboard(),
+                false,
+                true
+        );
+    }
+
+    private boolean isRefinementPlaceholderKeyword(String keyword) {
+        String text = normalizeForSearch(keyword);
+        return !hasText(text) || List.of("只看", "只查", "相关", "有关", "信息", "数据", "记录", "明细").contains(text);
+    }
+
+    private boolean isContextModuleRefinement(String message) {
+        String text = normalizeForSearch(message);
+        return containsAny(text, List.of("相关", "有关", "这个", "那个", "这个客户", "这个人", "这个司机",
+                "他", "她", "它", "只看", "只查", "跟", "关于"))
+                || containsAny(text, List.of("订单信息", "运单信息", "费用信息", "任务信息", "异常信息"));
+    }
+
+    private boolean isSystemModule(SearchModule module) {
+        return List.of("users", "roles", "files", "operationLogs").contains(module.module());
+    }
+
+    private List<AiDataResultGroup> nonEmptyGroups(AiReadonlyQueryResult result, String fallbackGroupId) {
+        if (result == null) {
+            return List.of();
+        }
+        if (result.dataGroups() != null && !result.dataGroups().isEmpty()) {
+            return result.dataGroups().stream()
+                    .filter(group -> group.rows() != null && !group.rows().isEmpty())
+                    .toList();
+        }
+        if (result.rows() == null || result.rows().isEmpty()) {
+            return List.of();
+        }
+        String target = result.toolCalls() == null || result.toolCalls().isEmpty()
+                ? fallbackGroupId
+                : result.toolCalls().getFirst().target();
+        String toolName = result.toolCalls() == null || result.toolCalls().isEmpty()
+                ? "业务数据查询"
+                : result.toolCalls().getFirst().toolName();
+        return List.of(dataGroup(fallbackGroupId, toolName, target, result.answerContext(),
+                result.rows(), result.columns(), result.cursorId(), result.total(), result.returnedCount(),
+                result.remainingCount(), result.hasMore(), result.nextPageHint()));
+    }
+
+    private AiDataResultGroup dataGroup(String groupId, String toolName, String target, String summary,
+                                        List<Map<String, Object>> rows, List<String> columns,
+                                        String cursorId, Long total, Integer returnedCount,
+                                        Long remainingCount, Boolean hasMore, String nextPageHint) {
+        return new AiDataResultGroup(
+                groupId,
+                toolName,
+                target,
+                masker.mask(summary),
+                columns == null ? List.of() : columns,
+                rows == null ? List.of() : rows,
+                cursorId,
+                total,
+                returnedCount,
+                remainingCount,
+                hasMore,
+                masker.mask(nextPageHint)
+        );
     }
 
     private boolean shouldFallbackToGlobalSearch(AiQueryIntent intent, AiReadonlyQueryResult result) {

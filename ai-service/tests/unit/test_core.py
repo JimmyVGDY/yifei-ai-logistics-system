@@ -304,6 +304,19 @@ class TestAgentOrchestrator:
                 "hasMore": True,
                 "cursorId": "cursor-1",
                 "summary": "已查询订单管理，共匹配 441 条记录。本次已返回前 10 条结构化记录。",
+                "dataGroups": [{
+                    "groupId": "orders",
+                    "displayToolName": "业务数据查询",
+                    "displayTarget": "订单管理",
+                    "displaySummary": "已查询订单管理，共匹配 441 条记录。",
+                    "columns": ["订单号"],
+                    "rows": [{"订单号": "LO-001"}],
+                    "cursorId": "cursor-1",
+                    "total": 441,
+                    "returnedCount": 10,
+                    "remainingCount": 431,
+                    "hasMore": True,
+                }],
             }
 
         monkeypatch.setattr(agent_module.java_client, "fetch_tool_registry", fake_fetch_tool_registry)
@@ -334,7 +347,64 @@ class TestAgentOrchestrator:
 
         assert gateway.calls == 1
         assert any("event: tool_result" in event for event in events)
+        assert any('"dataGroups": [{"groupId": "orders"' in event for event in events)
         assert any("event: done" in event and "已查询订单管理" in event for event in events)
+
+    @pytest.mark.asyncio
+    async def test_context_refinement_plan_forces_business_module(self, monkeypatch):
+        from ai_service.core.agent import AgentContext, AgentOrchestrator
+        from ai_service.core.prompt_engine import PromptEngine
+        import ai_service.core.agent as agent_module
+
+        async def fake_fetch_tool_registry(user_context=None):
+            return [
+                {"name": "query_business_module", "parameters": {"type": "object", "properties": {}}},
+                {"name": "global_fuzzy_search", "parameters": {"type": "object", "properties": {}}},
+                {"name": "execute_readonly_sql", "parameters": {"type": "object", "properties": {}}},
+            ]
+
+        async def fake_execute_tool(tool_name, arguments, user_context=None):
+            assert tool_name == "query_business_module"
+            assert arguments["module"] == "orders"
+            assert arguments["keyword"] == "陈土豆"
+            return {
+                "success": True,
+                "data": [{"订单号": "LO-001", "客户名称": "陈土豆"}],
+                "columns": ["订单号", "客户名称"],
+                "totalCount": 1,
+                "returnedCount": 1,
+                "remainingCount": 0,
+                "summary": "已查询订单管理，共匹配 1 条记录。",
+                "displayToolName": "业务数据查询",
+                "displayTarget": "订单管理",
+            }
+
+        monkeypatch.setattr(agent_module.java_client, "fetch_tool_registry", fake_fetch_tool_registry)
+        monkeypatch.setattr(agent_module.java_client, "execute_tool", fake_execute_tool)
+
+        class Gateway:
+            async def chat(self, *args, **kwargs):
+                return type("Resp", (), {"content": '{"intent":"BUSINESS_QUERY","confidence":0.9,"modules":["orders"],"keyword":"陈土豆","operation":"detail","refinementOfPrevious":true,"toolHint":"query_business_module"}'})
+
+            async def chat_stream_messages(self, *args, **kwargs):
+                tool_names = [tool["function"]["name"] for tool in kwargs["tools"]]
+                assert tool_names == ["query_business_module"]
+                yield '{"tool_call":{"name":"global_fuzzy_search","arguments":{"keyword":"陈土豆"}}}'
+
+        orch = AgentOrchestrator(Gateway(), PromptEngine(PROMPTS_DIR))
+        ctx = AgentContext(
+            question="我要看的是跟陈土豆有关的订单信息",
+            conversation_id="conv-refine",
+            user_context={"userId": "user-1"},
+            memory_context={},
+            rag_context="",
+            history=[{"role": "user", "content": "看看陈土豆"}],
+        )
+
+        events = [event async for event in orch.run(ctx)]
+
+        assert any("订单管理" in event for event in events)
+        assert not any("execute_readonly_sql" in event for event in events)
 
     @pytest.mark.asyncio
     async def test_plain_detail_query_filters_readonly_sql_tool(self, monkeypatch):

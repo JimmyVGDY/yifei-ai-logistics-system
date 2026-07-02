@@ -47,6 +47,8 @@ AI 助手的临时只读 SQL 网关是另一个受控例外：`AiGeneratedSqlQue
 
 Spring AI Tool Calling 中的普通业务查询不属于 SQL 例外：`AiBusinessQueryTools` 只负责把模型选择的只读工具参数交给 `AiReadonlyQueryService`，最终仍然复用 `LogisticsRequirementService.modulePage()`、`LogisticsModuleQueryMapper.xml` 和后端白名单。全场景模糊搜索、自动联合查询也只是组合调用已有白名单模块，不允许模型自由拼接业务 SQL。
 
+AI 的语义意图规划不会扩大 SQL 边界。Python `IntentPlan` 只能建议“查哪个白名单模块、沿用哪个关键词、是否属于统计分析”，不能把普通明细查询改造成临时 SQL。`看看陈土豆`、`只看订单`、`这个客户的费用` 这类实体和模块精化最终仍走标准模块分页 Mapper；只有“统计本月各客户订单数量排名”等聚合、排名或关联分析问题才允许进入受控临时 SQL 网关。
+
 除元信息检测和 AI 受控临时只读 SQL 外，新增业务查询、写入、更新、删除、统计聚合都应进入 Mapper XML。
 
 ## 暂不引入 MyBatis-Plus 的原因

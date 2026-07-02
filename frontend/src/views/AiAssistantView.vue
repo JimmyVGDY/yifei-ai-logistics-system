@@ -750,9 +750,9 @@ function normalizeDataResults(results) {
     }
     /*
      * SSE 过程中可能多次收到同一查询的 tool_result，继续分页时也可能再次返回同一游标。
-     * 这里按 cursorId 优先、工具名+目标兜底做替换，避免页面堆出多张重复大表格。
+     * 这里按 cursorId 优先、分组 ID 其次、工具名+目标兜底做替换，避免跨页或跨模块串台。
      */
-    const key = normalized.cursorId || `${normalized.toolName}-${normalized.target}`
+    const key = normalized.cursorId || normalized.groupId || `${normalized.toolName}-${normalized.target}`
     merged.set(key, normalized)
   }
   return Array.from(merged.values())
@@ -785,7 +785,7 @@ async function continueDataResult(result) {
 }
 
 function dataResultKey(result, index) {
-  return `${result.toolName || 'tool'}-${result.target || 'target'}-${index}`
+  return `${result.cursorId || result.groupId || result.toolName || 'tool'}-${result.target || 'target'}-${index}`
 }
 
 function formatElapsed(ms) {

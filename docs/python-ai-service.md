@@ -95,9 +95,13 @@ Content-Type: application/json
   event: error        → {"code": "MODEL_TIMEOUT", "message": "..."}
 ```
 
-`tool_start` 和 `tool_result` 会优先使用 Java 返回的展示字段：`displayToolName`、`displayTarget`、`displaySummary`。普通兼容字段仍保留，但用户界面只能展示中文业务名和安全中文摘要，不能展示 `execute_readonly_sql`、`query_business_module`、`generated_sql`、SQL 文本或 snake_case 字段名。结构化数据通过 `columns`、`rows/data`、`total/returnedCount/remainingCount/hasMore` 交给前端表格。
+`tool_start` 和 `tool_result` 会优先使用 Java 返回的展示字段：`displayToolName`、`displayTarget`、`displaySummary`。普通兼容字段仍保留，但用户界面只能展示中文业务名和安全中文摘要，不能展示 `execute_readonly_sql`、`query_business_module`、`generated_sql`、SQL 文本或 snake_case 字段名。结构化数据通过 `columns`、`rows/data`、`total/returnedCount/remainingCount/hasMore` 交给前端表格；多模块候选搜索还会透传 `dataGroups`，前端应按组渲染独立结果卡片。
 
 Agent 在工具选择前会过滤 `execute_readonly_sql`：普通“查看全部订单/运输任务/费用”等明细查询只允许走 Java 标准业务模块工具；只有统计、汇总、数量、排名、平均、占比、关联、SQL、join、group 等分析意图才开放临时 SQL 工具。最终 SQL 权限和列权限仍由 Java `AiSqlSafetyValidator` 与展示净化层兜底，详细边界见 [Spring AI 接入说明](spring-ai.md) 和 [MyBatis 使用规范](mybatis.md)。
+
+Agent 现在会先生成内部 `IntentPlan`，字段包括 `intent`、`confidence`、`modules`、`keyword`、`timeRange`、`operation`、`refinementOfPrevious`、`needsClarification`、`toolHint` 和 `reason`。明确模块、续页游标和统计分析走确定性快路径；模糊短词、上下文精化、代词追问和多模块冲突才调用 `intent-classify.yml` 做轻量 LLM 规划，超时、非法 JSON 或低置信度时回退到规则计划。`IntentPlan` 不暴露给前端，也不能直接决定 SQL、权限或数据库字段，Java internal 工具仍会二次校验。
+
+典型上下文精化：第一轮 `看看陈土豆` 可以调用 `global_fuzzy_search` 获取候选分组；第二轮 `我要看的是跟陈土豆有关的订单信息`、`这个客户的订单`、`只看订单` 会被规划为 `query_business_module(module=orders, keyword=陈土豆)`，不再把客户、用户、操作日志等模块混到同一轮结果里。
 
 ### 内部端点（仅供 Java 调用）
 

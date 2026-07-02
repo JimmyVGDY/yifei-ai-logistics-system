@@ -24,7 +24,16 @@ public record AiReadonlyQueryResult(
         Integer returnedCount,
         Long remainingCount,
         Boolean hasMore,
-        String nextPageHint) {
+        String nextPageHint,
+        List<AiDataResultGroup> dataGroups) {
+
+    public AiReadonlyQueryResult {
+        citations = citations == null ? List.of() : List.copyOf(citations);
+        toolCalls = toolCalls == null ? List.of() : List.copyOf(toolCalls);
+        rows = rows == null ? List.of() : List.copyOf(rows);
+        columns = columns == null ? List.of() : List.copyOf(columns);
+        dataGroups = dataGroups == null ? List.of() : List.copyOf(dataGroups);
+    }
 
     public AiReadonlyQueryResult(boolean executed, String answerContext,
                                   List<AiCitation> citations, List<AiToolCall> toolCalls) {
@@ -34,7 +43,16 @@ public record AiReadonlyQueryResult(
     public AiReadonlyQueryResult(boolean executed, String answerContext,
                                  List<AiCitation> citations, List<AiToolCall> toolCalls,
                                  List<Map<String, Object>> rows, List<String> columns) {
-        this(executed, answerContext, citations, toolCalls, rows, columns, null, null, null, null, false, null);
+        this(executed, answerContext, citations, toolCalls, rows, columns, null, null, null, null, false, null, List.of());
+    }
+
+    public AiReadonlyQueryResult(boolean executed, String answerContext,
+                                 List<AiCitation> citations, List<AiToolCall> toolCalls,
+                                 List<Map<String, Object>> rows, List<String> columns,
+                                 String cursorId, Long total, Integer returnedCount,
+                                 Long remainingCount, Boolean hasMore, String nextPageHint) {
+        this(executed, answerContext, citations, toolCalls, rows, columns, cursorId, total,
+                returnedCount, remainingCount, hasMore, nextPageHint, List.of());
     }
 
     public static AiReadonlyQueryResult empty() {

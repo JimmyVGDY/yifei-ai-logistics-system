@@ -138,57 +138,81 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
       const dataResults = []
 
       const parseSseEvent = (evName, evData) => {
-      if (!evName || !evData) return
-      resetIdleTimer()
-      try {
-        const data = JSON.parse(evData)
-        if (evName === 'done') {
-          result = {
-            conversationId: data.conversationId || effectiveConversationId,
-            answer: data.answer || '',
-            citations: Array.isArray(data.citations) ? data.citations : [],
-            toolCalls,
-            dataResults,
-            elapsedMs: data.elapsedMs || 0
-          }
-        } else if (evName === 'tool_result') {
-          toolCalls.push({
-            toolName: data.toolName || '业务数据查询',
-            target: data.target || '',
-            result: data.displaySummary || data.result || '',
-            displayToolName: data.displayToolName || '',
-            displayTarget: data.displayTarget || '',
-            displaySummary: data.displaySummary || ''
-          })
-          const rows = Array.isArray(data.rows) ? data.rows : (Array.isArray(data.data) ? data.data : [])
-          if (rows.length) {
-            dataResults.push({
+        if (!evName || !evData) return
+        resetIdleTimer()
+        try {
+          const data = JSON.parse(evData)
+          if (evName === 'done') {
+            result = {
+              conversationId: data.conversationId || effectiveConversationId,
+              answer: data.answer || '',
+              citations: Array.isArray(data.citations) ? data.citations : [],
+              toolCalls,
+              dataResults,
+              elapsedMs: data.elapsedMs || 0
+            }
+          } else if (evName === 'tool_result') {
+            toolCalls.push({
               toolName: data.toolName || '业务数据查询',
               target: data.target || '',
+              result: data.displaySummary || data.result || '',
               displayToolName: data.displayToolName || '',
               displayTarget: data.displayTarget || '',
-              displaySummary: data.displaySummary || '',
-              summary: data.displaySummary || data.result || '',
-              columns: Array.isArray(data.columns) ? data.columns : [],
-              rows,
-              cursorId: data.cursorId || '',
-              total: data.total ?? data.totalCount,
-              returnedCount: data.returnedCount,
-              remainingCount: data.remainingCount,
-              hasMore: data.hasMore === true,
-              nextPageHint: data.nextPageHint || ''
+              displaySummary: data.displaySummary || ''
             })
+            if (Array.isArray(data.dataGroups) && data.dataGroups.length) {
+              for (const group of data.dataGroups) {
+                const groupRows = Array.isArray(group.rows) ? group.rows : (Array.isArray(group.data) ? group.data : [])
+                if (!groupRows.length) continue
+                dataResults.push({
+                  groupId: group.groupId || `${group.displayTarget || data.displayTarget || data.target || 'group'}-${dataResults.length}`,
+                  toolName: group.displayToolName || data.toolName || '业务数据查询',
+                  target: group.displayTarget || data.target || '',
+                  displayToolName: group.displayToolName || data.displayToolName || '',
+                  displayTarget: group.displayTarget || data.displayTarget || '',
+                  displaySummary: group.displaySummary || data.displaySummary || '',
+                  summary: group.displaySummary || data.displaySummary || data.result || '',
+                  columns: Array.isArray(group.columns) ? group.columns : [],
+                  rows: groupRows,
+                  cursorId: group.cursorId || '',
+                  total: group.total ?? group.totalCount,
+                  returnedCount: group.returnedCount,
+                  remainingCount: group.remainingCount,
+                  hasMore: group.hasMore === true,
+                  nextPageHint: group.nextPageHint || ''
+                })
+              }
+            } else {
+              const rows = Array.isArray(data.rows) ? data.rows : (Array.isArray(data.data) ? data.data : [])
+              if (rows.length) {
+                dataResults.push({
+                  toolName: data.toolName || '业务数据查询',
+                  target: data.target || '',
+                  displayToolName: data.displayToolName || '',
+                  displayTarget: data.displayTarget || '',
+                  displaySummary: data.displaySummary || '',
+                  summary: data.displaySummary || data.result || '',
+                  columns: Array.isArray(data.columns) ? data.columns : [],
+                  rows,
+                  cursorId: data.cursorId || '',
+                  total: data.total ?? data.totalCount,
+                  returnedCount: data.returnedCount,
+                  remainingCount: data.remainingCount,
+                  hasMore: data.hasMore === true,
+                  nextPageHint: data.nextPageHint || ''
+                })
+              }
+            }
+          } else if (evName === 'error') {
+            streamError = data.message || 'AI 流式响应失败，请稍后重试'
           }
-        } else if (evName === 'error') {
-          streamError = data.message || 'AI 流式响应失败，请稍后重试'
+          if (onEvent) {
+            onEvent({ type: evName, ...data })
+          }
+        } catch (e) {
+          // JSON 解析失败，跳过
         }
-        if (onEvent) {
-          onEvent({ type: evName, ...data })
-        }
-      } catch (e) {
-        // JSON 解析失败，跳过
       }
-    }
 
       const parser = createSseParser(({ event, data }) => parseSseEvent(event, data))
 

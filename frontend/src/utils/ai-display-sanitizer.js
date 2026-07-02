@@ -209,6 +209,7 @@ export function normalizeDataResult(item) {
   }).filter(row => Object.keys(row).length > 0)
 
   return {
+    groupId: safeDisplayText(item?.groupId || '', ''),
     toolName: sanitizeToolName(item?.displayToolName || item?.toolName || '业务数据查询'),
     target: sanitizeTarget(item?.displayTarget || item?.target || '查询结果'),
     summary: sanitizeSummary(item?.displaySummary || item?.summary || item?.result || ''),

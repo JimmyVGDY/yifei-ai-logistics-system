@@ -3,7 +3,7 @@ model: deepseek-v4-flash
 temperature: 0.1
 max_tokens: 256
 required_variables: [question]
-optional_variables: [history]
+optional_variables: [history, previous_user_message, available_modules, tool_boundaries]
 output_schema:
   type: object
   properties:
@@ -18,6 +18,20 @@ output_schema:
       type: array
       items:
         type: string
+    keyword:
+      type: string
+    timeRange:
+      type: object
+    operation:
+      type: string
+      enum: [detail, candidate_search, continuation, analysis, clarification]
+    refinementOfPrevious:
+      type: boolean
+    needsClarification:
+      type: boolean
+    toolHint:
+      type: string
+      enum: [query_business_module, global_fuzzy_search, joined_business_query, continue_cursor, execute_readonly_sql, none]
     reason:
       type: string
   required: [intent, confidence]
@@ -33,6 +47,19 @@ system: |
   - CONFIRMATION: 确认理解/补充信息（"是的"、"是一个客户"）
   - CHAT: 普通闲聊/系统使用问答
 
+  可用业务模块：{{available_modules}}
+  工具边界：{{tool_boundaries}}
+
+  判断原则：
+  - 用户明确提到订单、运单、费用、任务、异常等模块时，优先输出该模块，不要泛化成全局搜索。
+  - 用户先说一个实体名称，后续说“这个客户的订单”“跟他有关的费用”“只看订单”时，继承上一轮实体关键词，并设置 refinementOfPrevious=true。
+  - 无明确模块但有姓名、编号、车牌、地址等实体时，允许候选搜索 global_fuzzy_search。
+  - “异常”“数据”“这个月的”这类宽泛表达低置信度时需要澄清，不要盲查。
+  - execute_readonly_sql 仅用于统计、聚合、排名、关联分析，不用于普通明细查询。
+  - 只输出符合 schema 的 JSON，不能输出解释性文本。
+
   只输出 JSON。
 user: |
+  历史会话：{{history}}
+  上一轮用户问题：{{previous_user_message}}
   用户问题：{{question}}

@@ -42,6 +42,7 @@ assert.deepEqual(result.columns, ['司机姓名', '运单号'])
 assert.deepEqual(result.rows, [{ 司机姓名: '张三', 运单号: 'WB-001' }])
 
 const safe = sanitizer.normalizeDataResult({
+  groupId: 'tasks',
   displayToolName: '业务数据查询',
   displayTarget: '运输任务',
   displaySummary: '已查询运输任务，共匹配 1 条记录。',
@@ -49,6 +50,7 @@ const safe = sanitizer.normalizeDataResult({
   rows: [{ 任务号: 'TASK-001', 司机姓名: '李四' }]
 })
 
+assert.equal(safe.groupId, 'tasks')
 assert.equal(safe.toolName, '业务数据查询')
 assert.equal(safe.target, '运输任务')
 assert.deepEqual(safe.columns, ['任务号', '司机姓名'])

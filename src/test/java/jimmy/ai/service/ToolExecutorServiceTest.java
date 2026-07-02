@@ -62,6 +62,9 @@ class ToolExecutorServiceTest {
 
         assertThat(result.get("displayToolName")).isEqualTo("业务数据查询");
         assertThat(result.get("displayTarget")).isEqualTo("运输任务");
+        assertThat((List<?>) result.get("dataGroups")).hasSize(1);
+        Map<?, ?> group = (Map<?, ?>) ((List<?>) result.get("dataGroups")).getFirst();
+        assertThat(group.get("displayTarget")).isEqualTo("运输任务");
         Map<?, ?> citation = (Map<?, ?>) result.get("citation");
         assertThat(citation.get("module")).isEqualTo("运输任务");
     }

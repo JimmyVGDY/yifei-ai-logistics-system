@@ -220,6 +220,7 @@ public class AiToolCallContext {
             data.put("remainingCount", queryResult.remainingCount());
             data.put("hasMore", queryResult.hasMore());
             data.put("nextPageHint", queryResult.nextPageHint());
+            data.put("dataGroups", queryResult.dataGroups());
         }
         sendEvent(current, "tool_result", data);
     }

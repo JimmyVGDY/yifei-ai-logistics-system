@@ -57,6 +57,8 @@ AI 临时 SQL 链路会拆成“生成、自检、安全校验、语法纠错、
 
 AI 展示安全排查时需要同时检查 Java `displayToolName/displayTarget/displaySummary`、Python SSE `tool_result` 事件和前端 sanitizer。用户界面不能展示 `execute_readonly_sql`、`query_business_module`、`generated_sql`、snake_case 数据库字段名、权限码、SQL 文本或异常堆栈；这些信息只允许出现在受控日志、审计记录或开发排查链路中。
 
+AI 意图规划排查时，需要区分三层日志：Python Agent 的 `IntentPlan` 只说明模型和规则建议了哪个模块、关键词、工具类型和是否继承上一轮；Java internal 工具日志说明最终执行了哪个白名单工具；前端 `tool_result.dataGroups` 说明用户实际看到了哪些结果组。排查“用户说只看订单却出现客户/日志”的问题时，应确认本轮 `dataGroups` 是否按模块分组、是否混入系统管理模块，以及结果卡片是否只使用当前最新回复的数据。
+
 一次完整 AI 问答的推荐排查顺序：
 
 1. 用 `operationId` 精确定位用户点击“发送”的接口请求。

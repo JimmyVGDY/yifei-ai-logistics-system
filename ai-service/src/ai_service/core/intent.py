@@ -1,8 +1,48 @@
-"""意图分类与幻觉检查 —— 纯规则匹配（对齐原 Java AiConversationIntentClassifier + AiGroundingGuard）"""
+"""意图分类与幻觉检查。"""
 
+from dataclasses import dataclass, field
+from typing import Any
 import structlog
 
 logger = structlog.get_logger()
+
+
+@dataclass
+class IntentPlan:
+    """LLM/规则共同产出的工具规划建议，最终仍由 Java 白名单校验。"""
+    intent: str = "BUSINESS_QUERY"
+    confidence: float = 0.0
+    modules: list[str] = field(default_factory=list)
+    keyword: str = ""
+    time_range: dict[str, str] = field(default_factory=dict)
+    operation: str = "detail"
+    refinement_of_previous: bool = False
+    needs_clarification: bool = False
+    tool_hint: str = ""
+    reason: str = ""
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any] | None) -> "IntentPlan":
+        if not isinstance(value, dict):
+            return cls()
+        modules = value.get("modules") or []
+        if isinstance(modules, str):
+            modules = [modules]
+        time_range = value.get("timeRange") or value.get("time_range") or {}
+        if not isinstance(time_range, dict):
+            time_range = {}
+        return cls(
+            intent=str(value.get("intent") or "BUSINESS_QUERY"),
+            confidence=_float_between(value.get("confidence"), 0.0, 1.0),
+            modules=[str(item) for item in modules if item],
+            keyword=str(value.get("keyword") or ""),
+            time_range={str(k): str(v) for k, v in time_range.items() if v is not None},
+            operation=str(value.get("operation") or "detail"),
+            refinement_of_previous=bool(value.get("refinementOfPrevious") or value.get("refinement_of_previous")),
+            needs_clarification=bool(value.get("needsClarification") or value.get("needs_clarification")),
+            tool_hint=str(value.get("toolHint") or value.get("tool_hint") or ""),
+            reason=str(value.get("reason") or ""),
+        )
 
 
 class IntentClassifier:
@@ -32,6 +72,23 @@ class IntentClassifier:
         "只要", "只看", "剩下", "剩余", "继续", "下一页",
         "待处理", "运输中", "已完成",
     }
+    MODULE_ALIASES = {
+        "orders": ("订单", "订单管理", "运单管理", "LO", "ORD"),
+        "waybills": ("运单中心", "运单号", "WB"),
+        "customers": ("客户", "客户名", "客户名称", "联系人"),
+        "dispatches": ("调度", "派车", "派单"),
+        "tasks": ("任务", "运输任务", "配送任务"),
+        "tracks": ("轨迹", "物流轨迹", "位置"),
+        "drivers": ("司机", "驾驶员"),
+        "vehicles": ("车辆", "车牌"),
+        "exceptions": ("异常", "报障", "投诉"),
+        "fees": ("费用", "结算", "收款"),
+        "operationLogs": ("日志", "traceId", "operationId", "loginSessionId"),
+        "users": ("用户", "账号", "账户"),
+        "roles": ("角色", "权限"),
+        "files": ("文件", "附件", "上传记录"),
+    }
+    SYSTEM_MODULES = {"users", "roles", "files", "operationLogs"}
 
     def __init__(self):
         pass
@@ -72,6 +129,38 @@ class IntentClassifier:
         # 5. 业务查询
         return {"intent": "BUSINESS_QUERY", "direct_answer": "", "reason": "业务查询"}
 
+    def deterministic_plan(self, question: str, previous_message: str = "") -> IntentPlan:
+        """不依赖模型的规划兜底，用于快路径和 LLM 失败回退。"""
+        text = self._normalize(question)
+        previous = self._normalize(previous_message)
+        intent = self.classify(question, previous_message).get("intent", "BUSINESS_QUERY")
+        modules = self._detect_modules(text)
+        keyword = self._extract_keyword(text, modules)
+        previous_keyword = self._extract_keyword(previous, self._detect_modules(previous))
+        refinement = bool(previous_keyword and modules and not keyword and self._looks_like_refinement(text))
+        if refinement:
+            keyword = previous_keyword
+        operation = "analysis" if self._looks_like_sql_analysis(text) else "detail"
+        tool_hint = ""
+        if operation == "analysis":
+            tool_hint = "execute_readonly_sql"
+        elif len(modules) == 1:
+            tool_hint = "query_business_module"
+        elif keyword:
+            tool_hint = "global_fuzzy_search"
+        needs_clarification = text in {"异常", "数据", "这个月的", "这个月"} and not modules
+        return IntentPlan(
+            intent=intent,
+            confidence=0.7 if tool_hint or refinement else 0.45,
+            modules=modules,
+            keyword=keyword,
+            operation=operation,
+            refinement_of_previous=refinement,
+            needs_clarification=needs_clarification,
+            tool_hint=tool_hint,
+            reason="deterministic",
+        )
+
     def _is_control_preference(self, text: str) -> bool:
         has_control = any(w in text for w in self.CONTROL_WORDS)
         if not has_control:
@@ -98,6 +187,49 @@ class IntentClassifier:
         if "运单" in text: return "运单中心"
         return "你刚刚限定的范围"
 
+    def _detect_modules(self, text: str) -> list[str]:
+        if not text:
+            return []
+        found = []
+        lower = text.lower()
+        for module, aliases in self.MODULE_ALIASES.items():
+            if any(alias.lower() in lower for alias in aliases):
+                found.append(module)
+        if found and not any(module in self.SYSTEM_MODULES for module in found):
+            return [module for module in found if module not in self.SYSTEM_MODULES]
+        return found
+
+    def _extract_keyword(self, text: str, modules: list[str]) -> str:
+        if not text:
+            return ""
+        cleaned = text
+        for word in (
+            "我要看", "我想看", "帮我", "查询", "查一下", "查看", "看看", "看一下", "看下", "给我",
+            "相关", "有关", "关于", "跟", "的是", "的信息", "信息", "数据", "记录", "列表", "明细",
+            "这个客户", "这个人", "他的", "她的", "它的", "只看", "只查",
+        ):
+            cleaned = cleaned.replace(word, " ")
+        for module in modules:
+            for alias in self.MODULE_ALIASES.get(module, ()):
+                cleaned = cleaned.replace(alias, " ")
+        cleaned = cleaned.strip(" ，,。；;：:！？?、")
+        parts = [part for part in cleaned.split() if len(part) >= 2]
+        if not parts:
+            return ""
+        keyword = parts[0].strip(" ，,。；;：:！？?、")
+        if keyword in {"所有", "全部", "剩余", "继续", "这个", "那个"}:
+            return ""
+        return keyword
+
+    def _looks_like_refinement(self, text: str) -> bool:
+        return any(word in text for word in ("相关", "有关", "关于", "这个", "那个", "他", "她", "它", "只看", "只查", "跟"))
+
+    def _looks_like_sql_analysis(self, text: str) -> bool:
+        return any(word in text for word in (
+            "sql", "连表", "关联", "统计", "汇总", "数量", "总数", "排名",
+            "最多", "最少", "平均", "多少", "占比", "比例", "group", "join",
+        ))
+
     @staticmethod
     def _normalize(message: str) -> str:
         if not message:
@@ -105,6 +237,14 @@ class IntentClassifier:
         return message.replace('　', ' ') \
             .replace('​', '').replace('‌', '').replace('‍', '').replace('﻿', '') \
             .replace(' ', '').strip()
+
+
+def _float_between(value: Any, lower: float, upper: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return lower
+    return max(lower, min(upper, number))
 
 
 class GroundingGuard:

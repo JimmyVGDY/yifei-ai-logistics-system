@@ -12,6 +12,7 @@ from ai_service.config.settings import settings
 from ai_service.infrastructure.java_client import java_client
 from ai_service.core.model_gateway import ModelGateway
 from ai_service.core.prompt_engine import PromptEngine, PromptRenderResult
+from ai_service.core.intent import IntentPlan
 
 logger = structlog.get_logger()
 
@@ -41,6 +42,7 @@ class ToolResult:
     display_tool_name: str = ""
     display_target: str = ""
     display_summary: str = ""
+    data_groups: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -93,7 +95,8 @@ class AgentOrchestrator:
         # Step 2: 规则闸门 — 意图分类（对齐 Java AiConversationIntentClassifier）
         from ai_service.core.intent import IntentClassifier
         classifier = IntentClassifier()
-        intent_result = classifier.classify(ctx.question)
+        previous_user_message = self._previous_user_message(ctx)
+        intent_result = classifier.classify(ctx.question, previous_user_message)
         intent = intent_result["intent"]
 
         if intent in ("CORRECTION", "CLARIFY"):
@@ -114,7 +117,8 @@ class AgentOrchestrator:
         use_tools = intent != "CHAT"
 
         tools = await self._fetch_tools(ctx) if use_tools else []
-        tools = self._filter_tools_for_question(tools, ctx.question)
+        intent_plan = await self._build_intent_plan(ctx, classifier, previous_user_message, api_key) if use_tools else None
+        tools = self._filter_tools_for_question(tools, ctx.question, intent_plan)
         if use_tools and not tools:
             answer = (
                 "业务查询工具暂时不可用，当前没有真正执行订单、费用或异常等系统查询。"
@@ -151,6 +155,8 @@ class AgentOrchestrator:
         # Build conversation messages
         # 历史消息必须放在当前问题之前，否则“没了？”“继续”“那个客户呢？”这类追问无法接上上文。
         messages = [{"role": "system", "content": rendered.system_prompt}]
+        if intent_plan:
+            messages.append({"role": "system", "content": self._intent_plan_system_hint(intent_plan)})
         messages.extend(self._normalized_history(ctx))
         messages.append({"role": "user", "content": rendered.user_prompt})
 
@@ -206,7 +212,7 @@ class AgentOrchestrator:
             # If LLM wants to call tools, execute them
             if tool_calls_in_round:
                 for tc in tool_calls_in_round:
-                    tc = self._sanitize_tool_call(tc)
+                    tc = self._sanitize_tool_call(tc, intent_plan)
                     elapsed_ms = int((time.monotonic() - ctx.start_time) * 1000)
                     yield self._sse("tool_start", {
                         "toolName": self._display_tool_name(tc.name),
@@ -237,6 +243,7 @@ class AgentOrchestrator:
                         "hasMore": result.has_more,
                         "nextPageHint": result.next_page_hint,
                         "cursorId": result.cursor_id,
+                        "dataGroups": result.data_groups,
                         "citation": result.citation,
                         "toolCallCount": len(ctx.tool_results),
                         "maxToolCalls": max_iterations,
@@ -271,6 +278,7 @@ class AgentOrchestrator:
                             "success": result.success,
                             "data_summary": result.summary,
                             "total_count": result.total_count,
+                            "data_groups": result.data_groups,
                         }, ensure_ascii=False),
                     })
                 continue  # go back to LLM for another round
@@ -330,6 +338,7 @@ class AgentOrchestrator:
                 display_tool_name=result.get("displayToolName", ""),
                 display_target=result.get("displayTarget", ""),
                 display_summary=result.get("displaySummary", ""),
+                data_groups=self._normalize_data_groups(result.get("dataGroups")),
             )
         except Exception as exc:
             return ToolResult(
@@ -373,8 +382,14 @@ class AgentOrchestrator:
         return re.search(r"\b[a-z]+_[a-z0-9_]+\b", text) is not None
 
     @classmethod
-    def _filter_tools_for_question(cls, tools: list[dict], question: str) -> list[dict]:
-        if cls._allow_readonly_sql(question):
+    def _filter_tools_for_question(cls, tools: list[dict], question: str, intent_plan: IntentPlan | None = None) -> list[dict]:
+        if intent_plan and intent_plan.tool_hint == "query_business_module" and len(intent_plan.modules) == 1:
+            allowed = {"query_business_module", "continue_cursor"}
+            return [tool for tool in tools if cls._tool_name(tool) in allowed]
+        if intent_plan and intent_plan.tool_hint == "global_fuzzy_search":
+            allowed = {"global_fuzzy_search", "query_business_module", "continue_cursor"}
+            return [tool for tool in tools if cls._tool_name(tool) in allowed]
+        if cls._allow_readonly_sql(question) or (intent_plan and intent_plan.tool_hint == "execute_readonly_sql"):
             return tools
         return [tool for tool in tools if cls._tool_name(tool) != "execute_readonly_sql"]
 
@@ -515,8 +530,10 @@ class AgentOrchestrator:
                     yield delta
 
     @staticmethod
-    def _sanitize_tool_call(tc: ToolCall) -> ToolCall:
+    def _sanitize_tool_call(tc: ToolCall, intent_plan: IntentPlan | None = None) -> ToolCall:
         """清洗工具调用参数：剔除 LLM 编造的垃圾 keyword（如截取模块名子串）。"""
+        if intent_plan:
+            tc = AgentOrchestrator._apply_intent_plan_to_tool_call(tc, intent_plan)
         if tc.name == "query_business_module":
             keyword = tc.arguments.get("keyword", "")
             module = tc.arguments.get("module", "")
@@ -530,6 +547,159 @@ class AgentOrchestrator:
                     logger.debug("sanitized_keyword_garbage", keyword=keyword)
                     tc.arguments["keyword"] = ""
         return tc
+
+    @staticmethod
+    def _apply_intent_plan_to_tool_call(tc: ToolCall, plan: IntentPlan) -> ToolCall:
+        if plan.tool_hint == "execute_readonly_sql":
+            return tc
+        if tc.name == "execute_readonly_sql" and plan.operation != "analysis":
+            if plan.modules:
+                tc = ToolCall("query_business_module", {
+                    "module": plan.modules[0],
+                    "keyword": plan.keyword,
+                })
+            elif plan.keyword:
+                tc = ToolCall("global_fuzzy_search", {"keyword": plan.keyword})
+        if tc.name == "global_fuzzy_search" and plan.modules:
+            tc = ToolCall("query_business_module", {
+                "module": plan.modules[0],
+                "keyword": plan.keyword,
+            })
+        if tc.name == "query_business_module" and plan.modules:
+            tc.arguments["module"] = plan.modules[0]
+            if plan.keyword and not str(tc.arguments.get("keyword") or "").strip():
+                tc.arguments["keyword"] = plan.keyword
+        if plan.time_range and tc.name in {"query_business_module", "global_fuzzy_search"}:
+            if plan.time_range.get("startTime"):
+                tc.arguments.setdefault("startTime", plan.time_range["startTime"])
+            if plan.time_range.get("endTime"):
+                tc.arguments.setdefault("endTime", plan.time_range["endTime"])
+        return tc
+
+    async def _build_intent_plan(
+        self,
+        ctx: AgentContext,
+        classifier,
+        previous_user_message: str,
+        api_key: Optional[str],
+    ) -> IntentPlan:
+        fallback = classifier.deterministic_plan(ctx.question, previous_user_message)
+        if not self._needs_llm_intent_plan(ctx.question, previous_user_message, fallback):
+            return fallback
+        try:
+            rendered = self.prompt_engine.render("intent-classify", {
+                "question": ctx.question,
+                "history": json.dumps(self._normalized_history(ctx), ensure_ascii=False),
+                "previous_user_message": previous_user_message,
+                "available_modules": json.dumps([
+                    "orders", "waybills", "customers", "dispatches", "tasks", "tracks",
+                    "drivers", "vehicles", "exceptions", "fees"
+                ], ensure_ascii=False),
+                "tool_boundaries": (
+                    "普通明细查询使用 query_business_module 或 global_fuzzy_search；"
+                    "统计、聚合、排名、关联分析才使用 execute_readonly_sql。"
+                ),
+            })
+            response = await asyncio.wait_for(
+                self.gateway.chat(
+                    rendered.system_prompt,
+                    rendered.user_prompt,
+                    task_type="intent-classify",
+                    api_key=api_key,
+                    temperature=rendered.temperature,
+                    max_tokens=rendered.max_tokens,
+                ),
+                timeout=3.0,
+            )
+            payload = self._extract_json_object(response.content)
+            plan = IntentPlan.from_dict(payload)
+            if plan.confidence < 0.55:
+                return fallback
+            if fallback.refinement_of_previous and not plan.keyword:
+                plan.keyword = fallback.keyword
+                plan.refinement_of_previous = True
+            return plan
+        except Exception as exc:
+            logger.debug("intent_plan_fallback", error=str(exc)[:200], question=ctx.question)
+            return fallback
+
+    @staticmethod
+    def _needs_llm_intent_plan(question: str, previous_user_message: str, fallback: IntentPlan) -> bool:
+        text = question or ""
+        if fallback.tool_hint == "execute_readonly_sql":
+            return False
+        return bool(
+            previous_user_message and any(word in text for word in ("这个", "那个", "他", "她", "它", "相关", "有关", "只看", "只查"))
+            or len(text.strip()) <= 8
+            or len(fallback.modules) > 1
+            or (fallback.modules and fallback.keyword and fallback.confidence < 0.8)
+        )
+
+    @staticmethod
+    def _intent_plan_system_hint(plan: IntentPlan) -> str:
+        return (
+            "结构化意图规划建议，仅用于工具选择，不能绕过 Java 权限校验："
+            + json.dumps({
+                "intent": plan.intent,
+                "confidence": plan.confidence,
+                "modules": plan.modules,
+                "keyword": plan.keyword,
+                "timeRange": plan.time_range,
+                "operation": plan.operation,
+                "refinementOfPrevious": plan.refinement_of_previous,
+                "needsClarification": plan.needs_clarification,
+                "toolHint": plan.tool_hint,
+                "reason": plan.reason,
+            }, ensure_ascii=False)
+        )
+
+    @staticmethod
+    def _extract_json_object(text: str) -> dict[str, Any]:
+        raw = (text or "").strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            raw = raw.replace("json\n", "", 1).replace("JSON\n", "", 1).strip()
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start >= 0 and end >= start:
+            raw = raw[start:end + 1]
+        return json.loads(raw)
+
+    @staticmethod
+    def _normalize_data_groups(value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        groups = []
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            rows = item.get("rows", item.get("data", []))
+            if not isinstance(rows, list) or not rows:
+                continue
+            groups.append({
+                "groupId": item.get("groupId", ""),
+                "displayToolName": item.get("displayToolName", ""),
+                "displayTarget": item.get("displayTarget", ""),
+                "displaySummary": item.get("displaySummary", ""),
+                "columns": item.get("columns", []),
+                "rows": rows,
+                "cursorId": item.get("cursorId", ""),
+                "total": item.get("total", item.get("totalCount", 0)),
+                "returnedCount": item.get("returnedCount", len(rows)),
+                "remainingCount": item.get("remainingCount", 0),
+                "hasMore": item.get("hasMore") is True,
+                "nextPageHint": item.get("nextPageHint", ""),
+            })
+        return groups
+
+    @staticmethod
+    def _previous_user_message(ctx: AgentContext) -> str:
+        for item in reversed(ctx.history or []):
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("role", "")).strip().lower() == "user":
+                return str(item.get("content", "")).strip()
+        return ""
 
     @staticmethod
     def _sse(event: str, data: dict) -> str:

@@ -313,8 +313,43 @@ class AiReadonlyQueryServiceTest {
 
             assertThat(result.executed()).isTrue();
             assertThat(result.answerContext()).contains("全场景模糊搜索", "客户管理", "运单管理", "异常管理");
+            assertThat(result.dataGroups())
+                    .extracting("groupId")
+                    .containsExactly("customers", "orders", "exceptions");
             assertThat(result.toolCalls()).anySatisfy(toolCall ->
                     assertThat(toolCall.toolName()).isEqualTo("全场景模糊搜索"));
+        }
+    }
+
+    @Test
+    void shouldRefinePreviousKeywordToOrderModuleWhenUserNarrowsContext() {
+        LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
+        AiReadonlyQueryService service = serviceWithRealParser(requirementService);
+        when(requirementService.modulePage(anyString(), any(ModuleQueryDTO.class))).thenAnswer(invocation -> {
+            String module = invocation.getArgument(0);
+            ModuleQueryDTO query = invocation.getArgument(1);
+            if ("orders".equals(module) && "陈土豆".equals(query.getKeyword())) {
+                return new PageResult<>(List.of(new ModuleRecordVO(java.util.Map.of(
+                        "order_no", "LO-CHEN-001",
+                        "customer_name", "陈土豆"
+                ))), 1, 10, 1);
+            }
+            return new PageResult<>(List.of(), 1, 10, 0);
+        });
+
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+            stp.when(() -> StpUtil.hasPermission(anyString())).thenReturn(true);
+
+            AiReadonlyQueryResult result = service.query("只看订单", "看看陈土豆");
+
+            assertThat(result.executed()).isTrue();
+            assertThat(result.dataGroups()).hasSize(1);
+            assertThat(result.dataGroups().getFirst().groupId()).isEqualTo("orders");
+            assertThat(result.rows()).hasSize(1);
+            verify(requirementService).modulePage(eq("orders"), org.mockito.ArgumentMatchers.argThat(query ->
+                    "陈土豆".equals(query.getKeyword())));
+            verify(requirementService, org.mockito.Mockito.never()).modulePage(eq("customers"), any(ModuleQueryDTO.class));
+            verify(requirementService, org.mockito.Mockito.never()).modulePage(eq("operationLogs"), any(ModuleQueryDTO.class));
         }
     }
 
