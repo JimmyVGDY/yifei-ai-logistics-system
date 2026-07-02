@@ -3,6 +3,7 @@ import { createSseParser } from './sse-parser.js'
 import { getAuthToken } from '../stores/auth-store.js'
 
 let activeStreamConversationId = ''
+// 前端临时历史只用于 SSE 失败或后端历史暂不可用时兜底，不作为权威会话存储。
 const transientHistories = new Map()
 const MAX_CLIENT_HISTORY = 8
 const MAX_HISTORY_CONTENT_LENGTH = 1000
@@ -20,6 +21,7 @@ function createClientConversationId() {
 }
 
 function resolveStreamConversationId(conversationId) {
+  // 服务端返回 conversationId 前，先用前端临时 ID 串起同一浏览器会话。
   if (conversationId) {
     activeStreamConversationId = conversationId
     return conversationId
@@ -37,6 +39,7 @@ function normalizeHistoryContent(content) {
 }
 
 function appendTransientHistory(conversationId, role, content) {
+  // 只保存用户/助手纯文本，避免把工具明细、token 或结构化表格塞进下一轮 prompt。
   if (!conversationId || !['user', 'assistant'].includes(role)) return
   const safeContent = normalizeHistoryContent(content)
   if (!safeContent) return
@@ -91,8 +94,9 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
       if (idleTimer) {
         clearTimeout(idleTimer)
       }
-      if (idleTimeoutMs > 0) {
+    if (idleTimeoutMs > 0) {
         idleTimer = setTimeout(() => {
+          // 空闲超时直接 abort fetch，避免 promise 长时间 pending 卡住输入框。
           idleTimedOut = true
           controller.abort()
         }, idleTimeoutMs)
@@ -143,6 +147,7 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
         try {
           const data = JSON.parse(evData)
           if (evName === 'done') {
+            // done 是前端最终落库/渲染的收口事件，表格数据来自之前累积的 tool_result。
             result = {
               conversationId: data.conversationId || effectiveConversationId,
               answer: data.answer || '',
@@ -152,6 +157,7 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
               elapsedMs: data.elapsedMs || 0
             }
           } else if (evName === 'tool_result') {
+            // 工具日志只展示安全字段，原始工具码和内部摘要由 sanitizer 再兜底处理。
             toolCalls.push({
               toolName: data.toolName || '业务数据查询',
               target: data.target || '',
@@ -161,10 +167,12 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
               displaySummary: data.displaySummary || ''
             })
             if (Array.isArray(data.dataGroups) && data.dataGroups.length) {
+              // 新契约：多模块结果按 dataGroups 展开，避免不同模块 rows/columns 串台。
               for (const group of data.dataGroups) {
                 const groupRows = Array.isArray(group.rows) ? group.rows : (Array.isArray(group.data) ? group.data : [])
                 if (!groupRows.length) continue
                 dataResults.push({
+                  // groupId 用于前端合并 key，缺失时用中文目标生成本轮内稳定兜底。
                   groupId: group.groupId || `${group.displayTarget || data.displayTarget || data.target || 'group'}-${dataResults.length}`,
                   toolName: group.displayToolName || data.toolName || '业务数据查询',
                   target: group.displayTarget || data.target || '',
@@ -183,6 +191,7 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
                 })
               }
             } else {
+              // 旧契约兼容：只有顶层 rows/data 时仍生成一张结果卡片。
               const rows = Array.isArray(data.rows) ? data.rows : (Array.isArray(data.data) ? data.data : [])
               if (rows.length) {
                 dataResults.push({
@@ -219,6 +228,7 @@ export function chatWithAiStream({ message, conversationId, pageContext, cursorI
       while (true) {
         const { done, value } = await reader.read()
         if (done) {
+          // 关闭前把 decoder 剩余缓冲喂给 SSE parser，避免最后一个事件丢失。
           parser.feed(decoder.decode())
           parser.close()
           break

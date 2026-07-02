@@ -115,6 +115,7 @@ const orderTrend = ref([])
 const incomeTrend = ref([])
 const loading = ref(false)
 
+// 看板指标只做展示聚合，具体统计口径由后端 dashboard 接口统一计算。
 const metrics = computed(() => [
   { label: '今日订单', value: summary.value?.todayOrders || 0, hint: '当天创建' },
   { label: '已完成', value: summary.value?.completedOrders || 0, hint: '已完成 / 已签收' },
@@ -125,12 +126,14 @@ const metrics = computed(() => [
 ])
 
 const openRecentExceptions = computed(() => {
+  // 最近异常中只突出未关闭记录，已关闭记录保留在后端明细页查询。
   return (summary.value?.recentExceptions || []).filter((item) => item.exception_status !== 'CLOSED')
 })
 
 async function loadData() {
   loading.value = true
   try {
+    // 三组看板数据互不依赖，并发加载可以减少首页等待时间。
     const [summaryData, orderTrendData, incomeTrendData] = await Promise.all([
       fetchDashboardSummary(),
       fetchOrderTrend(7),

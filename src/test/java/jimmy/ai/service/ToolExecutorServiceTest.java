@@ -11,10 +11,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * 覆盖 Python AI 回调 Java internal 工具时的返回契约。
+ * <p>
+ * 重点确认前端可见字段保持中文、安全，分页游标不被脱敏破坏。
+ */
 class ToolExecutorServiceTest {
 
     @Test
     void shouldExposeChineseDisplayTargetForBusinessModuleQuery() {
+        // query_business_module 返回值必须带 display* 和 dataGroups，前端不能显示内部工具名或模块码。
         AiReadonlyQueryService readonlyQueryService = mock(AiReadonlyQueryService.class);
         UserContextResolver userContextResolver = mock(UserContextResolver.class);
         ToolExecutorService service = new ToolExecutorService(
@@ -71,6 +77,7 @@ class ToolExecutorServiceTest {
 
     @Test
     void shouldReturnRawCursorIdForFrontendContinuation() {
+        // cursorId 是不透明分页令牌，必须原样返回；如果被 masker 替换，续页按钮会失效。
         AiReadonlyQueryService readonlyQueryService = mock(AiReadonlyQueryService.class);
         UserContextResolver userContextResolver = mock(UserContextResolver.class);
         AiSensitiveDataMasker masker = new AiSensitiveDataMasker();

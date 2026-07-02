@@ -301,6 +301,7 @@ public class ToolExecutorService {
             result.put("displayTarget", masker.mask(queryResult.displayTarget()));
             result.put("displaySummary", masker.mask(queryResult.message()));
             if (queryResult.records() != null && !queryResult.records().isEmpty()) {
+                // SQL 工具也按 dataGroups 契约返回，前端不用为统计结果再写一套表格分支。
                 Map<String, Object> group = new LinkedHashMap<>();
                 group.put("groupId", "generated_sql");
                 group.put("displayToolName", masker.mask(queryResult.displayToolName()));
@@ -356,6 +357,7 @@ public class ToolExecutorService {
         map.put("data", result.rows() != null ? maskRows(result.rows()) : Collections.emptyList());
         map.put("rows", result.rows() != null ? maskRows(result.rows()) : Collections.emptyList());
         map.put("columns", result.columns() != null ? result.columns() : Collections.emptyList());
+        // dataGroups 是新契约；顶层 rows/columns 只作为旧前端兼容字段保留。
         map.put("dataGroups", maskDataGroups(result));
         map.put("totalCount", result.total() != null ? result.total() : 0);
         map.put("returnedCount", result.returnedCount() != null ? result.returnedCount() : 0);
@@ -380,6 +382,10 @@ public class ToolExecutorService {
     }
 
     private List<Map<String, Object>> maskDataGroups(AiReadonlyQueryResult result) {
+        /*
+         * 老结果对象可能只有顶层 rows/columns，没有 dataGroups。
+         * 这里补一个单组结果，保证 Python 和前端都可以统一按分组消费。
+         */
         if (result == null || result.dataGroups() == null || result.dataGroups().isEmpty()) {
             if (result == null || result.rows() == null || result.rows().isEmpty()) {
                 return Collections.emptyList();
@@ -403,6 +409,7 @@ public class ToolExecutorService {
 
         List<Map<String, Object>> groups = new ArrayList<>();
         for (AiDataResultGroup group : result.dataGroups()) {
+            // 分组也要逐行脱敏，不能因为主结果已处理过就跳过防线。
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("groupId", group.groupId());
             item.put("displayToolName", masker.mask(group.displayToolName()));

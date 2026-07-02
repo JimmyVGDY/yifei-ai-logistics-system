@@ -29,8 +29,10 @@ class ToolResult:
     """工具调用结果。"""
     name: str
     success: bool
+    # Java 返回的结构化行，字段应已经经过后端列权限和脱敏处理。
     data: Any = None
     columns: list[str] = field(default_factory=list)
+    # total/returned/remaining 三个计数共同驱动前端“继续查看剩余数据”按钮。
     total_count: int = 0
     returned_count: int = 0
     remaining_count: int = 0
@@ -42,6 +44,7 @@ class ToolResult:
     display_tool_name: str = ""
     display_target: str = ""
     display_summary: str = ""
+    # 多模块查询的分组结果，前端优先用它拆成多张结果卡片。
     data_groups: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -89,10 +92,10 @@ class AgentOrchestrator:
         """
         max_iterations = settings.max_agent_iterations
 
-        # Step 1: 加载工具注册表
+        # Step 1: 初始化工具列表；真正是否拉取工具由规则意图决定。
         tools = []
 
-        # Step 2: 规则闸门 — 意图分类（对齐 Java AiConversationIntentClassifier）
+        # Step 2: 规则闸门 — 先挡掉纠偏/澄清/闲聊，减少不必要模型与工具调用。
         from ai_service.core.intent import IntentClassifier
         classifier = IntentClassifier()
         previous_user_message = self._previous_user_message(ctx)
@@ -117,6 +120,7 @@ class AgentOrchestrator:
         use_tools = intent != "CHAT"
 
         tools = await self._fetch_tools(ctx) if use_tools else []
+        # IntentPlan 只影响 Python 工具选择建议；Java internal 工具仍是最终安全边界。
         intent_plan = await self._build_intent_plan(ctx, classifier, previous_user_message, api_key) if use_tools else None
         tools = self._filter_tools_for_question(tools, ctx.question, intent_plan)
         if use_tools and not tools:
@@ -156,6 +160,7 @@ class AgentOrchestrator:
         # 历史消息必须放在当前问题之前，否则“没了？”“继续”“那个客户呢？”这类追问无法接上上文。
         messages = [{"role": "system", "content": rendered.system_prompt}]
         if intent_plan:
+            # 把结构化规划作为额外 system hint 注入，约束模型选择工具但不让它决定权限。
             messages.append({"role": "system", "content": self._intent_plan_system_hint(intent_plan)})
         messages.extend(self._normalized_history(ctx))
         messages.append({"role": "user", "content": rendered.user_prompt})
@@ -212,6 +217,7 @@ class AgentOrchestrator:
             # If LLM wants to call tools, execute them
             if tool_calls_in_round:
                 for tc in tool_calls_in_round:
+                    # 工具调用前再做一次确定性清洗，防止模型选择了错误工具或编造 keyword。
                     tc = self._sanitize_tool_call(tc, intent_plan)
                     elapsed_ms = int((time.monotonic() - ctx.start_time) * 1000)
                     yield self._sse("tool_start", {
@@ -251,6 +257,7 @@ class AgentOrchestrator:
                     })
 
                     if self._should_finish_after_tool(result):
+                        # 业务工具已经返回结构化结果时直接收口，避免二次模型摘要失败影响用户体验。
                         full_answer = self._tool_answer(result)
                         for ch in full_answer:
                             yield self._sse("token", {"delta": ch})
@@ -318,6 +325,7 @@ class AgentOrchestrator:
             rows = result.get("rows", result.get("data", []))
             total = result.get("totalCount", len(rows))
             if isinstance(total, list):
+                # 兼容历史接口偶尔把 totalCount 错写成列表的情况。
                 total = len(total)
             returned = result.get("returnedCount", len(rows) if isinstance(rows, list) else 0)
             remaining = result.get("remainingCount", 0)
@@ -360,6 +368,7 @@ class AgentOrchestrator:
         if summary and not AgentOrchestrator._looks_unsafe_for_user(summary):
             return summary
         if result.total_count:
+            # 摘要不安全时只保留数量和分页建议，绝不复述 SQL、字段名或 Markdown 表。
             prefix = "统计分析完成" if result.name == "execute_readonly_sql" else "业务查询完成"
             answer = f"{prefix}，已返回 {result.returned_count or 0} 条结构化记录，共匹配 {result.total_count} 条。"
             if result.remaining_count > 0:
@@ -369,6 +378,7 @@ class AgentOrchestrator:
 
     @staticmethod
     def _looks_unsafe_for_user(text: str) -> bool:
+        """用户可见文本安全兜底：发现内部工具、SQL 或 snake_case 就降级。"""
         if not text:
             return False
         lowered = text.lower()
@@ -383,6 +393,7 @@ class AgentOrchestrator:
 
     @classmethod
     def _filter_tools_for_question(cls, tools: list[dict], question: str, intent_plan: IntentPlan | None = None) -> list[dict]:
+        """根据问题和 IntentPlan 收窄工具集合，避免普通明细误进 SQL 工具。"""
         if intent_plan and intent_plan.tool_hint == "query_business_module" and len(intent_plan.modules) == 1:
             allowed = {"query_business_module", "continue_cursor"}
             return [tool for tool in tools if cls._tool_name(tool) in allowed]
@@ -550,6 +561,7 @@ class AgentOrchestrator:
 
     @staticmethod
     def _apply_intent_plan_to_tool_call(tc: ToolCall, plan: IntentPlan) -> ToolCall:
+        """把规划结果应用到模型工具调用上，修正 SQL/全局搜索误选。"""
         if plan.tool_hint == "execute_readonly_sql":
             return tc
         if tc.name == "execute_readonly_sql" and plan.operation != "analysis":
@@ -585,6 +597,7 @@ class AgentOrchestrator:
     ) -> IntentPlan:
         fallback = classifier.deterministic_plan(ctx.question, previous_user_message)
         if not self._needs_llm_intent_plan(ctx.question, previous_user_message, fallback):
+            # 明确模块、续页或统计类快路径不需要额外模型规划，减少延迟和失败点。
             return fallback
         try:
             rendered = self.prompt_engine.render("intent-classify", {
@@ -614,8 +627,10 @@ class AgentOrchestrator:
             payload = self._extract_json_object(response.content)
             plan = IntentPlan.from_dict(payload)
             if plan.confidence < 0.55:
+                # 低置信度规划不参与工具选择，使用确定性规则兜底。
                 return fallback
             if fallback.refinement_of_previous and not plan.keyword:
+                # LLM 识别到模块但漏掉继承关键词时，用规则提取的上一轮实体补齐。
                 plan.keyword = fallback.keyword
                 plan.refinement_of_previous = True
             return plan
@@ -625,6 +640,7 @@ class AgentOrchestrator:
 
     @staticmethod
     def _needs_llm_intent_plan(question: str, previous_user_message: str, fallback: IntentPlan) -> bool:
+        """只在语义不稳定的场景调用轻量规划模型。"""
         text = question or ""
         if fallback.tool_hint == "execute_readonly_sql":
             return False
@@ -667,6 +683,7 @@ class AgentOrchestrator:
 
     @staticmethod
     def _normalize_data_groups(value: Any) -> list[dict[str, Any]]:
+        """标准化 Java dataGroups，过滤掉空行组，保证 SSE 只输出可展示卡片。"""
         if not isinstance(value, list):
             return []
         groups = []
@@ -694,6 +711,7 @@ class AgentOrchestrator:
 
     @staticmethod
     def _previous_user_message(ctx: AgentContext) -> str:
+        """从短期历史中找到最近一条用户消息，用于上下文精化。"""
         for item in reversed(ctx.history or []):
             if not isinstance(item, dict):
                 continue

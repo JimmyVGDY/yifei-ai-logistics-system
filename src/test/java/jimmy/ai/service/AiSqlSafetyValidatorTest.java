@@ -15,6 +15,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+/**
+ * 锁定 AI 临时 SQL 的安全闸门。
+ * <p>
+ * 这些用例防止模型生成写 SQL、越权表字段、敏感列或绕过列权限的查询。
+ */
 class AiSqlSafetyValidatorTest {
 
     private final StandardColumnRegistry columnRegistry = new StandardColumnRegistry();

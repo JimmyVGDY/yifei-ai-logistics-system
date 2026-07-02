@@ -18,6 +18,7 @@
       />
     </el-table>
     <el-empty v-else description="暂无结构化数据" />
+    <!-- 只有服务端明确返回分页游标和 hasMore 时，才允许用户继续翻页。 -->
     <template v-if="result?.cursorId && result?.hasMore" #footer>
       <el-button text type="primary" @click="$emit('load-more')">加载更多结果</el-button>
     </template>
@@ -31,12 +32,14 @@ import { displayColumns as safeDisplayColumns } from '../utils/ai-display-saniti
 const props = defineProps({
   visible: Boolean,
   result: Object,
+  // 兼容旧调用方保留的字段标签函数，新表格列统一由 sanitizer 生成。
   fieldLabel: { type: Function, default: (f) => f }
 })
 
 defineEmits(['update:visible', 'load-more'])
 
 const displayColumns = computed(() => {
+  // 抽屉和卡片预览共用同一套列过滤逻辑，避免抽屉泄露隐藏字段。
   const columns = safeDisplayColumns(props.result)
   return columns.length ? columns : []
 })

@@ -25,6 +25,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * 验证操作日志拦截器的 traceId、operationId、MDC 和数据库写入行为。
+ * <p>
+ * 这些用例确保审计链路在成功、失败、缺字段兼容和未标注操作场景下都可追踪。
+ */
 class OperationLogInterceptorTest {
 
     @Test

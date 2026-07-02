@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 覆盖自然语言到业务模块查询意图的规则解析。
+ * <p>
+ * 重点锁定相对时间、模块别名、写操作拦截和多轮追问继承，避免模型前置规划失效时后端兜底变弱。
+ */
 class AiQueryIntentParserTest {
 
     private final AiQueryIntentParser parser = new AiQueryIntentParser();

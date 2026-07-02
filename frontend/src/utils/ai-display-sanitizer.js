@@ -1,5 +1,6 @@
 import { getAuthToken } from '../stores/auth-store.js'
 
+// 后端可能仍返回物理字段名或历史英文列名，前端统一映射成中文展示列。
 export const FIELD_LABEL_MAP = {
   id: 'ID',
   order_no: '订单号',
@@ -127,21 +128,25 @@ export const FIELD_LABEL_MAP = {
 }
 
 const LABEL_TO_FIELD = Object.fromEntries(
+  // 反向索引用于处理后端已经中文化的列，仍能找到对应权限字段做二次过滤。
   Object.entries(FIELD_LABEL_MAP).map(([field, label]) => [label, field])
 )
 
+// 永远不允许进入用户界面的系统字段或敏感运行时字段。
 const INTERNAL_FIELDS = new Set([
   'id', 'deleted', 'version', 'create_by', 'update_by', 'created_by', 'updated_by',
   'trace_id', 'operation_id', 'login_session_id', 'cursor_id', 'password', 'token',
   'secret', 'api_key', 'access_token', 'refresh_token', 'mobile_hash'
 ])
 
+// 这些字段即使能映射成中文，也必须确认列权限后才展示。
 const SENSITIVE_FIELDS = new Set([
   'phone', 'mobile', 'email', 'contact_phone', 'license_no', 'base_fee', 'weight_fee',
   'distance_fee', 'additional_fee', 'discount_fee', 'payable_fee', 'actual_fee',
   'payable_amount', 'exception_desc', 'proof_url', 'customer_id'
 ])
 
+// 内部工具名、模块码和 SQL 结果标识统一翻译成用户可理解的中文标题。
 const MODULE_NAME_MAP = {
   query_business_module: '业务数据查询',
   global_fuzzy_search: '全局业务搜索',
@@ -168,10 +173,12 @@ const MODULE_NAME_MAP = {
 }
 
 export function sanitizeToolName(value) {
+  // 结果卡片标题不能直接暴露 execute_readonly_sql/query_business_module。
   return MODULE_NAME_MAP[value] || safeDisplayText(value, '业务数据查询')
 }
 
 export function sanitizeTarget(value) {
+  // 目标名称既可能是模块码，也可能已经是中文；都走安全文本兜底。
   return MODULE_NAME_MAP[value] || safeDisplayText(value, '查询结果')
 }
 
@@ -188,6 +195,7 @@ export function fieldLabel(fieldName) {
 }
 
 export function normalizeDataResult(item) {
+  // SSE 兼容 rows/data 两种字段，进入表格前统一成 rows。
   const rawRows = Array.isArray(item?.rows) ? item.rows : []
   const rawColumns = Array.isArray(item?.columns) && item.columns.length
     ? item.columns
@@ -200,8 +208,10 @@ export function normalizeDataResult(item) {
     const displayRow = {}
     for (const col of columnDefs) {
       if (Object.prototype.hasOwnProperty.call(row, col.source)) {
+        // 后端返回英文源字段时，映射到中文列名。
         displayRow[col.label] = row[col.source]
       } else if (Object.prototype.hasOwnProperty.call(row, col.label)) {
+        // 后端已返回中文字段时保持中文列名，但仍经过 resolveColumn 权限过滤。
         displayRow[col.label] = row[col.label]
       }
     }
@@ -235,6 +245,7 @@ export function displayColumns(result) {
 }
 
 function resolveColumn(rawColumn) {
+  // 未知英文/snake_case 字段默认隐藏，避免数据库字段或外键 ID 泄露。
   const source = String(rawColumn || '').trim()
   if (!source || isInternalField(source)) return null
   const allowed = allAllowedColumns()
@@ -247,6 +258,7 @@ function resolveColumn(rawColumn) {
     field = LABEL_TO_FIELD[source]
     label = source
   } else if (isSafeChineseLabel(source)) {
+    // 只接受安全中文标签，不对未知英文列做原样展示兜底。
     label = source
   } else {
     return null
@@ -258,6 +270,7 @@ function resolveColumn(rawColumn) {
 }
 
 function allAllowedColumns() {
+  // 当前登录态可能没有列级权限数据；空集合表示后端已做过滤，前端不再额外拦。
   const perms = getAuthToken().permissions
   if (Array.isArray(perms)) return new Set()
   const all = new Set()
@@ -271,17 +284,20 @@ function allAllowedColumns() {
 }
 
 function isInternalField(value) {
+  // camelCase 也规整成 snake_case 再判断，覆盖 cursorId/loginSessionId 这类字段。
   const raw = String(value || '').replace(/`/g, '').trim()
   const lower = raw.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()
   return INTERNAL_FIELDS.has(lower) || lower.endsWith('_id') || lower.startsWith('_') || lower.includes('.')
 }
 
 function isSafeChineseLabel(value) {
+  // 中文标签允许少量数字/括号/斜线，仍要经过 looksUnsafe 防 SQL/内部码。
   if (!/^[\u4e00-\u9fa5A-Za-z0-9（）()·/ -]+$/.test(value)) return false
   return !looksUnsafe(value)
 }
 
 function safeDisplayText(value, fallback) {
+  // 摘要、标题、目标统一走这里；不安全就降级成固定中文提示。
   const text = String(value || '').trim()
   if (!text) return fallback
   if (looksUnsafe(text)) return fallback
@@ -289,6 +305,7 @@ function safeDisplayText(value, fallback) {
 }
 
 function looksUnsafe(text) {
+  // 任意用户可见文本只要出现内部工具、SQL 或 snake_case，就视为不可直接展示。
   const lower = String(text || '').toLowerCase()
   if (lower.includes('execute_readonly_sql') || lower.includes('query_business_module')) return true
   if (lower.includes('select ') || lower.includes(' from logistics_') || lower.includes(' from sys_')) return true

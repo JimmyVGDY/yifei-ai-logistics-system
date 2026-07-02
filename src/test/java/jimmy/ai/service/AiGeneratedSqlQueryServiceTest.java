@@ -24,6 +24,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * 覆盖 AI 生成临时 SQL 的执行、纠错和展示净化链路。
+ * <p>
+ * 普通明细查询不能从这里返回数据库字段或 Markdown 表格，统计结果也必须按列权限过滤。
+ */
 class AiGeneratedSqlQueryServiceTest {
 
     @Test

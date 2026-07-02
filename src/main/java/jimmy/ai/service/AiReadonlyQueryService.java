@@ -185,6 +185,11 @@ public class AiReadonlyQueryService {
             return queryDashboard(quickIntent);
         }
 
+        /*
+         * 上下文精化要放在 SQL/看板/续页等硬路径之后、全局搜索之前。
+         * 例如上一轮“看看陈土豆”，本轮“只看订单”，这里把关键词继承为“陈土豆”，
+         * 后续就会走订单模块，而不是再次触发全局候选搜索。
+         */
         quickIntent = refineContextModuleIntent(quickIntent, normalizedMessage, previousUserMessage);
 
         if (isGlobalSearchRequest(normalizedMessage) && hasText(previousUserMessage)) {
@@ -269,6 +274,7 @@ public class AiReadonlyQueryService {
         int queriedModules = 0;
         List<Map<String, Object>> allRows = new ArrayList<>();
         List<String> allColumns = null;
+        // 联合查询面向前端时仍要按模块分组，避免不同模块的列合并成一张不可解释的表。
         List<AiDataResultGroup> dataGroups = new ArrayList<>();
 
         for (SearchModule module : modules) {
@@ -288,6 +294,7 @@ public class AiReadonlyQueryService {
                     allColumns = result.columns();
                 }
             }
+            // 只收集真正有结构化行的分组；空结果已经体现在摘要里，不生成空表卡片。
             dataGroups.addAll(nonEmptyGroups(result, module.module()));
         }
 
@@ -439,6 +446,7 @@ public class AiReadonlyQueryService {
             );
             String cursorId = cursor.map(AiQueryCursor::getCursorId).orElse(null);
             String nextPageHint = remainingCount > 0 ? "还有 " + remainingCount + " 条记录，可输入“继续看”或“查看剩余数据”。" : null;
+            // 单模块查询也构造一个分组，保证全局搜索、续页和普通模块查询使用同一前端契约。
             AiDataResultGroup group = dataGroup(module.module(), toolName, module.moduleName(), summary,
                     rows, columns, cursorId, page.total(), returnedCount, remainingCount, remainingCount > 0, nextPageHint);
             return new AiReadonlyQueryResult(true, summary,
@@ -467,6 +475,7 @@ public class AiReadonlyQueryService {
 
         List<AiCitation> citations = new ArrayList<>();
         List<AiToolCall> toolCalls = new ArrayList<>();
+        // 全局搜索只做候选发现，不再把多个模块的 rows/columns 混成一张表。
         List<AiDataResultGroup> dataGroups = new ArrayList<>();
         StringBuilder answer = new StringBuilder("已按关键词“").append(keywordToUse).append("”进行全场景模糊搜索。");
         long total = 0;
@@ -477,6 +486,7 @@ public class AiReadonlyQueryService {
                 continue;
             }
             if (isSystemModule(module)) {
+                // 普通业务候选搜索默认排除系统管理模块，避免姓名关键词扫出用户/日志/文件等内部信息。
                 continue;
             }
             if (!hasPermission(module.permission())) {
@@ -494,6 +504,7 @@ public class AiReadonlyQueryService {
                 citations.addAll(result.citations());
                 toolCalls.addAll(result.toolCalls());
                 answer.append("\n\n").append(result.answerContext());
+                // 每个命中的模块保留自己的展示目标、列、游标和分页状态。
                 dataGroups.addAll(nonEmptyGroups(result, module.module()));
             }
         }
@@ -506,6 +517,7 @@ public class AiReadonlyQueryService {
                     + "可补充订单号、运单号、客户名称、手机号、车牌号、司机姓名、地址或时间范围继续查询。";
             return simpleResult("全场景模糊搜索", "业务模块", message);
         }
+        // 旧前端仍读取顶层 rows/columns，因此只把首个结果组提升为兼容字段。
         AiDataResultGroup first = dataGroups.isEmpty() ? null : dataGroups.getFirst();
         return new AiReadonlyQueryResult(true, masker.mask(answer.toString()), citations, toolCalls,
                 first == null ? List.of() : first.rows(),
@@ -520,6 +532,7 @@ public class AiReadonlyQueryService {
     }
 
     private AiQueryIntent refineContextModuleIntent(AiQueryIntent current, String message, String previousUserMessage) {
+        // 没有上一轮实体、当前不是明确模块、或当前已经有有效关键词时，都不做继承。
         if (!hasText(previousUserMessage) || current == null || !current.matched() || current.dashboard()
                 || current.forbiddenWrite()) {
             return current;
@@ -531,6 +544,7 @@ public class AiReadonlyQueryService {
         if (!isContextModuleRefinement(message)) {
             return current;
         }
+        // 上一轮关键词可能来自解析器，也可能是“看看陈土豆”这类短实体兜底。
         String previousKeyword = resolveKeyword(previousUserMessage, null);
         if (!hasText(previousKeyword)) {
             return current;
@@ -549,11 +563,13 @@ public class AiReadonlyQueryService {
     }
 
     private boolean isRefinementPlaceholderKeyword(String keyword) {
+        // 解析器可能把“只看”“相关”之类追问词残留为 keyword，这类词不能阻止继承上一轮实体。
         String text = normalizeForSearch(keyword);
         return !hasText(text) || List.of("只看", "只查", "相关", "有关", "信息", "数据", "记录", "明细").contains(text);
     }
 
     private boolean isContextModuleRefinement(String message) {
+        // 这些词表达“在上一轮实体基础上限定模块”，不是新的全局搜索请求。
         String text = normalizeForSearch(message);
         return containsAny(text, List.of("相关", "有关", "这个", "那个", "这个客户", "这个人", "这个司机",
                 "他", "她", "它", "只看", "只查", "跟", "关于"))
@@ -561,10 +577,12 @@ public class AiReadonlyQueryService {
     }
 
     private boolean isSystemModule(SearchModule module) {
+        // 系统模块只允许明确询问时走对应工具，不参与普通姓名/地址/单号候选搜索。
         return List.of("users", "roles", "files", "operationLogs").contains(module.module());
     }
 
     private List<AiDataResultGroup> nonEmptyGroups(AiReadonlyQueryResult result, String fallbackGroupId) {
+        // 子查询已经产生 dataGroups 时直接复用，避免二次包装导致标题或游标丢失。
         if (result == null) {
             return List.of();
         }
@@ -576,6 +594,7 @@ public class AiReadonlyQueryService {
         if (result.rows() == null || result.rows().isEmpty()) {
             return List.of();
         }
+        // 兼容旧结果对象：没有 dataGroups 时，用工具调用记录补齐展示名称和目标。
         String target = result.toolCalls() == null || result.toolCalls().isEmpty()
                 ? fallbackGroupId
                 : result.toolCalls().getFirst().target();
@@ -591,6 +610,7 @@ public class AiReadonlyQueryService {
                                         List<Map<String, Object>> rows, List<String> columns,
                                         String cursorId, Long total, Integer returnedCount,
                                         Long remainingCount, Boolean hasMore, String nextPageHint) {
+        // 分组内只保存已经 buildDisplayRows 处理过的中文列数据；这里再做一次摘要脱敏兜底。
         return new AiDataResultGroup(
                 groupId,
                 toolName,

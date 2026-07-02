@@ -9,6 +9,7 @@ from ai_service.config.settings import settings
 
 
 def _response_preview(resp: httpx.Response) -> str:
+    """截断 Java 错误响应，避免日志里塞入过长 HTML 或异常堆栈。"""
     text = resp.text or ""
     return text[:500]
 
@@ -27,6 +28,7 @@ class JavaClient:
     async def connect(self) -> None:
         headers = {}
         if settings.ai_internal_shared_secret:
+            # shared secret 是 Python 调 Java internal 端点的第一道认证。
             headers["X-Internal-Secret"] = settings.ai_internal_shared_secret
         self._client = httpx.AsyncClient(
             base_url=settings.java_internal_url,
@@ -45,6 +47,7 @@ class JavaClient:
     async def execute_tool(self, tool_name: str, arguments: dict[str, Any],
                            user_context: dict[str, Any] = None) -> dict[str, Any]:
         """回调 Java /ai/internal/tool/execute 执行业务查询。"""
+        # 每次工具执行都带上当前用户上下文，Java 会重新反查权限和数据范围。
         headers = self._build_internal_headers(user_context)
         resp = await self.client.post(
             "/ai/internal/tool/execute",
@@ -63,6 +66,7 @@ class JavaClient:
 
     async def fetch_tool_registry(self, user_context: dict[str, Any] = None) -> list[dict[str, Any]]:
         """拉取当前用户可用的工具列表。"""
+        # 工具注册表也是按用户权限裁剪的，不能使用全局缓存复用给其他账号。
         headers = self._build_internal_headers(user_context)
         resp = await self.client.get("/ai/internal/tools/registry", headers=headers)
         try:
@@ -82,6 +86,7 @@ class JavaClient:
         if not user_context:
             return {}
         import json as _json
+        # 这里保留兼容字段，但 Java 服务端会忽略自报权限类字段并反查真实权限。
         mini_ctx = {
             "userId": str(user_context.get("userId", "")),
             "userCode": str(user_context.get("userCode", "")),
@@ -94,6 +99,7 @@ class JavaClient:
         headers = {"X-Internal-User": _json.dumps(mini_ctx, ensure_ascii=False)}
         internal_secret = str(user_context.get("internalSecret") or "").strip()
         if internal_secret:
+            # 单次请求里的 secret 优先级高于默认 client header，便于测试和多实例调试。
             headers["X-Internal-Secret"] = internal_secret
         return headers
 

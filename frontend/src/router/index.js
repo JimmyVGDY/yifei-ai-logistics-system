@@ -9,6 +9,7 @@ import { fetchSession } from '../api/auth'
 import { canVisit, clearAuthToken, firstMenuPath, hasMenus, hasPermission, isAuthenticated, isSessionChecked, markSessionChecked, resetSessionChecked, saveAuthToken } from '../stores/auth-store'
 
 const routes = [
+  // 业务模块路由通过 meta.module/meta.permission 驱动菜单高亮、权限守卫和通用列表配置。
   { path: '/', redirect: '/dashboard' },
   { path: '/login', component: LoginView, meta: { title: '用户登录', public: true } },
   { path: '/dashboard', component: DashboardView, meta: { title: '运营看板', module: 'dashboard', permission: 'dashboard:view' } },
@@ -41,11 +42,13 @@ router.beforeEach(async (to) => {
     return true
   }
   if (!isAuthenticated()) {
+    // 没有本地 token 时直接回登录页，保留原目标用于登录后跳转。
     resetSessionChecked()
     return { path: '/login', query: { redirect: to.fullPath } }
   }
   if (!isSessionChecked() || !hasMenus()) {
     try {
+      // 刷新页面后从后端恢复会话和菜单，避免只依赖 sessionStorage。
       saveAuthToken(await fetchSession())
       markSessionChecked()
     } catch (error) {
@@ -55,6 +58,7 @@ router.beforeEach(async (to) => {
     }
   }
   if (!canVisit(to.path) || !hasPermission(to.meta.permission)) {
+    // 路由和按钮权限都以后端返回菜单为准；无权时回到第一个可访问菜单。
     const target = firstMenuPath()
     return target === to.path ? { path: '/login' } : target
   }

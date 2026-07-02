@@ -1,3 +1,4 @@
+// 后端状态码到中文展示文案的统一兜底表，避免页面散落 switch/case。
 const statusMap = {
   ACTIVE: '启用',
   ENABLED: '启用',
@@ -42,6 +43,7 @@ const statusMap = {
 }
 
 export function statusLabel(value) {
+  // 空值不渲染“未知状态”，减少表格中无意义的占位文本。
   if (value === null || value === undefined || value === '') {
     return ''
   }
@@ -50,6 +52,7 @@ export function statusLabel(value) {
 }
 
 export function formatDateTime(value) {
+  // 后端已经返回标准格式时直接复用，避免浏览器时区再次转换。
   if (!value) {
     return ''
   }
@@ -58,6 +61,7 @@ export function formatDateTime(value) {
   }
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
+    // 非日期字符串保持原样，方便排查异常数据。
     return value
   }
   const pad = (number) => String(number).padStart(2, '0')

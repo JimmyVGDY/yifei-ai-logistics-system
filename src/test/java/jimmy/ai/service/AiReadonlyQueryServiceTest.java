@@ -29,10 +29,16 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.ArgumentCaptor;
 
+/**
+ * 锁定 AI 只读查询服务的安全边界和多轮查询行为。
+ * <p>
+ * 这些用例重点防止：权限码泄露、写操作绕过、普通明细误进 SQL、全局搜索混表、续页游标串台。
+ */
 class AiReadonlyQueryServiceTest {
 
     @Test
     void shouldReturnFriendlyMessageAndSkipQueryWhenPermissionDenied() {
+        // 权限不足时必须只返回中文提示，不能继续查库，也不能把 permission/module 暴露给用户。
         AiQueryIntentParser parser = mock(AiQueryIntentParser.class);
         AiGeneratedSqlQueryService sqlQueryService = mock(AiGeneratedSqlQueryService.class);
         LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);
@@ -69,6 +75,7 @@ class AiReadonlyQueryServiceTest {
 
     @Test
     void shouldRejectWriteRequestWithoutQueryingDatabase() {
+        // AI 助手是只读入口，写意图应在解析层直接拦截。
         AiQueryIntentParser parser = mock(AiQueryIntentParser.class);
         AiGeneratedSqlQueryService sqlQueryService = mock(AiGeneratedSqlQueryService.class);
         LogisticsRequirementService requirementService = mock(LogisticsRequirementService.class);

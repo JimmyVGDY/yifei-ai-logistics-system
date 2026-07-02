@@ -1,4 +1,6 @@
+// 通用模块页的前端元数据中心：列表列、编辑字段、状态选项都从这里驱动。
 function columns(definition) {
+  // 使用紧凑字符串维护列定义，避免每个模块重复写大段对象字面量。
   return definition.split(',').map((item) => {
     const [prop, label] = item.split(':')
     return { prop, label, minWidth: prop.includes('desc') || prop.includes('address') ? 220 : 130 }
@@ -6,10 +8,12 @@ function columns(definition) {
 }
 
 function moduleMeta(module, title, description, columnDefinition, editDefinition) {
+  // 所有可编辑模块保持同一种结构，ModuleListView 可以按 module 动态渲染。
   return { title, description, columns: columns(columnDefinition), editable: true, editFields: editFields(editDefinition, module) }
 }
 
 function editFields(definition, module) {
+  // 编辑字段定义同时包含类型和小数精度，关系型下拉由 fieldOptions 统一补齐。
   return definition.split(',').map((item) => {
     const [prop, label, type, precision] = item.split(':')
     return { prop, label, type: type || 'text', precision: precision ? Number(precision) : undefined, options: fieldOptions(prop, module) }
@@ -17,6 +21,7 @@ function editFields(definition, module) {
 }
 
 export function options(definition) {
+  // 把 "值:标签" 字符串转成 Element Plus select 可消费的 options。
   return definition.split(',').map((item) => {
     const [value, label] = item.split(':')
     return { value, label }
@@ -24,6 +29,7 @@ export function options(definition) {
 }
 
 export const statusOptions = {
+  // 状态码必须和后端枚举/数据库值一致，页面只展示中文标签。
   numeric: options('1:启用,0:停用'),
   common: options('ACTIVE:启用,DISABLED:停用,PAUSED:暂停'),
   order: options('CREATED:已创建,WAIT_DISPATCH:待调度,DISPATCHED:已调度,PICKED_UP:已揽收,IN_TRANSIT:运输中,DELIVERING:派送中,DELIVERED:已送达,SIGNED:已签收,COMPLETED:已完成,CANCELLED:已取消,EXCEPTION:异常'),
@@ -45,6 +51,7 @@ export const fieldOptionGroups = {
 }
 
 export const relationFieldSources = {
+  // 关系字段对应的下拉数据来源，避免编辑弹窗硬编码每个外键的接口。
   users: { role_id: 'roles', customer_id: 'orderCustomers' },
   waybills: { order_id: 'orders' },
   dispatches: { order_id: 'orders', waybill_id: 'waybills', driver_id: 'drivers', vehicle_id: 'vehicles' },
@@ -55,6 +62,7 @@ export const relationFieldSources = {
 }
 
 export const moduleMetas = {
+  // 每个模块的列表列和编辑字段都在这里登记，权限仍以后端返回为准。
   orders: moduleMeta('orders', '运单管理', '统一维护订单、调度前状态和业务下单入口', 'order_no:订单号,customer_name:客户名称,sender_address:发货地址,receiver_address:收货地址,cargo_name:货物名称,cargo_weight:重量,status:状态,created_at:创建时间,updated_at:更新时间', 'customerName:客户名称,senderAddress:发货地址,receiverAddress:收货地址,cargoName:货物名称,cargoWeight:重量:number:3'),
   customers: moduleMeta('customers', '客户管理', '维护寄件客户和联系人资料', 'customer_code:客户编号,customer_name:客户名称,contact_name:联系人,contact_phone:联系电话,province:省份,city:城市,address:地址,status:状态,created_at:创建时间,updated_at:更新时间', 'customer_name:客户名称,contact_name:联系人,contact_phone:联系电话,province:省份,city:城市,address:地址,status:状态'),
   waybills: moduleMeta('waybills', '运单中心', '订单创建后生成的运单和运输状态', 'waybill_no:运单号,order_id:订单ID,order_no:订单号,start_site:始发网点,target_site:目的网点,current_location:当前位置,transport_status:运输状态,create_time:创建时间,update_time:更新时间', 'order_id:订单ID,start_site:始发网点,target_site:目的网点,current_location:当前位置,transport_status:运输状态'),
@@ -74,6 +82,7 @@ export const moduleMetas = {
 export const operationLogTableColumns = columns('operation_time:操作时间,operation_status:状态,operation_source:操作来源,executor_type:执行者,operation:操作内容,ai_tool_name:AI工具,ai_tool_target:AI目标,ai_memory_event_type:记忆事件,ai_memory_hit_count:记忆命中数,username:操作人,user_code:用户编号,request_method:方法,request_uri:请求地址,cost_ms:耗时ms,trace_id:Trace ID,login_session_id:会话ID')
 
 function fieldOptions(prop, module) {
+  // 按字段名和模块给编辑弹窗提供固定枚举，下拉数据接口不在这里发起。
   if (prop === 'license_type') {
     return fieldOptionGroups.licenseType
   }

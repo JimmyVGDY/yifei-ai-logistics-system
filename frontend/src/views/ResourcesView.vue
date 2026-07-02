@@ -56,6 +56,7 @@ const uploading = ref(false)
 const uploadedFile = ref(null)
 
 async function loadStatus() {
+  // 资源中心只展示当前后端可见配置，不在前端主动探测中间件端口。
   loading.value = true
   try {
     status.value = await fetchInfrastructureStatus()
@@ -66,10 +67,12 @@ async function loadStatus() {
 
 async function handleUpload(uploadFile) {
   if (uploading.value) {
+    // Element Plus 可能连续触发 change，上传中直接忽略重复事件。
     return
   }
   uploading.value = true
   try {
+    // 文件校验和落盘路径以后端为准，前端只展示返回的相对路径。
     uploadedFile.value = await uploadBusinessFile(uploadFile.raw)
     ElMessage.success('文件上传成功')
   } finally {

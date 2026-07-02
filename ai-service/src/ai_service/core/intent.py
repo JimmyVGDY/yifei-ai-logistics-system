@@ -10,23 +10,35 @@ logger = structlog.get_logger()
 @dataclass
 class IntentPlan:
     """LLM/规则共同产出的工具规划建议，最终仍由 Java 白名单校验。"""
+    # 粗粒度意图，决定是否继续走工具链、澄清、纠偏或普通聊天。
     intent: str = "BUSINESS_QUERY"
+    # 规划置信度低于阈值时，Agent 会回退到确定性规则结果。
     confidence: float = 0.0
+    # 建议查询的标准模块码，只允许白名单模块，不能放数据库表名。
     modules: list[str] = field(default_factory=list)
+    # 从用户话术或上一轮上下文抽取出的业务实体关键词。
     keyword: str = ""
+    # 预留给后端统一时间归一化的范围字段，不能由模型直接拼 SQL。
     time_range: dict[str, str] = field(default_factory=dict)
+    # detail 表示明细查询，analysis 才允许开放临时 SQL 工具。
     operation: str = "detail"
+    # 标记“只看订单/这个客户的费用”这类对上一轮实体的收窄。
     refinement_of_previous: bool = False
+    # 宽泛且低置信度的问题应澄清，而不是直接跨模块乱查。
     needs_clarification: bool = False
+    # 工具建议只用于 Python 侧过滤和参数纠偏，Java 仍做最终校验。
     tool_hint: str = ""
+    # 便于调试和测试确认本次规划来自规则还是 LLM。
     reason: str = ""
 
     @classmethod
     def from_dict(cls, value: dict[str, Any] | None) -> "IntentPlan":
+        """从 LLM JSON 安全构造计划对象，字段异常时使用保守默认值。"""
         if not isinstance(value, dict):
             return cls()
         modules = value.get("modules") or []
         if isinstance(modules, str):
+            # 兼容模型偶尔把数组写成单个字符串的情况。
             modules = [modules]
         time_range = value.get("timeRange") or value.get("time_range") or {}
         if not isinstance(time_range, dict):
@@ -73,6 +85,7 @@ class IntentClassifier:
         "待处理", "运输中", "已完成",
     }
     MODULE_ALIASES = {
+        # 这些别名只做语义规划，不替代 Java 侧 AiQueryNormalizer 和权限校验。
         "orders": ("订单", "订单管理", "运单管理", "LO", "ORD"),
         "waybills": ("运单中心", "运单号", "WB"),
         "customers": ("客户", "客户名", "客户名称", "联系人"),
@@ -137,9 +150,11 @@ class IntentClassifier:
         modules = self._detect_modules(text)
         keyword = self._extract_keyword(text, modules)
         previous_keyword = self._extract_keyword(previous, self._detect_modules(previous))
+        # “这个客户的订单”这类追问没有新关键词，需要从上一轮实体继承。
         refinement = bool(previous_keyword and modules and not keyword and self._looks_like_refinement(text))
         if refinement:
             keyword = previous_keyword
+        # 只有分析类问题才给 SQL 工具开门，普通明细查询必须走业务模块。
         operation = "analysis" if self._looks_like_sql_analysis(text) else "detail"
         tool_hint = ""
         if operation == "analysis":
@@ -188,6 +203,7 @@ class IntentClassifier:
         return "你刚刚限定的范围"
 
     def _detect_modules(self, text: str) -> list[str]:
+        """按业务别名识别候选模块；普通业务规划默认剔除系统模块。"""
         if not text:
             return []
         found = []
@@ -200,6 +216,7 @@ class IntentClassifier:
         return found
 
     def _extract_keyword(self, text: str, modules: list[str]) -> str:
+        """从用户话术中剥掉查询动作和模块词，留下更像实体的关键词。"""
         if not text:
             return ""
         cleaned = text
@@ -211,6 +228,7 @@ class IntentClassifier:
             cleaned = cleaned.replace(word, " ")
         for module in modules:
             for alias in self.MODULE_ALIASES.get(module, ()):
+                # 明确模块词不应该被当成 keyword，例如“全部订单”不能把“订单”塞给后端搜索。
                 cleaned = cleaned.replace(alias, " ")
         cleaned = cleaned.strip(" ，,。；;：:！？?、")
         parts = [part for part in cleaned.split() if len(part) >= 2]
@@ -222,9 +240,11 @@ class IntentClassifier:
         return keyword
 
     def _looks_like_refinement(self, text: str) -> bool:
+        """判断当前句是否在限定上一轮实体，而不是开启一个全新查询。"""
         return any(word in text for word in ("相关", "有关", "关于", "这个", "那个", "他", "她", "它", "只看", "只查", "跟"))
 
     def _looks_like_sql_analysis(self, text: str) -> bool:
+        """统计、聚合、排名、关联类表达才属于 SQL 分析候选。"""
         return any(word in text for word in (
             "sql", "连表", "关联", "统计", "汇总", "数量", "总数", "排名",
             "最多", "最少", "平均", "多少", "占比", "比例", "group", "join",
@@ -240,6 +260,7 @@ class IntentClassifier:
 
 
 def _float_between(value: Any, lower: float, upper: float) -> float:
+    """把模型返回的置信度压到安全范围，非法值按 lower 处理。"""
     try:
         number = float(value)
     except (TypeError, ValueError):
